@@ -192,6 +192,53 @@ export async function getTask(id: string): Promise<Task | null> {
   return data ? toTask(data as TaskRow) : null;
 }
 
+export type CalendarTaskRange = {
+  scheduled: Task[];
+  deadlines: Task[];
+};
+
+/**
+ * Calendar task projection inputs. Scheduled rows and due-only rows are read
+ * separately so a deadline can never be mistaken for a work block.
+ */
+export async function listTasksForCalendarRange(
+  start: string,
+  end: string,
+  fromDate: string,
+  toDateExclusive: string,
+): Promise<CalendarTaskRange> {
+  const supabase = getSupabaseClient();
+
+  const [scheduledResult, deadlineResult] = await Promise.all([
+    supabase
+      .from(TABLE)
+      .select(COLUMNS)
+      .neq("status", "cancelled")
+      .not("scheduled_start", "is", null)
+      .lt("scheduled_start", end)
+      .or(`scheduled_end.is.null,scheduled_end.gt.${quote(start)}`)
+      .order("scheduled_start", { ascending: true })
+      .limit(500),
+    supabase
+      .from(TABLE)
+      .select(COLUMNS)
+      .neq("status", "cancelled")
+      .is("scheduled_start", null)
+      .gte("due_date", fromDate)
+      .lt("due_date", toDateExclusive)
+      .order("due_date", { ascending: true })
+      .limit(500),
+  ]);
+
+  if (scheduledResult.error) fail("load scheduled tasks", scheduledResult.error);
+  if (deadlineResult.error) fail("load task deadlines", deadlineResult.error);
+
+  return {
+    scheduled: (scheduledResult.data as TaskRow[]).map(toTask),
+    deadlines: (deadlineResult.data as TaskRow[]).map(toTask),
+  };
+}
+
 export async function createTask(draft: TaskDraft): Promise<Task> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from(TABLE).insert(toRow(draft)).select(COLUMNS).single();

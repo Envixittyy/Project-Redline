@@ -14,12 +14,14 @@ src/
     shell/                Domain-neutral shell and navigation composition
     ui/                   Reusable, domain-neutral interface components
   features/
+    calendar/             Calendar read model, views, and native event editor
     tasks/                Task interface, server actions, and presentation rules
   hooks/                  Shared React hooks with more than one real consumer
   lib/
     date/                 Calendar-day and time-zone helpers
     theme/                Theme metadata such as supported accent palettes
   services/
+    calendar-events/      Source-aware calendar-event persistence
     integrations/         Adapters for external systems
     supabase/             Server-side Supabase client
     tasks/                Task persistence
@@ -37,7 +39,9 @@ The `(workspace)` route group applies `AppShell` to Home, Tasks, Calendar, Schoo
 
 Primary destinations are defined once in `src/lib/navigation.ts` and consumed by both the persistent desktop sidebar and safe-area-aware mobile tab bar. Mobile content reserves enough bottom space for the fixed bar. Desktop content is constrained to a readable frame and can expand into multi-column dashboard layouts.
 
-Calendar and School routes remain visual placeholders. More reserves clear entries for Football, Projects, Areas, and Integrations while keeping Appearance as its only functional section.
+School remains a visual placeholder. More reserves clear entries for Football, Projects, Areas, and Integrations while keeping Appearance as its only functional section.
+
+Calendar is a working route as of Phase 1D. Its Month, Week, and Agenda modes are query parameters (`/calendar?view=week&date=2026-08-27`) so view and anchor date remain linkable. The page is a server component that resolves the visible range and reads events and tasks in parallel; `CalendarWorkspace` is the interaction boundary for view controls and editors. The mobile Month grid compresses item copy into semantic marks, Week uses an internally scrollable seven-day surface rather than overflowing the page, and Agenda is a readable narrow-screen list.
 
 Tasks is a working route as of Phase 1C. Its seven views are query parameters (`/tasks?view=today`) rather than nested routes, so Tasks stays a single destination in the primary navigation and secondary features never need to expand the mobile tab bar.
 
@@ -83,13 +87,15 @@ Blackboard is limited to calendar-related information unless requirements change
 
 ## Data layer
 
-Supabase (PostgreSQL) holds task data. `src/services/supabase/server.ts` builds a single server-side client from `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; it imports `server-only` so it can never be pulled into a client bundle. When the variables are absent it throws a typed `SupabaseNotConfiguredError` and the Tasks route renders a setup notice rather than failing.
+Supabase (PostgreSQL) holds task and native calendar-event data. `src/services/supabase/server.ts` builds a single server-side client from `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; it imports `server-only` so it can never be pulled into a client bundle. When the variables are absent it throws a typed `SupabaseNotConfiguredError` and data-backed routes render setup notices rather than failing.
 
 `src/services/tasks/task-repository.ts` is the only module that speaks to the table. It maps snake_case rows to the camelCase `Task` type in `src/types/task.ts`, builds each view's query, and converts Postgres errors into `TaskRepositoryError` after logging the cause. Features never see a Supabase client.
 
 Mutations run through server actions in `src/features/tasks/task-actions.ts`. Actions validate their own input because a server action is a public endpoint, return a discriminated `ActionResult` instead of throwing across the boundary, and call `revalidatePath` so server-rendered views refresh.
 
 Data access stays server-side by default and exposes narrow operations to features. Do not create a large speculative schema. Add tables and constraints alongside the product phase that establishes their behavior.
+
+`src/services/calendar-events/calendar-event-repository.ts` is the only module that speaks to `calendar_events`. Range reads use overlap semantics (`starts_at < rangeEnd` and `ends_at > rangeStart`) so multi-day events appear in every occupied local day. Native mutations are constrained to `source = life_os`; future integration adapters must own writes for their provider rows.
 
 ## Task schema
 
@@ -99,17 +105,25 @@ Check constraints keep invalid states unrepresentable: a title cannot be blank, 
 
 `area`, `project`, and `course` are free text in this phase. Promoting them to their own tables is an additive migration: create the table, add a nullable foreign key, backfill from the text column, then drop the text column. Do not build those systems before their phases.
 
+## Calendar-event schema
+
+`calendar_events` stores `title`, `description`, `starts_at`, `ends_at`, `all_day`, `event_type`, `source`, `external_id`, `source_url`, optional `course`, and created/updated timestamps. `calendar_event_source` prepares the stable identities `life_os`, `blackboard`, and `google_calendar`; only `life_os` has behavior in Phase 1D. External identity is unique per source when present. End is always strictly after start, and all-day intervals use an exclusive end instant.
+
+`event_type` is constrained by native server-action validation rather than a database enum so future source adapters can preserve provider categories without changing the table. Course is free text until School establishes course metadata. Calendar item styling exposes a semantic per-item accent custom property; future course metadata may supply it without hard-coding course colors into Calendar components.
+
 ## Days, instants, and time zones
 
 A due date is a calendar day, so `due_date` is a `date` and is compared as a `YYYY-MM-DD` string with no zone conversion. A scheduled start or end is a real instant, so both are `timestamptz`.
 
 Deciding what "today" means therefore needs a zone. `src/lib/date/day.ts` resolves it from `APP_TIME_ZONE`, falling back to the runtime's own zone, and converts a calendar day into the pair of UTC instants that bound it. The page passes the resolved zone and today's date down as props so a row formats identically on the server and after hydration.
 
+Calendar follows the same rule. Timed event and scheduled-task values are written as ISO instants and stored as `timestamptz`; `datetime-local` wall clocks are converted using the resolved workspace zone. All-day events are stored as half-open local-day boundaries (`[start, dayAfterEnd)`) converted to instants. Calendar queries use half-open ranges and local display converts instants back through the same zone. Deployments must set `APP_TIME_ZONE` to the user's IANA zone to avoid a hosting runtime's UTC default changing day boundaries.
+
 ## Tasks are not calendar events
 
-The schema has no events table and no event foreign key, and nothing in the task write path creates a second row. Scheduling a task sets `scheduled_start` and `scheduled_end` on the task itself.
+The task schema has no event foreign key, and nothing in the task write path creates a calendar-event row. Scheduling a task sets `scheduled_start` and `scheduled_end` on the task itself.
 
-The dated views already combine both signals: a task reaches Today because its due date is today or because its scheduled start falls inside today, evaluated as a single query against the task table. Phase 1D should extend this at the presentation layer by reading tasks and events separately and composing a view model. It must not write task rows into an events table, mirror events into tasks, or add a `calendar_event_id` to `tasks`.
+The dated task views combine both signals: a task reaches Today because its due date is today or because its scheduled start falls inside today. Calendar performs two task reads for a visible range: overlapping scheduled tasks and unscheduled tasks whose date-only deadline is in range. `buildCalendarItems` then creates a transient discriminated union of event, scheduled-task, and deadline references. Clicking either task presentation opens the original task editor, and task actions revalidate both `/tasks` and `/calendar`. This view model has no repository or write path, so it cannot create duplicates.
 
 ## Future authentication
 

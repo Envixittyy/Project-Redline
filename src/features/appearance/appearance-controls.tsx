@@ -92,7 +92,10 @@ function subscribe(onStoreChange: () => void) {
   };
 }
 
-function updateAppearance(next: AppearanceState) {
+function updateAppearance(change: Partial<AppearanceState>) {
+  // Merge onto the store rather than a rendered snapshot, so a selection made
+  // before React re-renders cannot revert the other control.
+  const next: AppearanceState = { ...readSnapshot(), ...change };
   cachedSnapshot = next;
   document.documentElement.dataset.theme = next.theme;
   document.documentElement.dataset.accent = next.accent;
@@ -126,7 +129,7 @@ export function AppearanceControls() {
                 className={styles.modeButton}
                 data-selected={selected || undefined}
                 aria-pressed={selected}
-                onClick={() => updateAppearance({ ...appearance, theme: mode.id })}
+                onClick={() => updateAppearance({ theme: mode.id })}
               >
                 <Icon size={19} aria-hidden="true" />
                 <span>{mode.label}</span>
@@ -152,7 +155,7 @@ export function AppearanceControls() {
                 data-accent={palette.id}
                 aria-pressed={selected}
                 aria-label={`${palette.label} accent palette${selected ? ", selected" : ""}`}
-                onClick={() => updateAppearance({ ...appearance, accent: palette.id })}
+                onClick={() => updateAppearance({ accent: palette.id })}
               >
                 <span className={styles.swatch} aria-hidden="true"><span /></span>
                 <span>{palette.label}</span>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import { appearanceInitScript, defaultThemeMode } from "@/lib/theme/appearance";
 import { defaultAccentPalette } from "@/lib/theme/palettes";
@@ -11,6 +11,14 @@ export const metadata: Metadata = {
     template: "%s · Life OS",
   },
   description: "A calm, personal system for organizing everyday life.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Required for env(safe-area-inset-*) to resolve on notched devices and in
+  // an installed standalone window; the shell relies on those insets.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

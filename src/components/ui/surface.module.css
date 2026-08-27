@@ -1,0 +1,50 @@
+.surface {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+}
+
+.base {
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.glass {
+  background: var(--surface-translucent);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(var(--blur-surface)) saturate(1.2);
+}
+
+.elevated {
+  background: var(--surface-elevated);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-elevated);
+}
+
+.subtle {
+  background: var(--surface-subtle);
+}
+
+.interactive {
+  background: var(--surface-interactive);
+  box-shadow: var(--shadow-card);
+  transition:
+    translate var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    box-shadow var(--motion-standard) var(--motion-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .interactive:hover {
+    translate: 0 -2px;
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
+    box-shadow: var(--shadow-elevated);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive:hover {
+    translate: none;
+  }
+}

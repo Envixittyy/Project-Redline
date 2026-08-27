@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import { appearanceInitScript, defaultThemeMode } from "@/lib/theme/appearance";
 import { defaultAccentPalette } from "@/lib/theme/palettes";
@@ -11,6 +11,10 @@ export const metadata: Metadata = {
     template: "%s · Life OS",
   },
   description: "A calm, personal system for organizing everyday life.",
+};
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

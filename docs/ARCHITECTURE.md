@@ -99,7 +99,7 @@ Data access stays server-side by default and exposes narrow operations to featur
 
 ## Task schema
 
-`supabase/migrations` holds the SQL history. The `tasks` table carries `title`, `description`, `status`, `priority`, `due_date`, `scheduled_start`, `scheduled_end`, `area`, `project`, `course`, and the created, updated, and completed timestamps. `task_status` and `task_priority` are Postgres enums, so an unknown value fails at the database rather than silently persisting.
+`supabase/migrations` holds the SQL history. The `tasks` table carries `title`, `description`, `status`, `priority`, `due_date`, optional `due_at`, `scheduled_start`, `scheduled_end`, `area`, `project`, `course`, and the created, updated, and completed timestamps. `task_status` and `task_priority` are Postgres enums, so an unknown value fails at the database rather than silently persisting. `submitted` is distinct from `completed`: submission means the work was handed in, while completion remains the terminal Done state that owns `completed_at`.
 
 Check constraints keep invalid states unrepresentable: a title cannot be blank, a scheduled end requires a start and cannot precede it, and `completed_at` is set exactly when the status is `completed`. A trigger maintains `updated_at`. Three indexes support the views: `(status, due_date)` for every dated view, `completed_at desc` for Completed, and a partial index on `scheduled_start` that the Phase 1D calendar range query will also use.
 
@@ -113,17 +113,27 @@ Check constraints keep invalid states unrepresentable: a title cannot be blank, 
 
 ## Days, instants, and time zones
 
-A due date is a calendar day, so `due_date` is a `date` and is compared as a `YYYY-MM-DD` string with no zone conversion. A scheduled start or end is a real instant, so both are `timestamptz`.
+A due date is a calendar day, so `due_date` is a `date` and is compared as a `YYYY-MM-DD` string with no zone conversion. An explicitly timed deadline adds `due_at` as a `timestamptz`; it never borrows or invents a time from personal scheduling. A scheduled start or end is also a real instant, so both are `timestamptz`.
 
-Deciding what "today" means therefore needs a zone. `src/lib/date/day.ts` resolves it from `APP_TIME_ZONE`, falling back to the runtime's own zone, and converts a calendar day into the pair of UTC instants that bound it. The page passes the resolved zone and today's date down as props so a row formats identically on the server and after hydration.
+Deciding what "today" means therefore needs a zone. `src/lib/date/day.ts` resolves it from a valid `APP_TIME_ZONE`, falling back to `Asia/Manila` rather than the runtime's location, and converts a calendar day into the pair of UTC instants that bound it. Invalid calendar days and offset-free instants are rejected. Wall-clock conversion rejects nonexistent DST times and deterministically selects the earlier occurrence when a clock repeats. The page passes the resolved zone and today's date down as props so a row formats identically on the server and after hydration.
 
-Calendar follows the same rule. Timed event and scheduled-task values are written as ISO instants and stored as `timestamptz`; `datetime-local` wall clocks are converted using the resolved workspace zone. All-day events are stored as half-open local-day boundaries (`[start, dayAfterEnd)`) converted to instants. Calendar queries use half-open ranges and local display converts instants back through the same zone. Deployments must set `APP_TIME_ZONE` to the user's IANA zone to avoid a hosting runtime's UTC default changing day boundaries.
+Calendar follows the same rule. Timed event and scheduled-task values are written as ISO instants and stored as `timestamptz`; `datetime-local` wall clocks are converted using the resolved workspace zone. All-day events are stored as half-open local-day boundaries (`[start, dayAfterEnd)`) converted to instants. Calendar queries use half-open ranges and local display converts instants back through the same zone. Deployments outside the default Manila workspace should set `APP_TIME_ZONE` to the intended IANA zone.
 
 ## Tasks are not calendar events
 
 The task schema has no event foreign key, and nothing in the task write path creates a calendar-event row. Scheduling a task sets `scheduled_start` and `scheduled_end` on the task itself.
 
-The dated task views combine both signals: a task reaches Today because its due date is today or because its scheduled start falls inside today. Calendar performs two task reads for a visible range: overlapping scheduled tasks and unscheduled tasks whose date-only deadline is in range. `buildCalendarItems` then creates a transient discriminated union of event, scheduled-task, and deadline references. Clicking either task presentation opens the original task editor, and task actions revalidate both `/tasks` and `/calendar`. This view model has no repository or write path, so it cannot create duplicates.
+The dated task views combine both signals: a task reaches Today because its due date is today or because its scheduled start falls inside today. Calendar performs two task reads for a visible range: overlapping scheduled tasks and tasks whose deadline is in range. `buildCalendarItems` deduplicates the reads and delegates to the pure calendar-domain adapter. A task with both signals intentionally produces a scheduled work block and a separate deadline marker. Clicking either task presentation opens the original task editor, and task actions revalidate both `/tasks` and `/calendar`. This view model has no repository or write path, so it cannot create duplicate domain records.
+
+## Phase 1F calendar domain contract
+
+`src/features/calendar/calendar-domain.ts` is the shared mapping and rule layer for future Month, Week, Agenda, and Timetable interfaces. It projects source-aware native events, task deadlines, task schedules, and recurring course-meeting occurrences into a typed `CalendarEntry` union. Date-only task deadlines are all-day markers. Exact deadlines use `dueAt`. Scheduled entries always represent personal work time. A task may produce both representations without either one becoming a native event.
+
+The default filter contract shows tasks, Submitted work, native events, course meetings, all-day entries, deadlines, and schedules, while hiding Done and cancelled tasks. Submitted and Done remain independently filterable. Submitted, Done, and cancelled tasks are not overdue. An open date-only task becomes overdue at the start of the next day in the display zone; an exact deadline becomes overdue only after its stored instant.
+
+Task dragging uses `rescheduleTask` and the validating `rescheduleTaskAction`. `move_deadline` changes only the deadline and preserves an existing local due clock; `move_schedule` changes only the personal interval and preserves its duration. Neither operation performs an implicit conversion between a deadline and a work block.
+
+Courses remain free text on persisted tasks and events. There is not yet a persisted School course or course-meeting model. `src/types/course-meeting.ts` therefore defines only the minimal calendar-facing identity and weekly recurrence adapter needed by the later School/UI phase, including a pass-through semantic color. Archiving is also not represented in the task schema, so the calendar does not claim archive behavior until that domain exists.
 
 ## Future authentication
 

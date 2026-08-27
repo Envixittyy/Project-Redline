@@ -2,10 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 
-import { isIsoDate } from "@/lib/date/day";
+import {
+  CalendarRescheduleError,
+  rescheduleTask,
+  type TaskRescheduleRequest,
+} from "@/features/calendar/calendar-domain";
+import { isIsoDate, resolveTimeZone, todayIn } from "@/lib/date/day";
 import {
   createTask,
   deleteTask,
+  getTask,
   setTaskCompletion,
   updateTask,
 } from "@/services/tasks/task-repository";
@@ -82,7 +88,7 @@ function requireId(value: unknown): string {
 
 /** Translate any thrown error into a message the interface can show. */
 function toFailure(error: unknown): ActionResult {
-  if (error instanceof InvalidInputError) {
+  if (error instanceof InvalidInputError || error instanceof CalendarRescheduleError) {
     return { ok: false, message: error.message };
   }
 
@@ -134,6 +140,7 @@ export type TaskEditInput = {
   status?: string | null;
   priority?: string | null;
   dueDate?: string | null;
+  dueAt?: string | null;
   scheduledStart?: string | null;
   scheduledEnd?: string | null;
   area?: string | null;
@@ -156,6 +163,8 @@ export async function saveTaskAction(id: unknown, input: TaskEditInput): Promise
 
     const scheduledStart = optionalInstant(input?.scheduledStart, "The scheduled start");
     const scheduledEnd = optionalInstant(input?.scheduledEnd, "The scheduled end");
+    const dueDate = optionalDate(input?.dueDate);
+    const dueAt = optionalInstant(input?.dueAt, "The due time");
 
     if (scheduledEnd && !scheduledStart) {
       throw new InvalidInputError("A scheduled end needs a scheduled start.");
@@ -163,12 +172,19 @@ export async function saveTaskAction(id: unknown, input: TaskEditInput): Promise
     if (scheduledStart && scheduledEnd && Date.parse(scheduledEnd) < Date.parse(scheduledStart)) {
       throw new InvalidInputError("The scheduled end cannot be before the scheduled start.");
     }
+    if (dueAt && !dueDate) {
+      throw new InvalidInputError("A due time needs a due date.");
+    }
+    if (dueAt && todayIn(resolveTimeZone(), new Date(dueAt)) !== dueDate) {
+      throw new InvalidInputError("The due time must fall on the due date in the workspace time zone.");
+    }
 
     const patch: TaskPatch = {
       title: requireTitle(input?.title),
       description: optionalText(input?.description, "The description"),
       priority: optionalPriority(input?.priority) ?? "none",
-      dueDate: optionalDate(input?.dueDate),
+      dueDate,
+      dueAt,
       scheduledStart,
       scheduledEnd,
       area: optionalText(input?.area, "The area"),
@@ -195,6 +211,47 @@ export async function setTaskCompletionAction(
     await setTaskCompletion(requireId(id), completed === true);
     revalidateTaskConsumers();
 
+    return { ok: true };
+  } catch (error) {
+    return toFailure(error);
+  }
+}
+
+export type TaskRescheduleInput =
+  | { kind: "move_deadline"; toDate: string; timeZone?: string }
+  | { kind: "move_schedule"; toStart: string };
+
+function validatedReschedule(input: TaskRescheduleInput): TaskRescheduleRequest {
+  if (input?.kind === "move_deadline") {
+    if (!isIsoDate(input.toDate)) throw new InvalidInputError("Choose a valid deadline date.");
+    return {
+      kind: "move_deadline",
+      toDate: input.toDate,
+      timeZone: input.timeZone?.trim() || resolveTimeZone(),
+    };
+  }
+
+  if (input?.kind === "move_schedule") {
+    const toStart = optionalInstant(input.toStart, "The scheduled start");
+    if (!toStart) throw new InvalidInputError("Choose a scheduled start.");
+    return { kind: "move_schedule", toStart };
+  }
+
+  throw new InvalidInputError("That reschedule operation is not recognised.");
+}
+
+/** Persist a drag without changing the task's other calendar signal. */
+export async function rescheduleTaskAction(
+  id: unknown,
+  input: TaskRescheduleInput,
+): Promise<ActionResult> {
+  try {
+    const taskId = requireId(id);
+    const task = await getTask(taskId);
+    if (!task) throw new InvalidInputError("That task no longer exists.");
+
+    await updateTask(taskId, rescheduleTask(task, validatedReschedule(input)));
+    revalidateTaskConsumers();
     return { ok: true };
   } catch (error) {
     return toFailure(error);

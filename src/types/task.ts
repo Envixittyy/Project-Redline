@@ -4,6 +4,7 @@ export const taskStatuses = [
   { id: "in_progress", label: "In progress" },
   { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
+  { id: "submitted", label: "Submitted" },
 ] as const;
 
 export type TaskStatus = (typeof taskStatuses)[number]["id"];
@@ -48,6 +49,8 @@ export type Task = {
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: string | null;
+  /** Optional exact deadline instant. When set, `dueDate` is its calendar day. */
+  dueAt: string | null;
   scheduledStart: string | null;
   scheduledEnd: string | null;
   area: string | null;
@@ -64,6 +67,7 @@ export type TaskDraft = {
   status?: TaskStatus;
   priority?: TaskPriority;
   dueDate?: string | null;
+  dueAt?: string | null;
   scheduledStart?: string | null;
   scheduledEnd?: string | null;
   area?: string | null;

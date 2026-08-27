@@ -17,7 +17,7 @@ import {
 const TABLE = "tasks";
 
 const COLUMNS =
-  "id, title, description, status, priority, due_date, scheduled_start, scheduled_end, area, project, course, created_at, updated_at, completed_at";
+  "id, title, description, status, priority, due_date, due_at, scheduled_start, scheduled_end, area, project, course, created_at, updated_at, completed_at";
 
 type TaskRow = {
   id: string;
@@ -26,6 +26,7 @@ type TaskRow = {
   status: TaskStatus;
   priority: TaskPriority;
   due_date: string | null;
+  due_at: string | null;
   scheduled_start: string | null;
   scheduled_end: string | null;
   area: string | null;
@@ -54,6 +55,7 @@ function toTask(row: TaskRow): Task {
     status: row.status,
     priority: row.priority,
     dueDate: row.due_date,
+    dueAt: row.due_at,
     scheduledStart: row.scheduled_start,
     scheduledEnd: row.scheduled_end,
     area: row.area,
@@ -84,6 +86,7 @@ function toRow(draft: TaskDraft | TaskPatch): Record<string, unknown> {
   if (draft.status !== undefined) row.status = draft.status;
   if (draft.priority !== undefined) row.priority = draft.priority;
   if (draft.dueDate !== undefined) row.due_date = emptyToNull(draft.dueDate);
+  if (draft.dueAt !== undefined) row.due_at = emptyToNull(draft.dueAt);
   if (draft.scheduledStart !== undefined) row.scheduled_start = emptyToNull(draft.scheduledStart);
   if (draft.scheduledEnd !== undefined) row.scheduled_end = emptyToNull(draft.scheduledEnd);
   if (draft.area !== undefined) row.area = emptyToNull(draft.area);
@@ -198,8 +201,10 @@ export type CalendarTaskRange = {
 };
 
 /**
- * Calendar task projection inputs. Scheduled rows and due-only rows are read
- * separately so a deadline can never be mistaken for a work block.
+ * Calendar task projection inputs. Scheduled intervals and deadlines are read
+ * separately so neither is mistaken for the other. A task with both signals
+ * intentionally appears in both result sets and is deduplicated by the domain
+ * adapter before it creates one entry for each signal.
  */
 export async function listTasksForCalendarRange(
   start: string,
@@ -223,7 +228,6 @@ export async function listTasksForCalendarRange(
       .from(TABLE)
       .select(COLUMNS)
       .neq("status", "cancelled")
-      .is("scheduled_start", null)
       .gte("due_date", fromDate)
       .lt("due_date", toDateExclusive)
       .order("due_date", { ascending: true })

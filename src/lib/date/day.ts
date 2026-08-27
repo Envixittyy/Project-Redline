@@ -8,36 +8,64 @@
  */
 
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+const zonedInputPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+
+export const defaultTimeZone = "Asia/Manila";
+
+export function isValidTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
- * The zone the dated views reason in. Defaults to the runtime's own zone, which
- * is correct in local development and usually UTC on a host, so deployments
- * should set APP_TIME_ZONE.
+ * The zone the dated views reason in. Life OS defaults to Asia/Manila rather
+ * than the host runtime zone so server placement cannot move calendar days.
  */
 export function resolveTimeZone(): string {
   const configured = process.env.APP_TIME_ZONE?.trim();
-  if (configured) return configured;
+  if (configured && isValidTimeZone(configured)) return configured;
 
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  return defaultTimeZone;
 }
 
 export function isIsoDate(value: string): boolean {
-  return isoDatePattern.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+  if (!isoDatePattern.test(value)) return false;
+
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
+export function isIsoInstant(value: string): boolean {
+  if (value.trim() === "" || !/[zZ]|[+-]\d{2}:\d{2}$/.test(value)) return false;
+  return !Number.isNaN(Date.parse(value));
 }
 
 /** Today's calendar day in the given zone, as `YYYY-MM-DD`. */
 export function todayIn(timeZone: string, now: Date = new Date()): string {
-  // en-CA formats as YYYY-MM-DD.
-  return new Intl.DateTimeFormat("en-CA", {
+  const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(now);
+  }).formatToParts(now);
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${read("year")}-${read("month")}-${read("day")}`;
 }
 
 /** Shift a `YYYY-MM-DD` string by whole days. */
 export function addDays(isoDate: string, days: number): string {
+  if (!isIsoDate(isoDate)) throw new RangeError(`Invalid calendar date: ${isoDate}`);
   const [year, month, day] = isoDate.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
@@ -73,12 +101,7 @@ function zoneOffsetMs(instant: number, timeZone: string): number {
 
 /** The instant at which a calendar day begins in the given zone. */
 export function startOfDayIn(isoDate: string, timeZone: string): Date {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const wallClock = Date.UTC(year, month - 1, day);
-
-  // Two passes so a day that begins on a DST boundary still resolves.
-  const firstPass = wallClock - zoneOffsetMs(wallClock, timeZone);
-  return new Date(wallClock - zoneOffsetMs(firstPass, timeZone));
+  return new Date(fromZonedInputValue(`${isoDate}T00:00`, timeZone));
 }
 
 /** Half-open instant range `[start, end)` covering whole calendar days. */
@@ -95,6 +118,9 @@ export function dayRangeIn(
 
 /** Wall-clock text for an `<input type="datetime-local">`, rendered in the zone. */
 export function toZonedInputValue(iso: string, timeZone: string): string {
+  if (!isIsoInstant(iso)) throw new RangeError(`Invalid instant: ${iso}`);
+  if (!isValidTimeZone(timeZone)) throw new RangeError(`Invalid time zone: ${timeZone}`);
+
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     hour12: false,
@@ -115,12 +141,40 @@ export function toZonedInputValue(iso: string, timeZone: string): string {
 
 /** Inverse of {@link toZonedInputValue}: a wall clock in the zone becomes an instant. */
 export function fromZonedInputValue(wallClock: string, timeZone: string): string {
-  const [datePart, timePart = "00:00"] = wallClock.split("T");
-  const [year, month, day] = datePart.split("-").map(Number);
-  const [hour, minute] = timePart.split(":").map(Number);
+  const match = zonedInputPattern.exec(wallClock);
+  if (!match) throw new RangeError(`Invalid wall clock: ${wallClock}`);
+  if (!isValidTimeZone(timeZone)) throw new RangeError(`Invalid time zone: ${timeZone}`);
+
+  const [, yearText, monthText, dayText, hourText, minuteText] = match;
+  const [year, month, day, hour, minute] = [
+    yearText,
+    monthText,
+    dayText,
+    hourText,
+    minuteText,
+  ].map(Number);
+  const datePart = `${yearText}-${monthText}-${dayText}`;
+  if (!isIsoDate(datePart) || hour > 23 || minute > 59) {
+    throw new RangeError(`Invalid wall clock: ${wallClock}`);
+  }
 
   const wall = Date.UTC(year, month - 1, day, hour, minute);
-  const firstPass = wall - zoneOffsetMs(wall, timeZone);
+  const offsets = new Set([
+    zoneOffsetMs(wall - 86_400_000, timeZone),
+    zoneOffsetMs(wall, timeZone),
+    zoneOffsetMs(wall + 86_400_000, timeZone),
+  ]);
+  const candidates = [...offsets]
+    .map((offset) => new Date(wall - offset).toISOString())
+    .filter((candidate) => toZonedInputValue(candidate, timeZone) === wallClock)
+    .sort();
 
-  return new Date(wall - zoneOffsetMs(firstPass, timeZone)).toISOString();
+  // On a fall-back transition the wall clock occurs twice. Choosing the first
+  // occurrence is deterministic; callers can persist the resulting instant.
+  if (candidates[0]) return candidates[0];
+
+  // Spring-forward gaps are not silently shifted to a time the user did not
+  // choose. Asia/Manila currently has no DST, but integrations may use zones
+  // that do.
+  throw new RangeError(`The wall clock ${wallClock} does not exist in ${timeZone}.`);
 }

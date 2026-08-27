@@ -1,0 +1,213 @@
+import { describe, expect, it } from "vitest";
+
+import type { CourseMeeting } from "@/types/course-meeting";
+import type { Task } from "@/types/task";
+
+import {
+  CalendarRescheduleError,
+  courseMeetingToCalendarEntries,
+  defaultCalendarFilters,
+  filterCalendarEntries,
+  isTaskOverdue,
+  rescheduleTask,
+  taskToCalendarEntries,
+} from "./calendar-domain";
+import { buildCalendarItems } from "./calendar-items";
+
+const MANILA = "Asia/Manila";
+
+function task(overrides: Partial<Task> = {}): Task {
+  return {
+    id: "task-1",
+    title: "Write paper",
+    description: null,
+    status: "todo",
+    priority: "none",
+    dueDate: null,
+    dueAt: null,
+    scheduledStart: null,
+    scheduledEnd: null,
+    area: null,
+    project: null,
+    course: null,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    updatedAt: "2026-08-20T00:00:00.000Z",
+    completedAt: null,
+    ...overrides,
+  };
+}
+
+describe("task calendar projection", () => {
+  it("maps a due-date-only task to an all-day deadline without inventing a time", () => {
+    const [entry] = taskToCalendarEntries(task({ dueDate: "2026-08-28" }), MANILA);
+    expect(entry).toMatchObject({
+      kind: "task_deadline",
+      date: "2026-08-28",
+      allDay: true,
+      start: null,
+      duePrecision: "date",
+    });
+  });
+
+  it("maps an exact deadline as a timed marker near midnight", () => {
+    const [entry] = taskToCalendarEntries(
+      task({ dueDate: "2026-08-28", dueAt: "2026-08-27T16:15:00.000Z" }),
+      MANILA,
+    );
+    expect(entry).toMatchObject({
+      kind: "task_deadline",
+      date: "2026-08-28",
+      allDay: false,
+      start: "2026-08-27T16:15:00.000Z",
+      duePrecision: "instant",
+    });
+  });
+
+  it("maps a scheduled task and preserves its explicit interval", () => {
+    const [entry] = taskToCalendarEntries(
+      task({
+        scheduledStart: "2026-08-28T01:00:00.000Z",
+        scheduledEnd: "2026-08-28T02:30:00.000Z",
+      }),
+      MANILA,
+    );
+    expect(entry).toMatchObject({
+      kind: "task_schedule",
+      date: "2026-08-28",
+      allDay: false,
+      start: "2026-08-28T01:00:00.000Z",
+      end: "2026-08-28T02:30:00.000Z",
+    });
+  });
+
+  it("projects both a deadline and a work block when both exist", () => {
+    const entries = taskToCalendarEntries(
+      task({ dueDate: "2026-08-30", scheduledStart: "2026-08-28T01:00:00.000Z" }),
+      MANILA,
+    );
+    expect(entries.map((entry) => entry.kind)).toEqual(["task_deadline", "task_schedule"]);
+  });
+
+  it("builds both in-range presentations once and hides Done by default", () => {
+    const both = task({ dueDate: "2026-08-30", scheduledStart: "2026-08-28T01:00:00.000Z" });
+    const done = task({ id: "done", status: "completed", dueDate: "2026-08-30" });
+    const items = buildCalendarItems([], [both], [both, done], MANILA);
+    expect(items.map((item) => item.kind)).toEqual(["scheduled_task", "deadline"]);
+  });
+
+  it("drops missing or unusable signals while retaining a valid date fallback", () => {
+    expect(taskToCalendarEntries(task(), MANILA)).toEqual([]);
+    expect(taskToCalendarEntries(task({ dueDate: "2026-02-30" }), MANILA)).toEqual([]);
+    const [fallback] = taskToCalendarEntries(
+      task({ dueDate: "2026-08-28", dueAt: "not-an-instant" }),
+      MANILA,
+    );
+    expect(fallback).toMatchObject({ allDay: true, issues: ["invalid_deadline"] });
+  });
+});
+
+describe("completion, submission, filtering, and overdue rules", () => {
+  const now = new Date("2026-08-28T04:00:00.000Z");
+
+  it("marks a date-only task overdue only after its Manila due day", () => {
+    expect(isTaskOverdue(task({ dueDate: "2026-08-27" }), now, MANILA)).toBe(true);
+    expect(isTaskOverdue(task({ dueDate: "2026-08-28" }), now, MANILA)).toBe(false);
+  });
+
+  it("uses the exact instant when a due time exists", () => {
+    expect(isTaskOverdue(task({ dueDate: "2026-08-28", dueAt: "2026-08-28T03:59:59Z" }), now, MANILA)).toBe(true);
+    expect(isTaskOverdue(task({ dueDate: "2026-08-28", dueAt: "2026-08-28T04:00:00Z" }), now, MANILA)).toBe(false);
+  });
+
+  it("never calls Submitted or Done overdue and filters them independently", () => {
+    const submitted = task({ id: "submitted", status: "submitted", dueDate: "2026-08-20" });
+    const done = task({ id: "done", status: "completed", dueDate: "2026-08-20" });
+    expect(isTaskOverdue(submitted, now, MANILA)).toBe(false);
+    expect(isTaskOverdue(done, now, MANILA)).toBe(false);
+
+    const entries = [
+      ...taskToCalendarEntries(submitted, MANILA, now),
+      ...taskToCalendarEntries(done, MANILA, now),
+    ];
+    expect(filterCalendarEntries(entries).map((entry) => "task" in entry ? entry.task.id : "")).toEqual(["submitted"]);
+    expect(filterCalendarEntries(entries, { ...defaultCalendarFilters, showSubmitted: false })).toEqual([]);
+    expect(filterCalendarEntries(entries, { ...defaultCalendarFilters, showDone: true }).map((entry) => "task" in entry ? entry.task.id : "")).toEqual([
+      "submitted",
+      "done",
+    ]);
+  });
+});
+
+describe("task rescheduling", () => {
+  it("moves an all-day deadline without changing or creating a schedule", () => {
+    const original = task({
+      dueDate: "2026-08-28",
+      scheduledStart: "2026-08-27T01:00:00.000Z",
+    });
+    expect(rescheduleTask(original, { kind: "move_deadline", toDate: "2026-08-30", timeZone: MANILA })).toEqual({
+      dueDate: "2026-08-30",
+    });
+  });
+
+  it("moves a timed deadline to another date while preserving its Manila clock time", () => {
+    const original = task({ dueDate: "2026-08-28", dueAt: "2026-08-28T06:30:00.000Z" });
+    expect(rescheduleTask(original, { kind: "move_deadline", toDate: "2026-08-30", timeZone: MANILA })).toEqual({
+      dueDate: "2026-08-30",
+      dueAt: "2026-08-30T06:30:00.000Z",
+    });
+  });
+
+  it("moves a scheduled task and preserves duration without touching its deadline", () => {
+    const original = task({
+      dueDate: "2026-08-30",
+      scheduledStart: "2026-08-28T01:00:00.000Z",
+      scheduledEnd: "2026-08-28T02:30:00.000Z",
+    });
+    expect(rescheduleTask(original, { kind: "move_schedule", toStart: "2026-08-29T04:00:00+08:00" })).toEqual({
+      scheduledStart: "2026-08-28T20:00:00.000Z",
+      scheduledEnd: "2026-08-28T21:30:00.000Z",
+    });
+  });
+
+  it("does not convert an unscheduled deadline into a work block", () => {
+    expect(() => rescheduleTask(task({ dueDate: "2026-08-28" }), {
+      kind: "move_schedule",
+      toStart: "2026-08-29T04:00:00Z",
+    })).toThrow(CalendarRescheduleError);
+  });
+});
+
+describe("course meetings", () => {
+  it("expands recurring meetings with identity, color, and timezone-safe instants", () => {
+    const meeting: CourseMeeting = {
+      id: "meeting-1",
+      title: "Algorithms",
+      course: { id: "cs-201", label: "CS 201", color: "var(--course-cs-201)" },
+      weekdays: [1, 3],
+      startDate: "2026-08-24",
+      endDateExclusive: "2026-09-01",
+      startTime: "09:00",
+      endTime: "10:30",
+      timeZone: MANILA,
+    };
+
+    const entries = courseMeetingToCalendarEntries(
+      meeting,
+      "2026-08-24",
+      "2026-08-31",
+      MANILA,
+    );
+    expect(entries.map((entry) => entry.occurrenceDate)).toEqual(["2026-08-24", "2026-08-26"]);
+    expect(entries[0]).toMatchObject({
+      kind: "course_meeting",
+      start: "2026-08-24T01:00:00.000Z",
+      end: "2026-08-24T02:30:00.000Z",
+      courseKey: "cs-201",
+      courseColor: "var(--course-cs-201)",
+    });
+    expect(filterCalendarEntries(entries, {
+      ...defaultCalendarFilters,
+      courseKeys: ["another-course"],
+    })).toEqual([]);
+  });
+});

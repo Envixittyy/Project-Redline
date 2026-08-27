@@ -3,11 +3,20 @@ import type { CalendarEvent } from "@/types/calendar-event";
 import type { Task } from "@/types/task";
 
 import { dateForInstant, lastOccupiedDate } from "./calendar-date";
+import {
+  calendarEventToEntry,
+  defaultCalendarFilters,
+  matchesCalendarFilters,
+  taskToCalendarEntries,
+  type NativeCalendarEntry,
+  type TaskDeadlineCalendarEntry,
+  type TaskScheduleCalendarEntry,
+} from "./calendar-domain";
 
 export type CalendarItem =
-  | { key: string; kind: "event"; date: string; event: CalendarEvent }
-  | { key: string; kind: "scheduled_task"; date: string; task: Task }
-  | { key: string; kind: "deadline"; date: string; task: Task };
+  | { key: string; kind: "event"; date: string; event: CalendarEvent; entry: NativeCalendarEntry }
+  | { key: string; kind: "scheduled_task"; date: string; task: Task; entry: TaskScheduleCalendarEntry }
+  | { key: string; kind: "deadline"; date: string; task: Task; entry: TaskDeadlineCalendarEntry };
 
 function occupiedDates(start: string, end: string | null, timeZone: string): string[] {
   const first = dateForInstant(start, timeZone);
@@ -31,21 +40,30 @@ export function buildCalendarItems(
   const items: CalendarItem[] = [];
 
   for (const event of events) {
-    for (const date of occupiedDates(event.start, event.end, timeZone)) {
-      items.push({ key: `event:${event.id}:${date}`, kind: "event", date, event });
+    const entry = calendarEventToEntry(event, timeZone);
+    if (!entry || !matchesCalendarFilters(entry, defaultCalendarFilters)) continue;
+    for (const date of occupiedDates(entry.start!, entry.end, timeZone)) {
+      items.push({ key: `${entry.key}:${date}`, kind: "event", date, event, entry });
     }
   }
 
-  for (const task of scheduledTasks) {
-    if (!task.scheduledStart) continue;
-    for (const date of occupiedDates(task.scheduledStart, task.scheduledEnd, timeZone)) {
-      items.push({ key: `task:${task.id}:${date}`, kind: "scheduled_task", date, task });
-    }
-  }
+  const scheduledIds = new Set(scheduledTasks.map((task) => task.id));
+  const deadlineIds = new Set(deadlineTasks.map((task) => task.id));
+  const tasks = new Map([...scheduledTasks, ...deadlineTasks].map((task) => [task.id, task]));
+  for (const task of tasks.values()) {
+    for (const entry of taskToCalendarEntries(task, timeZone)) {
+      if (!matchesCalendarFilters(entry, defaultCalendarFilters)) continue;
 
-  for (const task of deadlineTasks) {
-    if (task.dueDate) {
-      items.push({ key: `deadline:${task.id}:${task.dueDate}`, kind: "deadline", date: task.dueDate, task });
+      if (entry.kind === "task_deadline") {
+        if (!deadlineIds.has(task.id)) continue;
+        items.push({ key: `${entry.key}:${entry.date}`, kind: "deadline", date: entry.date, task, entry });
+        continue;
+      }
+
+      if (!scheduledIds.has(task.id)) continue;
+      for (const date of occupiedDates(entry.start!, entry.end, timeZone)) {
+        items.push({ key: `${entry.key}:${date}`, kind: "scheduled_task", date, task, entry });
+      }
     }
   }
 

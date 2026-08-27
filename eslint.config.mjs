@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Coding-agent worktrees hold a full copy of the repository, including its
+    // node_modules. Linting them reports thousands of irrelevant problems.
+    ".claude/**",
   ]),
 ]);
 

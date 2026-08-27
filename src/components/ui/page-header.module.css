@@ -1,0 +1,47 @@
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: clamp(1.75rem, 5vw, 3rem);
+}
+
+.copy {
+  max-width: 46rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.65rem;
+  color: var(--accent-text);
+  font-size: 0.74rem;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: clamp(2.25rem, 7vw, 4.5rem);
+  font-weight: 680;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.description {
+  max-width: 40rem;
+  margin: 1rem 0 0;
+  color: var(--text-secondary);
+  font-size: clamp(0.98rem, 2vw, 1.08rem);
+  line-height: 1.65;
+}
+
+.actions {
+  flex: none;
+}
+
+@media (min-width: 48rem) {
+  .header {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}

@@ -4,18 +4,19 @@ A personal, single-user productivity application intended to bring tasks, calend
 
 ## Current phase
 
-**Phase 1A — Foundation and architecture.** This repository currently contains only the application scaffold, project conventions, semantic design-token foundation, and a small screen that proves the stack and styles load correctly. It does not contain a dashboard, task management, calendar, authentication, or integrations.
+**Phase 1B — Application shell and visual system.** The repository now includes the responsive workspace shell, shared primary navigation, placeholder routes, locally persisted appearance controls, reusable surface variants, and a lightweight hideable-widget preview. It still does not contain task management, a real calendar, school data, authentication, a database, or integrations.
 
 ## Stack
 
 - Next.js 16 with the App Router
 - React 19 and TypeScript
 - Tailwind CSS 4
+- Lucide React icons
 - ESLint with Next.js Core Web Vitals and TypeScript rules
 - Supabase/PostgreSQL-compatible boundaries for later data phases
 - Vercel-compatible Next.js deployment
 
-shadcn/ui is intentionally not installed yet. Phase 1A has no interaction that benefits from its primitives; it can be introduced when Phase 1B needs accessible controls or overlays.
+shadcn/ui is intentionally not installed yet. Phase 1B's controls are small native elements, so adding another component dependency would not simplify the current interface.
 
 ## Local development
 
@@ -40,7 +41,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment setup
 
-No environment variables are required in Phase 1A. Copy `.env.example` to `.env.local` only when a later phase introduces Supabase access:
+No environment variables are required in Phase 1B. Copy `.env.example` to `.env.local` only when a later phase introduces Supabase access:
 
 ```powershell
 Copy-Item .env.example .env.local
@@ -52,7 +53,7 @@ Never commit real credentials. Browser-exposed variables must only contain value
 
 - `src/app` — App Router routes, layouts, and global CSS entry
 - `src/components` — reusable, domain-neutral UI
-- `src/features` — future feature-owned UI, state, and business rules
+- `src/features` — feature-owned UI, local interaction state, and future business rules
 - `src/hooks` — genuinely reusable React hooks
 - `src/lib` — small framework-independent utilities and configuration
 - `src/services` — data access and external integration boundaries
@@ -64,7 +65,7 @@ Never commit real credentials. Browser-exposed variables must only contain value
 ## Roadmap
 
 - **Phase 1A:** Foundation and architecture
-- **Phase 1B:** Application shell, navigation, theme system, and glass interface
+- **Phase 1B:** Application shell, navigation, theme system, and glass interface (current)
 - **Phase 1C:** Tasks and persistence
 - **Phase 1D:** Calendar and scheduled-task rendering
 - **Phase 1E:** Home dashboard and widgets
@@ -74,4 +75,4 @@ Never commit real credentials. Browser-exposed variables must only contain value
 - **Phase 1I:** QA, accessibility, performance, and cleanup
 - **Phase 1J:** Deployment
 
-Later work will also cover Blackboard calendar data, Google Calendar, notifications, knowledge integrations, local AI, and optional cloud AI. These are not implemented in this phase.
+Later work will also cover Blackboard calendar data, Google Calendar, notifications, knowledge integrations, local AI, and optional cloud AI. None of those systems are implemented in this phase.

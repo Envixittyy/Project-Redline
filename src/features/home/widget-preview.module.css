@@ -1,0 +1,192 @@
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.toolbar h2,
+.kicker,
+.controls p,
+.widget h3,
+.widget p,
+.emptyState p {
+  margin: 0;
+}
+
+.toolbar h2 {
+  margin-top: 0.25rem;
+  font-size: clamp(1.25rem, 4vw, 1.65rem);
+  letter-spacing: -0.035em;
+}
+
+.kicker {
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.editButton,
+.toggleButton {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-interactive);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-weight: 680;
+  transition:
+    scale var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    background-color var(--motion-fast) ease;
+}
+
+.editButton {
+  flex: none;
+  padding: 0.55rem 0.78rem;
+  font-size: 0.78rem;
+}
+
+.editButton:active,
+.toggleButton:active {
+  scale: 0.97;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editButton:active,
+  .toggleButton:active {
+    scale: 1;
+  }
+}
+
+.controls {
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+.controls > p {
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.toggleList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.toggleButton {
+  padding: 0.48rem 0.7rem;
+  font-size: 0.78rem;
+}
+
+.toggleButton[data-visible] {
+  border-color: var(--accent-border);
+  background: var(--accent-muted);
+  color: var(--accent-text);
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.widget {
+  min-height: 13rem;
+  padding: 1.25rem;
+}
+
+.widgetTopline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.widgetIcon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border-radius: 0.8rem;
+  background: var(--accent-muted);
+  color: var(--accent-text);
+}
+
+.previewLabel {
+  color: var(--text-tertiary);
+  font-size: 0.67rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.widget h3 {
+  margin-top: 1.15rem;
+  font-size: 1rem;
+  letter-spacing: -0.025em;
+}
+
+.widget p {
+  margin-top: 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.placeholderLines {
+  display: grid;
+  gap: 0.48rem;
+  margin-top: 1.35rem;
+}
+
+.placeholderLines span {
+  display: block;
+  width: 78%;
+  height: 0.48rem;
+  border-radius: 999px;
+  background: var(--border-subtle);
+}
+
+.placeholderLines span:last-child {
+  width: 52%;
+}
+
+.emptyState {
+  display: flex;
+  min-height: 9rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 1.25rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .editButton:hover,
+  .toggleButton:hover {
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+  }
+}
+
+@media (min-width: 40rem) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 78rem) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

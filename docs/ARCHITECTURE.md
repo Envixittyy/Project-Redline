@@ -8,8 +8,10 @@ The repository is a deliberately small foundation for a personal, single-user ap
 
 ```text
 src/
-  app/                    Next.js routes, layouts, metadata, and global CSS entry
+  app/
+    (workspace)/          Routes sharing the responsive application shell
   components/
+    shell/                Domain-neutral shell and navigation composition
     ui/                   Reusable, domain-neutral interface components
   features/               Feature-owned UI, state, validation, and business rules
   hooks/                  Shared React hooks with more than one real consumer
@@ -22,6 +24,14 @@ src/
 ```
 
 Folders should gain code only when a phase needs it. Do not create generic repositories, managers, or utility collections in anticipation of future work.
+
+## Application shell and routing
+
+The `(workspace)` route group applies `AppShell` to Home, Tasks, Calendar, School, and More without adding a URL segment. The shell remains a server component. Its small `AppNavigation` client boundary reads the pathname only to expose the active route; page content does not become client-rendered as a consequence.
+
+Primary destinations are defined once in `src/lib/navigation.ts` and consumed by both the persistent desktop sidebar and safe-area-aware mobile tab bar. Mobile content reserves enough bottom space for the fixed bar. Desktop content is constrained to a readable frame and can expand into multi-column dashboard layouts.
+
+Tasks, Calendar, and School routes are deliberately visual placeholders. More reserves clear entries for Football, Projects, Areas, and Integrations while keeping Appearance as the only functional section in this phase.
 
 ## Reusable UI and feature separation
 
@@ -37,17 +47,23 @@ Tailwind 4 theme mappings in that file expose the core semantic colors to utilit
 
 The foundation uses a native system-font stack. This avoids a network dependency during production builds, feels at home on Apple platforms, and remains readable on Windows. A bundled local brand font can replace it later without changing feature code.
 
-Appearance is represented by `data-theme="system" | "light" | "dark"` on the root element. System mode uses `prefers-color-scheme`; explicit light and dark selectors override it. Phase 1A defaults to System but does not provide a settings control or persistence.
+Appearance is represented by `data-theme="system" | "light" | "dark"` on the root element. System mode uses `prefers-color-scheme`; explicit light and dark selectors override it. Phase 1B provides all three controls on More. A small synchronous bootstrap in the document head validates versioned browser-local preferences and applies root attributes before paint. Interactive controls subscribe to those attributes through a hydration-safe external-store boundary.
 
 Accent selection uses `data-accent` and the centralized catalog in `src/lib/theme/palettes.ts`. Crimson, Ocean, Forest, Violet, and Graphite are initial options. Adding a palette means adding one catalog entry and its token values; feature components should not change.
+
+Reusable `Surface` variants (`base`, `glass`, `elevated`, `subtle`, and `interactive`) centralize translucent backgrounds, borders, shadows, radii, and blur. Pages and features compose those variants instead of recreating glass styles or encoding palette colors.
 
 Motion uses CSS where sufficient and includes a global `prefers-reduced-motion` safeguard. No animation library is installed. Translucent surfaces retain solid-enough backgrounds and borders so blur is decorative rather than required for readability.
 
 ## Responsive and accessibility foundations
 
-Base styles target small screens first, use dynamic viewport units, include safe-area insets, and expand layouts through min-width media queries. Future mobile navigation should account for bottom safe areas and touch targets instead of compressing a desktop sidebar.
+Base styles target small screens first, use dynamic viewport units, include safe-area insets, and expand layouts through min-width media queries. The mobile tab bar uses icon-and-label targets sized for touch, remains fixed above the bottom safe area, and yields to the desktop sidebar at the shell breakpoint.
 
 The root layout provides descriptive metadata and semantic HTML. Global focus-visible styling, readable foreground tokens, reduced-motion behavior, and Next.js accessibility linting establish defaults. New controls must still be checked for keyboard behavior, names, states, and contrast.
+
+## Local UI preferences
+
+Appearance and Home widget visibility are device-local UI preferences, not domain data. Their storage keys are versioned. The Home preview supports only visible/hidden state for Today, Upcoming, Current Projects, and School; it intentionally has no ordering, resizing, drag-and-drop, or server persistence. Phase 1C should not move these preferences into the first task schema unless a later product requirement calls for cross-device UI preference syncing.
 
 ## Services and integrations
 
@@ -59,7 +75,7 @@ Blackboard is limited to calendar-related information unless requirements change
 
 ## Future data layer
 
-Supabase is the anticipated hosted boundary and PostgreSQL is the target relational model. A future data phase can place browser/server clients under `src/services/supabase` and schema migrations in a root `supabase/` directory. Environment placeholders exist, but Phase 1A has no client, schema, or database dependency.
+Supabase is the anticipated hosted boundary and PostgreSQL is the target relational model. A future data phase can place browser/server clients under `src/services/supabase` and schema migrations in a root `supabase/` directory. Environment placeholders exist, but Phase 1B has no client, schema, or database dependency.
 
 Data access should stay server-side by default and expose narrow operations to features. Do not create a large speculative schema. Add tables and constraints alongside the product phase that establishes their behavior.
 

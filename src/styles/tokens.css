@@ -1,0 +1,105 @@
+@theme inline {
+  --color-background: var(--background);
+  --color-background-secondary: var(--background-secondary);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-translucent: var(--surface-translucent);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-accent-muted: var(--accent-muted);
+  --color-border: var(--border-subtle);
+  --font-sans: ui-rounded, "SF Pro Rounded", "SF Pro Display", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+:root,
+:root[data-theme="light"] {
+  --background: #f5f3f1;
+  --background-secondary: #ece9e6;
+  --surface: #fbfaf9;
+  --surface-elevated: #ffffff;
+  --surface-translucent: rgb(255 255 255 / 66%);
+  --text-primary: #1c1b1a;
+  --text-secondary: #67625e;
+  --text-tertiary: #756e68;
+  --border-subtle: rgb(46 39 34 / 11%);
+  --border-strong: rgb(46 39 34 / 19%);
+  --shadow-soft: 0 1px 2px rgb(28 24 21 / 4%), 0 16px 48px rgb(28 24 21 / 8%);
+  --accent-text: color-mix(in srgb, var(--accent) 75%, var(--text-primary));
+  --focus-ring: var(--accent-text);
+  --blur-surface: 18px;
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.35rem;
+  --radius-xl: 1.75rem;
+  --motion-fast: 140ms;
+  --motion-standard: 220ms;
+  --motion-slow: 360ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #11100f;
+  --background-secondary: #181715;
+  --surface: #1d1b19;
+  --surface-elevated: #25221f;
+  --surface-translucent: rgb(35 32 29 / 70%);
+  --text-primary: #f5f1ed;
+  --text-secondary: #b8b0a9;
+  --text-tertiary: #827b75;
+  --border-subtle: rgb(255 247 240 / 10%);
+  --border-strong: rgb(255 247 240 / 18%);
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 18%), 0 18px 54px rgb(0 0 0 / 28%);
+  --accent-text: color-mix(in srgb, var(--accent) 75%, var(--text-primary));
+  --focus-ring: var(--accent-text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]),
+  :root[data-theme="system"] {
+    color-scheme: dark;
+    --background: #11100f;
+    --background-secondary: #181715;
+    --surface: #1d1b19;
+    --surface-elevated: #25221f;
+    --surface-translucent: rgb(35 32 29 / 70%);
+    --text-primary: #f5f1ed;
+    --text-secondary: #b8b0a9;
+    --text-tertiary: #827b75;
+    --border-subtle: rgb(255 247 240 / 10%);
+    --border-strong: rgb(255 247 240 / 18%);
+    --shadow-soft: 0 1px 2px rgb(0 0 0 / 18%), 0 18px 54px rgb(0 0 0 / 28%);
+    --accent-text: color-mix(in srgb, var(--accent) 75%, var(--text-primary));
+    --focus-ring: var(--accent-text);
+  }
+}
+
+:root,
+[data-accent="crimson"] {
+  --accent: #c43f4e;
+  --accent-muted: rgb(196 63 78 / 16%);
+}
+
+[data-accent="ocean"] {
+  --accent: #287ca7;
+  --accent-muted: rgb(40 124 167 / 16%);
+}
+
+[data-accent="forest"] {
+  --accent: #3f7d5b;
+  --accent-muted: rgb(63 125 91 / 16%);
+}
+
+[data-accent="violet"] {
+  --accent: #7656b2;
+  --accent-muted: rgb(118 86 178 / 16%);
+}
+
+[data-accent="graphite"] {
+  --accent: #666b72;
+  --accent-muted: rgb(102 107 114 / 17%);
+}

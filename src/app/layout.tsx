@@ -14,6 +14,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Required for env(safe-area-inset-*) to resolve on notched devices and in
+  // an installed standalone window; the shell relies on those insets.
   viewportFit: "cover",
 };
 

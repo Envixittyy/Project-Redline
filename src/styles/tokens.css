@@ -38,6 +38,7 @@
   --shadow-elevated: 0 2px 6px rgb(28 24 21 / 6%), 0 24px 64px rgb(28 24 21 / 12%);
   --shadow-navigation: 0 8px 32px rgb(28 24 21 / 14%);
   --ambient-secondary: rgb(88 116 145 / 10%);
+  --scrim: rgb(28 24 21 / 38%);
   --accent-text: color-mix(in srgb, var(--accent) 75%, var(--text-primary));
   --accent-foreground: #ffffff;
   --accent-border: color-mix(in srgb, var(--accent) 36%, transparent);
@@ -77,6 +78,7 @@
   --shadow-elevated: 0 2px 8px rgb(0 0 0 / 26%), 0 28px 70px rgb(0 0 0 / 38%);
   --shadow-navigation: 0 10px 38px rgb(0 0 0 / 42%);
   --ambient-secondary: rgb(103 130 166 / 10%);
+  --scrim: rgb(10 8 7 / 62%);
   --accent-text: color-mix(in srgb, var(--accent) 75%, var(--text-primary));
   --focus-ring: var(--accent-text);
 }
@@ -104,6 +106,7 @@
     --shadow-elevated: 0 2px 8px rgb(0 0 0 / 26%), 0 28px 70px rgb(0 0 0 / 38%);
     --shadow-navigation: 0 10px 38px rgb(0 0 0 / 42%);
     --ambient-secondary: rgb(103 130 166 / 10%);
+  --scrim: rgb(10 8 7 / 62%);
     --accent-text: color-mix(in srgb, var(--accent) 75%, var(--text-primary));
     --focus-ring: var(--accent-text);
   }

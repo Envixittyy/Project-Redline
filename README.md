@@ -4,16 +4,18 @@ A personal, single-user productivity application intended to bring tasks, calend
 
 ## Current phase
 
-**Phase 1B — Application shell and visual system.** The repository now includes the responsive workspace shell, shared primary navigation, placeholder routes, locally persisted appearance controls, reusable surface variants, and a lightweight hideable-widget preview. It still does not contain task management, a real calendar, school data, authentication, a database, or integrations.
+**Phase 1C — Tasks and persistence.** Tasks are now a real domain backed by Supabase/PostgreSQL: create, edit, complete, reopen, delete, prioritise, set due dates, and schedule work, across the Inbox, Today, Tomorrow, Next 7 days, Overdue, Someday, and Completed views.
+
+A task can carry a deadline and a scheduled interval and may later be drawn on the calendar, but it is never converted into a calendar event and no event rows exist. The repository still contains no calendar UI, school data, authentication, recurring tasks, habits, or external integrations.
 
 ## Stack
 
 - Next.js 16 with the App Router
 - React 19 and TypeScript
 - Tailwind CSS 4
+- Supabase (PostgreSQL) for task persistence, accessed server-side only
 - Lucide React icons
 - ESLint with Next.js Core Web Vitals and TypeScript rules
-- Supabase/PostgreSQL-compatible boundaries for later data phases
 - Vercel-compatible Next.js deployment
 
 shadcn/ui is intentionally not installed yet. Phase 1B's controls are small native elements, so adding another component dependency would not simplify the current interface.
@@ -41,13 +43,27 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment setup
 
-No environment variables are required in Phase 1B. Copy `.env.example` to `.env.local` only when a later phase introduces Supabase access:
+Tasks require Supabase. Copy the example file and fill in the two server-side values:
 
 ```powershell
 Copy-Item .env.example .env.local
 ```
 
-Never commit real credentials. Browser-exposed variables must only contain values designed to be public; privileged service keys belong in server-only environment variables when a future data phase requires them.
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_URL` | Your project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only key. Never prefix it with `NEXT_PUBLIC_` |
+| `APP_TIME_ZONE` | Optional IANA zone deciding what "today" means. Defaults to the server's zone, so set it when deploying |
+
+Then apply the schema in `supabase/migrations` to your project, either with the Supabase CLI (`supabase db push`) or by running the SQL file in the Supabase SQL editor.
+
+Without these variables the Tasks page renders a setup notice instead of failing, and the rest of the app works normally.
+
+Never commit real credentials. Browser-exposed variables must only contain values designed to be public; the service role key is read only in server code and is never sent to the browser.
+
+### Access model
+
+Phase 1C has no authentication. The `tasks` table has row level security enabled with **no policies**, so the anon key can read nothing. All access goes through Next.js server code using the service role key, which bypasses RLS. See `docs/ARCHITECTURE.md` for how authentication will be introduced later.
 
 ## Repository map
 
@@ -57,6 +73,7 @@ Never commit real credentials. Browser-exposed variables must only contain value
 - `src/hooks` — genuinely reusable React hooks
 - `src/lib` — small framework-independent utilities and configuration
 - `src/services` — data access and external integration boundaries
+- `supabase/migrations` — SQL schema history
 - `src/styles` — global semantic design tokens
 - `src/types` — shared cross-feature types only
 - `docs/ARCHITECTURE.md` — architectural decisions and future placement rules
@@ -65,8 +82,8 @@ Never commit real credentials. Browser-exposed variables must only contain value
 ## Roadmap
 
 - **Phase 1A:** Foundation and architecture
-- **Phase 1B:** Application shell, navigation, theme system, and glass interface (current)
-- **Phase 1C:** Tasks and persistence
+- **Phase 1B:** Application shell, navigation, theme system, and glass interface
+- **Phase 1C:** Tasks and persistence (current)
 - **Phase 1D:** Calendar and scheduled-task rendering
 - **Phase 1E:** Home dashboard and widgets
 - **Phase 1F:** School

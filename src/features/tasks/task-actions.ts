@@ -20,6 +20,12 @@ import {
 export type ActionResult = { ok: true } | { ok: false; message: string };
 
 const TASKS_PATH = "/tasks";
+const CALENDAR_PATH = "/calendar";
+
+function revalidateTaskConsumers() {
+  revalidatePath(TASKS_PATH);
+  revalidatePath(CALENDAR_PATH);
+}
 
 class InvalidInputError extends Error {}
 
@@ -114,7 +120,7 @@ export async function createTaskAction(input: QuickAddInput): Promise<ActionResu
       status: dueDate ? "todo" : "inbox",
     });
 
-    revalidatePath(TASKS_PATH);
+    revalidateTaskConsumers();
 
     return { ok: true };
   } catch (error) {
@@ -173,7 +179,7 @@ export async function saveTaskAction(id: unknown, input: TaskEditInput): Promise
     if (status) patch.status = status;
 
     await updateTask(taskId, patch);
-    revalidatePath(TASKS_PATH);
+    revalidateTaskConsumers();
 
     return { ok: true };
   } catch (error) {
@@ -187,7 +193,7 @@ export async function setTaskCompletionAction(
 ): Promise<ActionResult> {
   try {
     await setTaskCompletion(requireId(id), completed === true);
-    revalidatePath(TASKS_PATH);
+    revalidateTaskConsumers();
 
     return { ok: true };
   } catch (error) {
@@ -198,7 +204,7 @@ export async function setTaskCompletionAction(
 export async function deleteTaskAction(id: unknown): Promise<ActionResult> {
   try {
     await deleteTask(requireId(id));
-    revalidatePath(TASKS_PATH);
+    revalidateTaskConsumers();
 
     return { ok: true };
   } catch (error) {

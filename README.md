@@ -4,16 +4,16 @@ A personal, single-user productivity application intended to bring tasks, calend
 
 ## Current phase
 
-**Phase 1C — Tasks and persistence.** Tasks are now a real domain backed by Supabase/PostgreSQL: create, edit, complete, reopen, delete, prioritise, set due dates, and schedule work, across the Inbox, Today, Tomorrow, Next 7 days, Overdue, Someday, and Completed views.
+**Phase 1D — Calendar and scheduled-task rendering.** Calendar provides responsive Month, Week, and Agenda views backed by native Life OS events and a read-time projection of scheduled tasks. Native events support create, edit, and delete. Scheduled tasks remain task rows, expose completion state, and open the existing task editor for rescheduling. Due-only tasks render as visually separate deadline indicators.
 
-A task can carry a deadline and a scheduled interval and may later be drawn on the calendar, but it is never converted into a calendar event and no event rows exist. The repository still contains no calendar UI, school data, authentication, recurring tasks, habits, or external integrations.
+The repository still contains no school data, authentication, recurring events or tasks, habits, or external synchronization. Blackboard and Google Calendar are represented only as future-safe event source values.
 
 ## Stack
 
 - Next.js 16 with the App Router
 - React 19 and TypeScript
 - Tailwind CSS 4
-- Supabase (PostgreSQL) for task persistence, accessed server-side only
+- Supabase (PostgreSQL) for task and calendar-event persistence, accessed server-side only
 - Lucide React icons
 - ESLint with Next.js Core Web Vitals and TypeScript rules
 - Vercel-compatible Next.js deployment
@@ -43,7 +43,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment setup
 
-Tasks require Supabase. Copy the example file and fill in the two server-side values:
+Tasks and Calendar require Supabase. Copy the example file and fill in the two server-side values:
 
 ```powershell
 Copy-Item .env.example .env.local
@@ -55,15 +55,15 @@ Copy-Item .env.example .env.local
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only key. Never prefix it with `NEXT_PUBLIC_` |
 | `APP_TIME_ZONE` | Optional IANA zone deciding what "today" means. Defaults to the server's zone, so set it when deploying |
 
-Then apply the schema in `supabase/migrations` to your project, either with the Supabase CLI (`supabase db push`) or by running the SQL file in the Supabase SQL editor.
+Then apply the schemas in `supabase/migrations` to your project in filename order, either with the Supabase CLI (`supabase db push`) or by running the SQL files in the Supabase SQL editor.
 
-Without these variables the Tasks page renders a setup notice instead of failing, and the rest of the app works normally.
+Without these variables the Tasks and Calendar pages render setup notices instead of failing, and the rest of the app works normally.
 
 Never commit real credentials. Browser-exposed variables must only contain values designed to be public; the service role key is read only in server code and is never sent to the browser.
 
 ### Access model
 
-Phase 1C has no authentication. The `tasks` table has row level security enabled with **no policies**, so the anon key can read nothing. All access goes through Next.js server code using the service role key, which bypasses RLS. See `docs/ARCHITECTURE.md` for how authentication will be introduced later.
+Phase 1D has no authentication. The `tasks` and `calendar_events` tables have row level security enabled with **no policies**, so the anon key can read nothing. All access goes through Next.js server code using the service role key, which bypasses RLS. See `docs/ARCHITECTURE.md` for how authentication will be introduced later.
 
 ## Repository map
 
@@ -83,8 +83,8 @@ Phase 1C has no authentication. The `tasks` table has row level security enabled
 
 - **Phase 1A:** Foundation and architecture
 - **Phase 1B:** Application shell, navigation, theme system, and glass interface
-- **Phase 1C:** Tasks and persistence (current)
-- **Phase 1D:** Calendar and scheduled-task rendering
+- **Phase 1C:** Tasks and persistence
+- **Phase 1D:** Calendar and scheduled-task rendering (current)
 - **Phase 1E:** Home dashboard and widgets
 - **Phase 1F:** School
 - **Phase 1G:** Football and More

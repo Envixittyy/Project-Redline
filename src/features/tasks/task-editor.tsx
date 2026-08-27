@@ -29,7 +29,7 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
   const [fields, setFields] = useState({
     title: task.title,
     description: task.description ?? "",
-    status: completed ? "todo" : task.status,
+    status: task.status,
     priority: task.priority,
     dueDate: task.dueDate ?? "",
     scheduledStart: task.scheduledStart ? toZonedInputValue(task.scheduledStart, timeZone) : "",
@@ -72,7 +72,9 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
       saveTaskAction(task.id, {
         title: fields.title,
         description: fields.description,
-        status: fields.status,
+        // Completed tasks keep their status while their details are edited.
+        // Reopening stays an explicit action so completed_at remains valid.
+        status: completed ? undefined : fields.status,
         priority: fields.priority,
         dueDate: fields.dueDate,
         // datetime-local carries a wall clock; convert it in the workspace zone.
@@ -138,9 +140,10 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
               <select
                 className={styles.control}
                 value={fields.status}
+                disabled={completed}
                 onChange={(event) => update("status", event.target.value as typeof fields.status)}
               >
-                {editableStatuses.map((status) => (
+                {(completed ? taskStatuses : editableStatuses).map((status) => (
                   <option key={status.id} value={status.id}>
                     {status.label}
                   </option>

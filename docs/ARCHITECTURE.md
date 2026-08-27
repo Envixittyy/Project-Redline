@@ -13,14 +13,20 @@ src/
   components/
     shell/                Domain-neutral shell and navigation composition
     ui/                   Reusable, domain-neutral interface components
-  features/               Feature-owned UI, state, validation, and business rules
+  features/
+    tasks/                Task interface, server actions, and presentation rules
   hooks/                  Shared React hooks with more than one real consumer
   lib/
+    date/                 Calendar-day and time-zone helpers
     theme/                Theme metadata such as supported accent palettes
   services/
     integrations/         Adapters for external systems
+    supabase/             Server-side Supabase client
+    tasks/                Task persistence
   styles/                 Global semantic design tokens
   types/                  Types shared across genuine domain boundaries
+supabase/
+  migrations/             SQL schema history
 ```
 
 Folders should gain code only when a phase needs it. Do not create generic repositories, managers, or utility collections in anticipation of future work.
@@ -31,7 +37,9 @@ The `(workspace)` route group applies `AppShell` to Home, Tasks, Calendar, Schoo
 
 Primary destinations are defined once in `src/lib/navigation.ts` and consumed by both the persistent desktop sidebar and safe-area-aware mobile tab bar. Mobile content reserves enough bottom space for the fixed bar. Desktop content is constrained to a readable frame and can expand into multi-column dashboard layouts.
 
-Tasks, Calendar, and School routes are deliberately visual placeholders. More reserves clear entries for Football, Projects, Areas, and Integrations while keeping Appearance as the only functional section in this phase.
+Calendar and School routes remain visual placeholders. More reserves clear entries for Football, Projects, Areas, and Integrations while keeping Appearance as its only functional section.
+
+Tasks is a working route as of Phase 1C. Its seven views are query parameters (`/tasks?view=today`) rather than nested routes, so Tasks stays a single destination in the primary navigation and secondary features never need to expand the mobile tab bar.
 
 ## Reusable UI and feature separation
 
@@ -73,15 +81,50 @@ Integration adapters should translate provider-specific payloads into explicit i
 
 Blackboard is limited to calendar-related information unless requirements change. Announcement, grade, messaging, document, and general feed syncing are out of scope.
 
-## Future data layer
+## Data layer
 
-Supabase is the anticipated hosted boundary and PostgreSQL is the target relational model. A future data phase can place browser/server clients under `src/services/supabase` and schema migrations in a root `supabase/` directory. Environment placeholders exist, but Phase 1B has no client, schema, or database dependency.
+Supabase (PostgreSQL) holds task data. `src/services/supabase/server.ts` builds a single server-side client from `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; it imports `server-only` so it can never be pulled into a client bundle. When the variables are absent it throws a typed `SupabaseNotConfiguredError` and the Tasks route renders a setup notice rather than failing.
 
-Data access should stay server-side by default and expose narrow operations to features. Do not create a large speculative schema. Add tables and constraints alongside the product phase that establishes their behavior.
+`src/services/tasks/task-repository.ts` is the only module that speaks to the table. It maps snake_case rows to the camelCase `Task` type in `src/types/task.ts`, builds each view's query, and converts Postgres errors into `TaskRepositoryError` after logging the cause. Features never see a Supabase client.
+
+Mutations run through server actions in `src/features/tasks/task-actions.ts`. Actions validate their own input because a server action is a public endpoint, return a discriminated `ActionResult` instead of throwing across the boundary, and call `revalidatePath` so server-rendered views refresh.
+
+Data access stays server-side by default and exposes narrow operations to features. Do not create a large speculative schema. Add tables and constraints alongside the product phase that establishes their behavior.
+
+## Task schema
+
+`supabase/migrations` holds the SQL history. The `tasks` table carries `title`, `description`, `status`, `priority`, `due_date`, `scheduled_start`, `scheduled_end`, `area`, `project`, `course`, and the created, updated, and completed timestamps. `task_status` and `task_priority` are Postgres enums, so an unknown value fails at the database rather than silently persisting.
+
+Check constraints keep invalid states unrepresentable: a title cannot be blank, a scheduled end requires a start and cannot precede it, and `completed_at` is set exactly when the status is `completed`. A trigger maintains `updated_at`. Three indexes support the views: `(status, due_date)` for every dated view, `completed_at desc` for Completed, and a partial index on `scheduled_start` that the Phase 1D calendar range query will also use.
+
+`area`, `project`, and `course` are free text in this phase. Promoting them to their own tables is an additive migration: create the table, add a nullable foreign key, backfill from the text column, then drop the text column. Do not build those systems before their phases.
+
+## Days, instants, and time zones
+
+A due date is a calendar day, so `due_date` is a `date` and is compared as a `YYYY-MM-DD` string with no zone conversion. A scheduled start or end is a real instant, so both are `timestamptz`.
+
+Deciding what "today" means therefore needs a zone. `src/lib/date/day.ts` resolves it from `APP_TIME_ZONE`, falling back to the runtime's own zone, and converts a calendar day into the pair of UTC instants that bound it. The page passes the resolved zone and today's date down as props so a row formats identically on the server and after hydration.
+
+## Tasks are not calendar events
+
+The schema has no events table and no event foreign key, and nothing in the task write path creates a second row. Scheduling a task sets `scheduled_start` and `scheduled_end` on the task itself.
+
+The dated views already combine both signals: a task reaches Today because its due date is today or because its scheduled start falls inside today, evaluated as a single query against the task table. Phase 1D should extend this at the presentation layer by reading tasks and events separately and composing a view model. It must not write task rows into an events table, mirror events into tasks, or add a `calendar_event_id` to `tasks`.
 
 ## Future authentication
 
-Authentication is intentionally absent. If private access is added later, session/client setup should live in a dedicated service boundary, request enforcement should use the current Next.js proxy convention if needed, and login UI should be isolated from feature logic. The current route and data structure do not assume an authenticated user object, so a simple access layer can be added without rewriting domain components.
+Authentication is intentionally absent and the application is single-user and private by design.
+
+Privacy does not depend on that absence. The `tasks` table has row level security enabled with no policies, so the anon and publishable keys can read nothing even if one leaks. The service role key bypasses RLS and is used only in server code.
+
+Introducing authentication is additive:
+
+1. Add a nullable `user_id uuid references auth.users(id)` to `tasks`, backfill it with the single existing owner, then make it `not null`.
+2. Add owner policies (`user_id = auth.uid()`) for select, insert, update, and delete.
+3. Create a request-scoped client that carries the user's session, and switch the repository to it. The service role client stays for trusted background work only.
+4. Add login UI in its own feature folder and enforce sessions in the current Next.js proxy convention.
+
+No route, component, or domain type currently assumes an anonymous user, so none of them need rewriting.
 
 ## Tasks and calendar are separate domains
 

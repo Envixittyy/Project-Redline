@@ -1,4 +1,4 @@
-export type NotificationType="blackboard_assignment"|"blackboard_deadline_changed"|"blackboard_announcement"|"due_reminder"|"sync_failure"|"daily_digest";
+export type NotificationType="blackboard_assignment"|"blackboard_deadline_changed"|"due_reminder"|"sync_failure"|"daily_digest";
 export function notificationDedupeKey(type:NotificationType,sourceId:string,revision:string){return `${type}:${sourceId}:${revision}`;}
 export function safeDeepLink(value:string){return /^\/(?!\/)[A-Za-z0-9/_?=&%.-]*$/.test(value)?value:"/";}
 export function isQuietHours(now:Date,timeZone:string,start:string|null,end:string|null){if(!start||!end||start===end)return false;const parts=new Intl.DateTimeFormat("en-GB",{timeZone,hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(now);return start<end?parts>=start&&parts<end:parts>=start||parts<end;}

@@ -12,6 +12,7 @@ import {
   type TaskPriority,
   type TaskStatus,
   type TaskView,
+  type SmartListId,
 } from "@/types/task";
 
 const TABLE = "tasks";
@@ -295,6 +296,130 @@ export async function setTaskCompletion(id: string, completed: boolean): Promise
   if (!data) throw new TaskRepositoryError("That task no longer exists.");
 
   return toTask(data as TaskRow);
+}
+
+/**
+ * Tasks matching a smart list.
+ *
+ * Smart lists are more flexible than views and can combine different criteria
+ * like status, priority, area, and project filters.
+ */
+export async function listTasksForSmartList(listId: SmartListId): Promise<Task[]> {
+  const supabase = getSupabaseClient();
+  const timeZone = resolveTimeZone();
+  const today = todayIn(timeZone);
+  const tomorrow = addDays(today, 1);
+
+  let query = supabase.from(TABLE).select(COLUMNS);
+
+  switch (listId) {
+    case "inbox": {
+      query = query.eq("status", "inbox").order("created_at", { ascending: false });
+      break;
+    }
+    case "today": {
+      const { start, end } = dayRangeIn(today, tomorrow, timeZone);
+      query = query
+        .in("status", openTaskStatuses)
+        .or(
+          "due_date.eq." + today +
+            ",and(scheduled_start.gte." + quote(start) +
+            ",scheduled_start.lt." + quote(end) + ")",
+        );
+      break;
+    }
+    case "tomorrow": {
+      const { start, end } = dayRangeIn(tomorrow, addDays(today, 2), timeZone);
+      query = query
+        .in("status", openTaskStatuses)
+        .or(
+          "due_date.eq." + tomorrow +
+            ",and(scheduled_start.gte." + quote(start) +
+            ",scheduled_start.lt." + quote(end) + ")",
+        );
+      break;
+    }
+    case "next7": {
+      const lastDay = addDays(today, 6);
+      const { start, end } = dayRangeIn(today, addDays(today, 7), timeZone);
+      query = query
+        .in("status", openTaskStatuses)
+        .or(
+          "and(due_date.gte." + today + ",due_date.lte." + lastDay + ")" +
+            ",and(scheduled_start.gte." + quote(start) +
+            ",scheduled_start.lt." + quote(end) + ")",
+        );
+      break;
+    }
+    case "overdue": {
+      query = query.in("status", openTaskStatuses).lt("due_date", today);
+      break;
+    }
+    case "someday": {
+      query = query
+        .in("status", ["todo", "in_progress"])
+        .is("due_date", null)
+        .is("scheduled_start", null);
+      break;
+    }
+    case "completed": {
+      query = query.eq("status", "completed").order("completed_at", { ascending: false });
+      break;
+    }
+    case "submitted": {
+      query = query.eq("status", "submitted").order("updated_at", { ascending: false });
+      break;
+    }
+    case "in_progress": {
+      query = query.eq("status", "in_progress").order("updated_at", { ascending: false });
+      break;
+    }
+    case "cancelled": {
+      query = query.eq("status", "cancelled").order("updated_at", { ascending: false });
+      break;
+    }
+    case "urgent": {
+      query = query
+        .in("status", openTaskStatuses)
+        .eq("priority", "urgent")
+        .order("due_date", { ascending: true });
+      break;
+    }
+    case "high_priority": {
+      query = query
+        .in("status", openTaskStatuses)
+        .eq("priority", "high")
+        .order("due_date", { ascending: true });
+      break;
+    }
+    case "medium_priority": {
+      query = query
+        .in("status", openTaskStatuses)
+        .eq("priority", "medium")
+        .order("due_date", { ascending: true });
+      break;
+    }
+    case "low_priority": {
+      query = query
+        .in("status", openTaskStatuses)
+        .eq("priority", "low")
+        .order("due_date", { ascending: true });
+      break;
+    }
+  }
+
+  if (listId !== "inbox" && listId !== "completed" && listId !== "submitted" &&
+      listId !== "in_progress" && listId !== "cancelled") {
+    query = query
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("priority", { ascending: false })
+      .order("created_at", { ascending: true });
+  }
+
+  const { data, error } = await query.limit(500);
+  if (error) fail("load tasks", error);
+
+  return (data as TaskRow[]).map(toTask);
 }
 
 export async function deleteTask(id: string): Promise<void> {

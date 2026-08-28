@@ -36,6 +36,30 @@ export type TaskView = (typeof taskViews)[number]["id"];
 
 export const defaultTaskView: TaskView = "today";
 
+/** Smart Lists that can be saved and customized */
+export const smartLists = [
+  { id: "inbox", label: "Inbox" },
+  { id: "today", label: "Today" },
+  { id: "tomorrow", label: "Tomorrow" },
+  { id: "next7", label: "Next 7 days" },
+  { id: "overdue", label: "Overdue" },
+  { id: "someday", label: "Someday" },
+  { id: "completed", label: "Completed" },
+  { id: "submitted", label: "Submitted" },
+  { id: "in_progress", label: "In Progress" },
+  { id: "cancelled", label: "Cancelled" },
+  { id: "urgent", label: "Urgent" },
+  { id: "high_priority", label: "High Priority" },
+  { id: "medium_priority", label: "Medium Priority" },
+  { id: "low_priority", label: "Low Priority" },
+] as const;
+
+export type SmartListId = (typeof smartLists)[number]["id"];
+
+export function isSmartListId(value: string): value is SmartListId {
+  return smartLists.some((list) => list.id === value);
+}
+
 /**
  * A task is its own entity. `dueDate` is a calendar day and `scheduledStart` /
  * `scheduledEnd` are instants describing when the work happens. Rendering a

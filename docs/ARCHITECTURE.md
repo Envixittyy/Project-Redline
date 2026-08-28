@@ -98,6 +98,10 @@ Integration adapters should translate provider-specific payloads into explicit i
 
 Blackboard is limited to calendar-related information unless requirements change. Announcement, grade, messaging, document, and general feed syncing are out of scope.
 
+Phase 2 accepts only a private Blackboard iCalendar URL. The URL is AES-256-GCM encrypted with a server-only deployment key and is never returned by status reads. Retrieval uses HTTPS with public-address DNS validation, a pinned lookup, manual validated redirects, time and size limits, and defensive parsing. `external_records` owns provider identity while linked tasks remain ordinary tasks; synchronization updates provider-controlled fields only and marks disappeared records missing rather than deleting them.
+
+Notification events are separate from parsing and have persistent owner-scoped deduplication keys and safe relative deep links. Device subscriptions and delivery rows prepare standards-based Web Push; in-app events remain available when push is unavailable or fails. Announcement persistence has an official-provider boundary, but the UI reports it disabled until an institution API is configured and never falls back to scraping.
+
 ## Data layer
 
 Supabase Auth and PostgreSQL hold the session plus task/native-event data. `src/services/supabase/request.ts` creates a fresh `@supabase/ssr` client for each request from secure cookies and the public project key. It verifies JWT claims before returning the authenticated subject. Normal repositories never receive or import the service-role client. `src/services/supabase/admin.ts` is a separately named, server-only maintenance boundary.

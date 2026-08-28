@@ -18,6 +18,7 @@ const emptyCopy: Record<TaskView, string> = {
   next7: "Nothing lands in the next seven days.",
   overdue: "Nothing is overdue.",
   someday: "No undated tasks are waiting.",
+  submitted: "No tasks are waiting in Submitted.",
   completed: "No tasks have been completed yet.",
 };
 

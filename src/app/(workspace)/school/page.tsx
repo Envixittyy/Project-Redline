@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
-import { GraduationCap } from "lucide-react";
-
 import { PageHeader } from "@/components/ui/page-header";
-import { SectionPlaceholder } from "@/components/ui/section-placeholder";
+import { SchoolWorkspace } from "@/features/school/school-workspace";
+import { resolveTimeZone, todayIn } from "@/lib/date/day";
+import { listCourses } from "@/services/courses/course-repository";
+import { isSupabaseConfigured } from "@/services/supabase/public-config";
 
 export const metadata: Metadata = { title: "School" };
 
-export default function SchoolPage() {
+export default async function SchoolPage() {
+  const timeZone=resolveTimeZone();
+  const courses=isSupabaseConfigured()?await listCourses():[];
   return (
     <>
-      <PageHeader title="School" description="A dedicated place for academic priorities and calendar-related school information." />
-      <SectionPlaceholder icon={GraduationCap} phase="Phase 1F" title="School stays intentionally quiet" description="Courses, Blackboard calendar data, and academic organization are not implemented in this phase." />
+      <PageHeader title="School" description="Courses and recurring meetings stay owner-scoped and appear on the timetable without becoming ordinary calendar events." />
+      <SchoolWorkspace courses={courses} today={todayIn(timeZone)} timeZone={timeZone}/>
     </>
   );
 }

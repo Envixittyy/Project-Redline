@@ -56,6 +56,20 @@
   text-transform: uppercase;
 }
 
+.sectionLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.open {
+  margin-left: auto;
+  color: var(--accent-text);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .appearance {
   scroll-margin-top: 2rem;
   padding: clamp(1.25rem, 4vw, 2rem);

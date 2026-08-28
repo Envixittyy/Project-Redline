@@ -1,5 +1,6 @@
 import { addDays } from "@/lib/date/day";
 import type { CalendarEvent } from "@/types/calendar-event";
+import type { CourseMeeting } from "@/types/course-meeting";
 import type { Task } from "@/types/task";
 
 import { dateForInstant, lastOccupiedDate } from "./calendar-date";
@@ -11,12 +12,15 @@ import {
   type NativeCalendarEntry,
   type TaskDeadlineCalendarEntry,
   type TaskScheduleCalendarEntry,
+  courseMeetingToCalendarEntries,
+  type CourseMeetingCalendarEntry,
 } from "./calendar-domain";
 
 export type CalendarItem =
   | { key: string; kind: "event"; date: string; event: CalendarEvent; entry: NativeCalendarEntry }
   | { key: string; kind: "scheduled_task"; date: string; task: Task; entry: TaskScheduleCalendarEntry }
-  | { key: string; kind: "deadline"; date: string; task: Task; entry: TaskDeadlineCalendarEntry };
+  | { key: string; kind: "deadline"; date: string; task: Task; entry: TaskDeadlineCalendarEntry }
+  | { key: string; kind: "course_meeting"; date: string; meeting: CourseMeeting; entry: CourseMeetingCalendarEntry };
 
 function occupiedDates(start: string, end: string | null, timeZone: string): string[] {
   const first = dateForInstant(start, timeZone);
@@ -36,6 +40,9 @@ export function buildCalendarItems(
   scheduledTasks: Task[],
   deadlineTasks: Task[],
   timeZone: string,
+  meetings: CourseMeeting[] = [],
+  fromDate?: string,
+  toDateExclusive?: string,
 ): CalendarItem[] {
   const items: CalendarItem[] = [];
 
@@ -44,6 +51,16 @@ export function buildCalendarItems(
     if (!entry || !matchesCalendarFilters(entry, defaultCalendarFilters)) continue;
     for (const date of occupiedDates(entry.start!, entry.end, timeZone)) {
       items.push({ key: `${entry.key}:${date}`, kind: "event", date, event, entry });
+    }
+  }
+
+  if (fromDate && toDateExclusive) {
+    for (const meeting of meetings) {
+      for (const entry of courseMeetingToCalendarEntries(meeting, fromDate, toDateExclusive, timeZone)) {
+        if (matchesCalendarFilters(entry, defaultCalendarFilters)) {
+          items.push({ key: entry.key, kind: "course_meeting", date: entry.date, meeting, entry });
+        }
+      }
     }
   }
 
@@ -70,7 +87,7 @@ export function buildCalendarItems(
   return items.sort((left, right) => {
     const byDate = left.date.localeCompare(right.date);
     if (byDate !== 0) return byDate;
-    const rank = { event: 0, scheduled_task: 1, deadline: 2 } as const;
+    const rank = { course_meeting: 0, event: 1, scheduled_task: 2, deadline: 3 } as const;
     return rank[left.kind] - rank[right.kind];
   });
 }

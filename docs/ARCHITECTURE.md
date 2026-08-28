@@ -17,6 +17,9 @@ src/
   features/
     auth/                 Sign-in/sign-out actions and server session guard
     calendar/             Calendar read model, views, and native event editor
+    notes/                Markdown note editor and private attachment controls
+    offline/              PWA registration and truthful synchronization status
+    school/               Course and recurring-meeting workflows
     tasks/                Task interface, server actions, and presentation rules
   hooks/                  Shared React hooks with more than one real consumer
   lib/
@@ -24,6 +27,8 @@ src/
     theme/                Theme metadata such as supported accent palettes
   services/
     calendar-events/      Source-aware calendar-event persistence
+    courses/              Course and recurring-meeting persistence
+    notes/                Note persistence
     integrations/         Adapters for external systems
     supabase/             Browser, request, proxy, and admin trust boundaries
     tasks/                Task persistence
@@ -41,7 +46,7 @@ The `(workspace)` route group applies `AppShell` to Home, Tasks, Calendar, Schoo
 
 Primary destinations are defined once in `src/lib/navigation.ts` and consumed by both the persistent desktop sidebar and safe-area-aware mobile tab bar. Mobile content reserves enough bottom space for the fixed bar. Desktop content is constrained to a readable frame and can expand into multi-column dashboard layouts.
 
-School remains a visual placeholder. More reserves clear entries for Football, Projects, Areas, and Integrations while keeping Appearance and authenticated Account sign-out as its functional sections.
+School persists owner-scoped courses and recurring weekly meetings. The timetable projects meeting occurrences into Calendar through the calendar domain adapter; it never writes duplicated native event rows. Notes is a secondary route linked from More so the five-item mobile navigation remains stable.
 
 Calendar is a working route as of Phase 1D. Its Month, Week, and Agenda modes are query parameters (`/calendar?view=week&date=2026-08-27`) so view and anchor date remain linkable. The page is a server component that resolves the visible range and reads events and tasks in parallel; `CalendarWorkspace` is the interaction boundary for view controls and editors. The mobile Month grid compresses item copy into semantic marks, Week uses an internally scrollable seven-day surface rather than overflowing the page, and Agenda is a readable narrow-screen list.
 
@@ -77,7 +82,13 @@ The root layout provides descriptive metadata and semantic HTML. Global focus-vi
 
 ## Local UI preferences
 
-Appearance and Home widget visibility are device-local UI preferences, not domain data. Their storage keys are versioned. The Home preview supports only visible/hidden state for Today, Upcoming, Current Projects, and School; it intentionally has no ordering, resizing, drag-and-drop, or server persistence. Phase 1C should not move these preferences into the first task schema unless a later product requirement calls for cross-device UI preference syncing.
+Appearance remains a device-local UI preference with a versioned storage key. Home now renders real owner-scoped Today, Overdue, Upcoming, and School summaries. It intentionally has no ordering, resizing, drag-and-drop, or customizable dashboard persistence.
+
+## Notes, attachments, and offline behavior
+
+`notes` stores private Markdown with optional task and course relationships. Autosave and explicit save use authenticated server actions. Attachment objects live in the private `private-attachments` Supabase Storage bucket; metadata and object policies both verify the owner, downloads use short-lived signed URLs, and failed metadata creation removes the uploaded object.
+
+The App Router manifest and `/sw.js` provide the installable shell. IndexedDB stores only explicitly supported task and note mutations, each with a stable operation ID. Reconnect replay authenticates through a Route Handler and uses database uniqueness for create idempotency. The UI distinguishes Offline, Pending, Syncing, Failed, and Conflict; unsupported operations are never reported as synchronized.
 
 ## Services and integrations
 

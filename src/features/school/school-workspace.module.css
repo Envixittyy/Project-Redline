@@ -1,0 +1,34 @@
+.layout, .courses { display: grid; gap: 1rem; }
+.toolbar { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }
+.toolbar h2, .toolbar p, .course h2, .course p, .course small, .empty h2, .empty p { margin: 0; }
+.kicker { color: var(--text-tertiary); font-size: .72rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.toolbar h2 { margin-top: .25rem; font-size: clamp(1.25rem, 4vw, 1.7rem); }
+.toolbar button, .formCard button, .meetingForm button, .course header button { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; gap: .45rem; padding: .55rem .8rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-interactive); color: var(--text-primary); cursor: pointer; font: inherit; font-weight: 700; }
+.error, .empty, .formCard, .course { padding: 1rem; }
+.empty { text-align: center; }
+.empty svg { color: var(--accent-text); }
+.empty p { margin: .5rem auto 0; max-width: 34rem; color: var(--text-secondary); line-height: 1.5; }
+.formGrid { display: grid; gap: .75rem; }
+.formGrid label, .meetingForm > label { display: grid; gap: .35rem; color: var(--text-secondary); font-size: .78rem; font-weight: 700; }
+.formGrid input, .meetingForm input { min-height: 2.75rem; padding: .6rem .7rem; border: 1px solid var(--border-subtle); border-radius: .75rem; background: var(--surface); color: var(--text-primary); }
+.formCard button, .meetingForm > button { margin-top: .85rem; background: var(--accent); color: var(--accent-foreground); }
+.course { border-top: 3px solid var(--course-color); }
+.course header { display: flex; align-items: center; gap: .8rem; }
+.course header > div { min-width: 0; }
+.course header button { margin-left: auto; }
+.swatch { width: .8rem; height: 2.8rem; flex: none; border-radius: 999px; background: var(--course-color); }
+.course header p { color: var(--accent-text); font-size: .72rem; font-weight: 800; letter-spacing: .08em; }
+.course header h2 { font-size: 1.05rem; }
+.course header small { display: block; margin-top: .18rem; color: var(--text-tertiary); }
+.meetingForm { display: grid; gap: .75rem; margin-top: 1rem; padding: 1rem; border-radius: var(--radius-md); background: var(--surface-subtle); }
+.meetingForm fieldset { display: flex; flex-wrap: wrap; gap: .55rem; border: 0; padding: 0; }
+.meetingForm legend { margin-bottom: .4rem; color: var(--text-secondary); font-size: .78rem; font-weight: 700; }
+.meetingForm fieldset label { display: flex; min-height: 2.5rem; align-items: center; gap: .3rem; padding: .4rem .55rem; border: 1px solid var(--border-subtle); border-radius: .7rem; }
+.meetings { display: grid; gap: .55rem; margin: 1rem 0 0; padding: 0; list-style: none; }
+.meetings li { display: flex; align-items: center; gap: .75rem; padding: .75rem; border-radius: .8rem; background: var(--surface-subtle); }
+.meetings li > div { display: grid; gap: .15rem; }
+.meetings span { display: flex; align-items: center; gap: .25rem; color: var(--text-tertiary); font-size: .74rem; }
+.meetings button, .archive { margin-left: auto; border: 0; background: transparent; color: var(--text-tertiary); cursor: pointer; }
+.archive { margin-top: 1rem; font-size: .75rem; text-decoration: underline; }
+@media (min-width: 42rem) { .formGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .courses { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 30rem) { .toolbar { align-items: stretch; flex-direction: column; } .course header { align-items: flex-start; flex-wrap: wrap; } .course header button { margin-left: 0; } }

@@ -13,6 +13,7 @@
 .legend { display: flex; flex-wrap: wrap; gap: 0.45rem 0.85rem; color: var(--text-tertiary); font-size: 0.7rem; font-weight: 650; }
 .legend span { display: inline-flex; align-items: center; gap: 0.3rem; }
 .legend span[data-kind="event"] { color: var(--accent-text); }
+.legend span[data-kind="course_meeting"] { color: var(--accent-text); }
 .legend span[data-kind="scheduled_task"] { color: var(--text-primary); }
 
 .monthLayout { display: grid; min-width: 0; gap: 0.8rem; }
@@ -31,6 +32,7 @@
 
 .item { --calendar-item-accent: var(--accent-text); display: flex; width: 100%; min-width: 0; min-height: 2.75rem; align-items: center; gap: 0.48rem; padding: 0.5rem 0.58rem; border: 1px solid var(--border-subtle); border-left: 0.2rem solid var(--calendar-item-accent); border-radius: var(--radius-sm); background: var(--surface-interactive); color: var(--text-primary); cursor: pointer; text-align: left; }
 .item[data-kind="scheduled_task"] { --calendar-item-accent: var(--text-secondary); background: var(--surface-subtle); }
+.item[data-kind="course_meeting"] { --calendar-item-accent: var(--accent-text); cursor: default; }
 .item[data-kind="deadline"] { --calendar-item-accent: var(--text-tertiary); border-left-style: dotted; background: transparent; }
 .item[data-completed] { opacity: 0.62; }
 .item[data-completed] .itemTitle { text-decoration: line-through; }

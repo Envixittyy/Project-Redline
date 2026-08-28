@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { FolderKanban, LandPlot, Puzzle, Trophy } from "lucide-react";
+import Link from "next/link";
+import { FolderKanban, LandPlot, NotebookPen, Puzzle, Trophy } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
@@ -23,6 +24,13 @@ export default function MorePage() {
       <PageHeader title="More" description="Appearance and account controls live here; secondary areas will join as their phases begin." />
       <div className={styles.sections}>
         <section className={styles.secondaryGrid} aria-label="Future sections">
+          <Link href="/notes" className={styles.sectionLink}>
+            <Surface variant="interactive" className={styles.secondaryCard}>
+              <span className={styles.secondaryIcon} aria-hidden="true"><NotebookPen size={19}/></span>
+              <div><h2>Notes</h2><p>Private Markdown and attachments</p></div>
+              <span className={styles.open}>Open</span>
+            </Surface>
+          </Link>
           {secondarySections.map((section) => {
             const Icon = section.icon;
             return (

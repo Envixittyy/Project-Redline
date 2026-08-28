@@ -3,6 +3,7 @@ import { Settings2, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { DesktopNavigation, MobileTabBar } from "./app-navigation";
+import { PwaClient } from "@/features/offline/pwa-client";
 import styles from "./app-shell.module.css";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -40,6 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       <MobileTabBar />
+      <PwaClient />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 ## Goals
 
-The repository is a deliberately small foundation for a personal, single-user application. It separates framework concerns, reusable interface code, feature ownership, and external systems without introducing speculative layers. The working product name is presentation copy, not an architectural namespace.
+The repository is a deliberately small foundation for Forward, a personal, single-user application. It separates framework concerns, reusable interface code, feature ownership, and external systems without introducing speculative layers. Project Redline and existing `life_os` identifiers are historical/internal names, not architectural namespaces. Cross-phase contracts are indexed in `docs/FORWARD_ARCHITECTURE.md`.
 
 ## Directory structure
 
@@ -16,9 +16,12 @@ src/
     ui/                   Reusable, domain-neutral interface components
   features/
     auth/                 Sign-in/sign-out actions and server session guard
+    capture/              Raw-capture state and interpretation lifecycle
     calendar/             Calendar read model, views, and native event editor
     notes/                Markdown note editor and private attachment controls
     offline/              PWA registration and truthful synchronization status
+    operations/           Reversible operation/batch contract
+    planning/             Deterministic scheduler input contract
     school/               Course and recurring-meeting workflows
     tasks/                Task interface, server actions, and presentation rules
   hooks/                  Shared React hooks with more than one real consumer
@@ -68,11 +71,11 @@ The foundation uses a native system-font stack. This avoids a network dependency
 
 Appearance is represented by `data-theme="system" | "light" | "dark"` on the root element. System mode uses `prefers-color-scheme`; explicit light and dark selectors override it. Phase 1B provides all three controls on More. A small synchronous bootstrap in the document head validates versioned browser-local preferences and applies root attributes before paint. Interactive controls subscribe to those attributes through a hydration-safe external-store boundary.
 
-Accent selection uses `data-accent` and the centralized catalog in `src/lib/theme/palettes.ts`. Crimson, Ocean, Forest, Violet, and Graphite are initial options. Adding a palette means adding one catalog entry and its token values; feature components should not change.
+Accent selection uses `data-accent` and the centralized catalog in `src/lib/theme/palettes.ts`. Cobalt is the Forward default; Cyan, Violet, Graphite, and a restrained Warm Gold are alternatives. Red remains primarily destructive/error. Adding a palette means adding one catalog entry and its token values; feature components should not change.
 
 Reusable `Surface` variants (`base`, `glass`, `elevated`, `subtle`, and `interactive`) centralize translucent backgrounds, borders, shadows, radii, and blur. Pages and features compose those variants instead of recreating glass styles or encoding palette colors.
 
-Motion uses CSS where sufficient and includes a global `prefers-reduced-motion` safeguard. No animation library is installed. Translucent surfaces retain solid-enough backgrounds and borders so blur is decorative rather than required for readability.
+Motion uses CSS where sufficient and includes global `data-motion` plus `prefers-reduced-motion` safeguards. `src/styles/motion.css` provides the canonical composited enter/interaction primitive. No animation library is installed. Translucent surfaces retain solid-enough backgrounds and borders so blur is decorative rather than required for readability.
 
 ## Responsive and accessibility foundations
 
@@ -92,15 +95,15 @@ The App Router manifest and `/sw.js` provide the installable shell. IndexedDB st
 
 ## Services and integrations
 
-External systems belong behind adapters under `src/services/integrations/<system>`. Planned examples include `google-calendar`, `blackboard`, `notion`, `obsidian`, and `ai`, but these directories should not contain mock clients before their phases begin.
+External systems belong behind adapters under `src/services/integrations/<system>`. Blackboard has a concrete adapter; Calendar, Notion, and AI have narrow cross-phase contracts but no speculative provider implementations. Do not add mock clients before their phases begin.
 
 Integration adapters should translate provider-specific payloads into explicit internal shapes and preserve source identity. They must not leak SDK objects throughout features. Secrets stay server-side. Client components should not call privileged provider APIs directly.
 
 Blackboard is limited to calendar-related information unless requirements change. Announcement, grade, messaging, document, and general feed syncing are out of scope.
 
-Phase 2 accepts only a private Blackboard iCalendar URL. The URL is AES-256-GCM encrypted with a server-only deployment key and is never returned by status reads. Retrieval uses HTTPS with public-address DNS validation, a pinned lookup, manual validated redirects, time and size limits, and defensive parsing. `external_records` owns provider identity while linked tasks remain ordinary tasks; synchronization updates provider-controlled fields only and marks disappeared records missing rather than deleting them.
+Phase 2 accepts only a private Blackboard iCalendar URL. The URL is AES-256-GCM encrypted with a server-only deployment key and is never returned by status reads. Retrieval uses HTTPS with all-answer public-address DNS validation, a callback-shape-correct pinned lookup, manual validated redirects, time and size limits, and defensive parsing. `external_records` owns provider identity. Synchronization does not create or update ordinary tasks; it preserves any historical `task_id` link without acting on it and marks disappeared records missing rather than deleting them.
 
-Notification events are separate from parsing and have persistent owner-scoped deduplication keys and safe relative deep links. Device subscriptions and delivery rows prepare standards-based Web Push; in-app events remain available when push is unavailable or fails. Announcement persistence has an official-provider boundary, but the UI reports it disabled until an institution API is configured and never falls back to scraping.
+Notification events are separate from parsing and have persistent owner-scoped deduplication keys and safe relative deep links. Device subscriptions and delivery rows prepare standards-based Web Push; in-app events remain available when push is unavailable or fails. An already-applied migration contains an unused `announcements` table; it is technical debt, not an active domain. Do not build Blackboard announcement behavior or scraping.
 
 ## Data layer
 
@@ -152,11 +155,11 @@ The default filter contract shows tasks, Submitted work, native events, course m
 
 Task dragging uses `rescheduleTask` and the validating `rescheduleTaskAction`. `move_deadline` changes only the deadline and preserves an existing local due clock; `move_schedule` changes only the personal interval and preserves its duration. Neither operation performs an implicit conversion between a deadline and a work block.
 
-Courses remain free text on persisted tasks and events. There is not yet a persisted School course or course-meeting model. `src/types/course-meeting.ts` therefore defines only the minimal calendar-facing identity and weekly recurrence adapter needed by the later School/UI phase, including a pass-through semantic color. Archiving is also not represented in the task schema, so the calendar does not claim archive behavior until that domain exists.
+Tasks and native events retain optional free-text course labels for compatibility. School also persists owner-scoped `courses` and `course_meetings`; the Calendar expands meetings as read-time occurrences instead of duplicating native-event rows. Archiving is not represented in the task schema, so the calendar does not claim task-archive behavior until that domain exists.
 
 ## Authentication
 
-Phase 1G-B connects the existing auth presentation to Supabase password authentication and cookie-backed SSR sessions. `getClaims()` is the authoritative server check; local storage is not consulted. Missing and expired sessions redirect to `/login`, authenticated visits to `/login` return to the workspace, and provider outages fail closed at the public auth surface.
+Supabase password authentication uses cookie-backed SSR sessions. `getClaims()` is the authoritative server check; local storage is not consulted. Missing and expired sessions redirect to `/login`, authenticated visits to `/login` return to the workspace, and provider outages fail closed at the public auth surface.
 
 Both personal tables use a nullable-first `user_id uuid references auth.users(id)` migration, owner indexes, and separate select/insert/update/delete policies scoped to `authenticated`. `WITH CHECK ((select auth.uid()) = user_id)` prevents forged-owner inserts and ownership transfer. Anonymous users have no matching policy. Application writes also derive `user_id` from verified claims, but that filter is defense in depth rather than the security boundary.
 

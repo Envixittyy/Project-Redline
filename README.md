@@ -1,19 +1,19 @@
-# Life OS (working title)
+# Forward
 
-A personal, single-user productivity application intended to bring tasks, calendar, school, football, and selected external information into one calm interface. The name is provisional; architecture and domain boundaries should not depend on it.
+A private, single-user personal command center for tasks, calendar, school, notes, and carefully bounded integrations. **Be curious, not judgmental.** Project Redline remains the internal engineering codename; architecture and domain boundaries do not depend on either name.
 
-## Current phase
+## Current state
 
-**Phase 1G-B — authenticated owner-scoped persistence.** Supabase Auth sessions are stored in secure cookies, the workspace is server-protected, and task/calendar access runs through the authenticated user with PostgreSQL RLS enforcing ownership. Existing rows have a controlled service-role-only backfill path.
+The authenticated owner-scoped foundation is implemented. Supabase Auth sessions use secure cookies, the workspace is protected, and normal persistence runs through the authenticated user with PostgreSQL RLS enforcing ownership. Tasks, native calendar events, School courses/meetings, Notes/attachments, offline mutation groundwork, and secure Blackboard calendar-feed synchronization exist. Habits and recurring tasks remain deferred.
 
-The repository still contains no persisted school data, recurring events or tasks, habits, or external synchronization. Blackboard and Google Calendar are represented only as future-safe event source values.
+The current checkpoint fixes the Blackboard network blocker and defines architecture contracts for the later P1–P12 implementation roadmap. See [Forward architecture](docs/FORWARD_ARCHITECTURE.md) and the [Qwen implementation handoff](docs/QWEN_HANDOFF.md).
 
 ## Stack
 
 - Next.js 16 with the App Router
 - React 19 and TypeScript
 - Tailwind CSS 4
-- Supabase Auth and PostgreSQL for cookie-backed sessions and owner-scoped task/calendar persistence
+- Supabase Auth and PostgreSQL for cookie-backed sessions and owner-scoped persistence
 - Lucide React icons
 - ESLint with Next.js Core Web Vitals and TypeScript rules
 - Vercel-compatible Next.js deployment
@@ -54,7 +54,8 @@ Copy-Item .env.example .env.local
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Public Supabase project URL used by cookie-backed clients |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public project key; access remains restricted by RLS |
-| `APP_TIME_ZONE` | Optional IANA zone deciding what "today" means. Defaults to the server's zone, so set it when deploying |
+| `INTEGRATION_CREDENTIAL_ENCRYPTION_KEY` | Server-only key used to encrypt private integration credentials; never prefix it with `NEXT_PUBLIC_` |
+| `APP_TIME_ZONE` | Optional IANA zone deciding what "today" means. Defaults to `Asia/Manila` |
 
 The server-only `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are required only for the controlled owner backfill and isolated RLS integration tests. They are not used by normal feature repositories.
 
@@ -78,19 +79,10 @@ Without the public variables, the private workspace fails closed at the login su
 - `src/styles` — global semantic design tokens
 - `src/types` — shared cross-feature types only
 - `docs/ARCHITECTURE.md` — architectural decisions and future placement rules
+- `docs/FORWARD_ARCHITECTURE.md` — cross-phase product, security, and provider contracts
+- `docs/QWEN_HANDOFF.md` — bounded implementation roadmap and review checkpoints
 - `AGENTS.md` — persistent instructions for coding agents
 
 ## Roadmap
 
-- **Phase 1A:** Foundation and architecture
-- **Phase 1B:** Application shell, navigation, theme system, and glass interface
-- **Phase 1C:** Tasks and persistence
-- **Phase 1D:** Calendar and scheduled-task rendering
-- **Phase 1E:** Home dashboard and widgets
-- **Phase 1F:** School
-- **Phase 1G:** Authentication boundary and More (current)
-- **Phase 1H:** PWA and mobile polish
-- **Phase 1I:** QA, accessibility, performance, and cleanup
-- **Phase 1J:** Deployment
-
-Later work will also cover Blackboard calendar data, Google Calendar, notifications, knowledge integrations, local AI, and optional cloud AI. None of those systems are implemented in this phase.
+The next implementation cycle is deliberately phased: P1 visual system; P2 Capture/Inbox; P3 Calendar work sessions and providers; P4 Blackboard UI/reliability; P5 Notion; P6 AI provider/local companion/cloud fallback; P7 image ingestion; P8 deterministic planning; P9 Focus/Goldfish Mode; P10 routines/projects/areas/goals/daily notes; P11 custom views/review/analytics; and P12 production polish. Do not silently continue into a later phase.

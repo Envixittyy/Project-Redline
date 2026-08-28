@@ -19,7 +19,7 @@ type TaskRowProps = {
 export function TaskRow({ task, today, timeZone, busy, onToggleComplete, onOpen }: TaskRowProps) {
   const completed = task.status === "completed";
   const showPriority = task.priority === "medium" || task.priority === "high" || task.priority === "urgent";
-  const labels = [task.area, task.project, task.course].filter(Boolean) as string[];
+  const labels = [task.parentTaskId ? "Subtask" : null, task.area, task.project, task.course].filter(Boolean) as string[];
 
   return (
     <li className={styles.row} data-completed={completed || undefined} data-busy={busy || undefined}>

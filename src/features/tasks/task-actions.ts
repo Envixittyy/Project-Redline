@@ -220,6 +220,26 @@ export async function setTaskCompletionAction(
   }
 }
 
+export async function createSubtaskAction(parentId: unknown, title: unknown): Promise<ActionResult> {
+  try {
+    const parent = await getTask(requireId(parentId));
+    if (!parent) throw new InvalidInputError("That parent task no longer exists.");
+    await createTask({
+      title: requireTitle(title),
+      parentTaskId: parent.id,
+      status: "todo",
+      priority: parent.priority,
+      area: parent.area,
+      project: parent.project,
+      course: parent.course,
+    });
+    revalidateTaskConsumers();
+    return { ok: true };
+  } catch (error) {
+    return toFailure(error);
+  }
+}
+
 export type TaskRescheduleInput =
   | { kind: "move_deadline"; toDate: string; timeZone?: string }
   | { kind: "move_schedule"; toStart: string };

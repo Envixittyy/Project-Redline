@@ -8,6 +8,7 @@ import { buildCalendarItems } from "@/features/calendar/calendar-items";
 import { CalendarWorkspace } from "@/features/calendar/calendar-workspace";
 import { dayRangeIn, resolveTimeZone, todayIn } from "@/lib/date/day";
 import { listCalendarEventsInRange } from "@/services/calendar-events/calendar-event-repository";
+import { listCourseMeetingsForCalendar } from "@/services/courses/course-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
 import { listTasksForCalendarRange } from "@/services/tasks/task-repository";
 
@@ -46,11 +47,12 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       | { items: null; failure: string };
 
     try {
-      const [events, taskRange] = await Promise.all([
+      const [events, taskRange, meetings] = await Promise.all([
         listCalendarEventsInRange(range.start, range.end),
         listTasksForCalendarRange(range.start, range.end, fromDate, toDateExclusive),
+        listCourseMeetingsForCalendar(),
       ]);
-      const items = buildCalendarItems(events, taskRange.scheduled, taskRange.deadlines, timeZone)
+      const items = buildCalendarItems(events, taskRange.scheduled, taskRange.deadlines, timeZone, meetings, fromDate, toDateExclusive)
         .filter((item) => item.date >= fromDate && item.date < toDateExclusive);
 
       calendarData = { items, failure: null };

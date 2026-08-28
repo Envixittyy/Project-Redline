@@ -29,6 +29,7 @@ export const taskViews = [
   { id: "next7", label: "Next 7 days" },
   { id: "overdue", label: "Overdue" },
   { id: "someday", label: "Someday" },
+  { id: "submitted", label: "Submitted" },
   { id: "completed", label: "Completed" },
 ] as const;
 
@@ -80,6 +81,7 @@ export type Task = {
   area: string | null;
   project: string | null;
   course: string | null;
+  parentTaskId?: string | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -97,6 +99,8 @@ export type TaskDraft = {
   area?: string | null;
   project?: string | null;
   course?: string | null;
+  parentTaskId?: string | null;
+  clientOperationId?: string | null;
 };
 
 export type TaskPatch = Partial<TaskDraft>;

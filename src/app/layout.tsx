@@ -11,6 +11,8 @@ export const metadata: Metadata = {
     template: "%s · Life OS",
   },
   description: "A calm, personal system for organizing everyday life.",
+  applicationName: "Life OS",
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Life OS" },
 };
 
 export const viewport: Viewport = {

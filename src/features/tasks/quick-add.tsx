@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
 
 import { Surface } from "@/components/ui/surface";
+import { enqueueOfflineMutation } from "@/lib/offline/queue";
 import { taskPriorities } from "@/types/task";
 
 import { createTaskAction } from "./task-actions";
@@ -32,11 +33,27 @@ export function QuickAdd({ defaultDueDate }: { defaultDueDate?: string }) {
     }
 
     startTransition(async () => {
-      const result = await createTaskAction({
+      const payload = {
         title,
         dueDate: String(data.get("dueDate") ?? ""),
         priority: String(data.get("priority") ?? "none"),
-      });
+      };
+      if (!navigator.onLine) {
+        await enqueueOfflineMutation({ id: crypto.randomUUID(), kind: "task_create", payload });
+        setError("Saved offline. This task is pending synchronization.");
+        formRef.current?.reset();
+        titleRef.current?.focus();
+        return;
+      }
+      let result;
+      try {
+        result = await createTaskAction(payload);
+      } catch {
+        await enqueueOfflineMutation({ id: crypto.randomUUID(), kind: "task_create", payload });
+        setError("Connection lost. This task is pending synchronization.");
+        formRef.current?.reset();
+        return;
+      }
 
       if (result.ok) {
         setError(null);

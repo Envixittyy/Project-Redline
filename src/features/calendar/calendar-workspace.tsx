@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, ChevronLeft, ChevronRight, CircleDot, Clock3, Plus } from "lucide-react";
+import { BookOpen, CalendarClock, Check, ChevronLeft, ChevronRight, CircleDot, Clock3, Plus } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -45,11 +45,14 @@ function formatTime(instant: string, timeZone: string): string {
 }
 
 function itemTitle(item: CalendarItem): string {
-  return item.kind === "event" ? item.event.title : item.task.title;
+  if (item.kind === "event") return item.event.title;
+  if (item.kind === "course_meeting") return item.meeting.title;
+  return item.task.title;
 }
 
 function itemMeta(item: CalendarItem, timeZone: string): string {
   if (item.kind === "deadline") return "Due";
+  if (item.kind === "course_meeting") return `${formatTime(item.entry.start!, timeZone)}–${formatTime(item.entry.end!, timeZone)} · ${item.entry.courseLabel}`;
   if (item.kind === "event") {
     if (item.event.allDay) return "All day";
     return `${formatTime(item.event.start, timeZone)}–${formatTime(item.event.end, timeZone)}`;
@@ -75,7 +78,7 @@ function CalendarItemButton({
   onOpenEvent: (event: CalendarEvent) => void;
   onOpenTask: (task: Task) => void;
 }) {
-  const task = item.kind === "event" ? null : item.task;
+  const task = item.kind === "deadline" || item.kind === "scheduled_task" ? item.task : null;
   const completed = task?.status === "completed";
 
   return (
@@ -84,11 +87,11 @@ function CalendarItemButton({
       className={styles.item}
       data-kind={item.kind}
       data-completed={completed || undefined}
-      onClick={() => item.kind === "event" ? onOpenEvent(item.event) : onOpenTask(item.task)}
+      onClick={() => item.kind === "event" ? onOpenEvent(item.event) : item.kind === "course_meeting" ? undefined : onOpenTask(item.task)}
       title={`${itemTitle(item)} · ${itemMeta(item, timeZone)}`}
     >
       <span className={styles.itemIcon} aria-hidden="true">
-        {item.kind === "event" ? <CircleDot size={compact ? 10 : 13} /> : item.kind === "deadline" ? <CalendarClock size={compact ? 10 : 13} /> : completed ? <Check size={compact ? 10 : 13} /> : <Clock3 size={compact ? 10 : 13} />}
+        {item.kind === "course_meeting" ? <BookOpen size={compact ? 10 : 13}/> : item.kind === "event" ? <CircleDot size={compact ? 10 : 13} /> : item.kind === "deadline" ? <CalendarClock size={compact ? 10 : 13} /> : completed ? <Check size={compact ? 10 : 13} /> : <Clock3 size={compact ? 10 : 13} />}
       </span>
       <span className={styles.itemCopy}>
         {!compact ? <span className={styles.itemMeta}>{itemMeta(item, timeZone)}</span> : null}
@@ -159,6 +162,7 @@ export function CalendarWorkspace({
       </div>
 
       <div className={styles.legend} aria-label="Calendar item legend">
+        <span data-kind="course_meeting"><BookOpen size={12}/> Course meeting</span>
         <span data-kind="event"><CircleDot size={12} /> Event</span>
         <span data-kind="scheduled_task"><Clock3 size={12} /> Scheduled task</span>
         <span data-kind="deadline"><CalendarClock size={12} /> Due-only deadline</span>
@@ -248,7 +252,7 @@ export function CalendarWorkspace({
               </div>
             </section>
           ))}
-          {items.length === 0 ? <div className={styles.emptyAgenda}><CalendarClock size={22} /><p>No events, scheduled tasks, or due-only deadlines in this window.</p></div> : null}
+          {items.length === 0 ? <div className={styles.emptyAgenda}><CalendarClock size={22} /><p>No course meetings, events, scheduled tasks, or due-only deadlines in this window.</p></div> : null}
         </div>
       ) : null}
 

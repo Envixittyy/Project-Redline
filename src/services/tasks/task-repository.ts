@@ -18,7 +18,7 @@ import {
 const TABLE = "tasks";
 
 const COLUMNS =
-  "id, title, description, status, priority, due_date, due_at, scheduled_start, scheduled_end, area, project, course, created_at, updated_at, completed_at";
+  "id, title, description, status, priority, due_date, due_at, scheduled_start, scheduled_end, area, project, course, parent_task_id, created_at, updated_at, completed_at";
 
 type TaskRow = {
   id: string;
@@ -33,6 +33,7 @@ type TaskRow = {
   area: string | null;
   project: string | null;
   course: string | null;
+  parent_task_id: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -62,6 +63,7 @@ function toTask(row: TaskRow): Task {
     area: row.area,
     project: row.project,
     course: row.course,
+    parentTaskId: row.parent_task_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,
@@ -93,6 +95,8 @@ function toRow(draft: TaskDraft | TaskPatch): Record<string, unknown> {
   if (draft.area !== undefined) row.area = emptyToNull(draft.area);
   if (draft.project !== undefined) row.project = emptyToNull(draft.project);
   if (draft.course !== undefined) row.course = emptyToNull(draft.course);
+  if (draft.parentTaskId !== undefined) row.parent_task_id = emptyToNull(draft.parentTaskId);
+  if (draft.clientOperationId !== undefined) row.client_operation_id = emptyToNull(draft.clientOperationId);
 
   return row;
 }
@@ -172,9 +176,13 @@ export async function listTasksForView(view: TaskView): Promise<Task[]> {
       query = query.eq("status", "completed").order("completed_at", { ascending: false });
       break;
     }
+    case "submitted": {
+      query = query.eq("status", "submitted").order("updated_at", { ascending: false });
+      break;
+    }
   }
 
-  if (view !== "inbox" && view !== "completed") {
+  if (view !== "inbox" && view !== "completed" && view !== "submitted") {
     query = query
       .order("due_date", { ascending: true, nullsFirst: false })
       .order("priority", { ascending: false })
@@ -199,6 +207,20 @@ export async function getTask(id: string): Promise<Task | null> {
   if (error) fail("load the task", error);
 
   return data ? toTask(data as TaskRow) : null;
+}
+
+/** Small owner-scoped list for relationship pickers, not a competing task view. */
+export async function listTaskLinkOptions(): Promise<Array<Pick<Task, "id" | "title">>> {
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select("id,title")
+    .eq("user_id", userId)
+    .neq("status", "cancelled")
+    .order("updated_at", { ascending: false })
+    .limit(100);
+  if (error) fail("load task links", error);
+  return data as Array<Pick<Task, "id" | "title">>;
 }
 
 export type CalendarTaskRange = {
@@ -255,7 +277,7 @@ export async function createTask(draft: TaskDraft): Promise<Task> {
   const { client: supabase, userId } = await requireAuthenticatedSupabase();
   const { data, error } = await supabase
     .from(TABLE)
-    .insert({ ...toRow(draft), user_id: userId })
+    .upsert({ ...toRow(draft), user_id: userId }, { onConflict: "user_id,client_operation_id", ignoreDuplicates: false })
     .select(COLUMNS)
     .single();
 

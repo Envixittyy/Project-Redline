@@ -1,12 +1,12 @@
 "use client";
 
-import { CalendarOff, Check, RotateCcw, Trash2, X } from "lucide-react";
+import { CalendarOff, Check, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { fromZonedInputValue, toZonedInputValue } from "@/lib/date/day";
 import { taskPriorities, taskStatuses, type Task } from "@/types/task";
 
-import { deleteTaskAction, saveTaskAction, setTaskCompletionAction } from "./task-actions";
+import { createSubtaskAction, deleteTaskAction, saveTaskAction, setTaskCompletionAction } from "./task-actions";
 import styles from "./task-editor.module.css";
 
 /** Completion has its own control, so it is not offered as an editable status. */
@@ -22,6 +22,7 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [subtaskTitle, setSubtaskTitle] = useState("");
   const [pending, startTransition] = useTransition();
 
   const completed = task.status === "completed";
@@ -32,6 +33,7 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
     status: task.status,
     priority: task.priority,
     dueDate: task.dueDate ?? "",
+    dueAt: task.dueAt ? toZonedInputValue(task.dueAt, timeZone) : "",
     scheduledStart: task.scheduledStart ? toZonedInputValue(task.scheduledStart, timeZone) : "",
     scheduledEnd: task.scheduledEnd ? toZonedInputValue(task.scheduledEnd, timeZone) : "",
     area: task.area ?? "",
@@ -77,6 +79,7 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
         status: completed ? undefined : fields.status,
         priority: fields.priority,
         dueDate: fields.dueDate,
+        dueAt: fields.dueAt ? fromZonedInputValue(fields.dueAt, timeZone) : "",
         // datetime-local carries a wall clock; convert it in the workspace zone.
         scheduledStart: fields.scheduledStart
           ? fromZonedInputValue(fields.scheduledStart, timeZone)
@@ -179,6 +182,18 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
             />
           </label>
 
+          <label className={styles.field}>
+            <span>Exact deadline</span>
+            <input
+              className={styles.control}
+              type="datetime-local"
+              value={fields.dueAt}
+              onChange={(event) => update("dueAt", event.target.value)}
+              disabled={!fields.dueDate}
+            />
+            <small className={styles.hint}>Optional. The deadline must fall on the selected due date.</small>
+          </label>
+
           <fieldset className={styles.schedule}>
             <legend>Scheduled time</legend>
             <p className={styles.hint}>
@@ -252,6 +267,16 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
                 onChange={(event) => update("course", event.target.value)}
               />
             </label>
+          </div>
+
+          <div className={styles.pair}>
+            <label className={styles.field}>
+              <span>Add subtask</span>
+              <input className={styles.control} value={subtaskTitle} maxLength={200} placeholder="A smaller next step" onChange={(event)=>setSubtaskTitle(event.target.value)}/>
+            </label>
+            <button type="button" className={styles.secondaryButton} disabled={pending||!subtaskTitle.trim()} onClick={()=>startTransition(async()=>{const result=await createSubtaskAction(task.id,subtaskTitle);if(result.ok){setSubtaskTitle("");setError(null);}else setError(result.message);})}>
+              <Plus size={16}/> Add subtask
+            </button>
           </div>
 
           {error ? (

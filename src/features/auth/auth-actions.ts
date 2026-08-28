@@ -27,9 +27,7 @@ export async function signInAction(
     return parsed.state;
   }
 
-  // Phase 1G-A: input is validated for presentation only; the boundary is
-  // not wired to Supabase yet.
-  const outcome = await authenticateUser();
+  const outcome = await authenticateUser(parsed.email, parsed.password);
   if (outcome.ok) {
     redirect("/");
   }

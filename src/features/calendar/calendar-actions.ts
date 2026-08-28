@@ -7,7 +7,7 @@ import {
   deleteCalendarEvent,
   updateCalendarEvent,
 } from "@/services/calendar-events/calendar-event-repository";
-import { SupabaseNotConfiguredError } from "@/services/supabase/server";
+import { authFailureMessage, SupabaseNotConfiguredError } from "@/services/supabase/errors";
 import { isNativeCalendarEventType, type CalendarEventDraft } from "@/types/calendar-event";
 
 export type CalendarActionResult = { ok: true } | { ok: false; message: string };
@@ -77,6 +77,9 @@ function toFailure(error: unknown): CalendarActionResult {
   if (error instanceof SupabaseNotConfiguredError) {
     return { ok: false, message: "Supabase is not configured, so events cannot be saved yet." };
   }
+
+  const authMessage = authFailureMessage(error);
+  if (authMessage) return { ok: false, message: authMessage };
 
   console.error("[calendar] action failed:", error);
   return {

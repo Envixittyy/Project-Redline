@@ -18,8 +18,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Sparkles size={18} strokeWidth={2} />
           </span>
           <div>
-            <p className={styles.productName}>Life OS</p>
-            <p className={styles.productNote}>Personal workspace</p>
+            <p className={styles.productName}>Forward</p>
+            <p className={styles.productNote}>Be curious, not judgmental.</p>
           </div>
         </div>
 

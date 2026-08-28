@@ -7,12 +7,12 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Life OS",
-    template: "%s · Life OS",
+    default: "Forward",
+    template: "%s · Forward",
   },
-  description: "A calm, personal system for organizing everyday life.",
-  applicationName: "Life OS",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Life OS" },
+  description: "A private personal command center. Be curious, not judgmental.",
+  applicationName: "Forward",
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Forward" },
 };
 
 export const viewport: Viewport = {

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FolderKanban, LandPlot, NotebookPen, Puzzle, Trophy } from "lucide-react";
+import { FolderKanban, LandPlot, NotebookPen, ShieldCheck, Trophy } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
@@ -15,7 +15,6 @@ const secondarySections = [
   { title: "Football", detail: "Club organization and EFU access", icon: Trophy },
   { title: "Projects", detail: "Simple multi-step outcomes", icon: FolderKanban },
   { title: "Areas", detail: "Ongoing parts of life", icon: LandPlot },
-  { title: "Integrations", detail: "Connected calendars and knowledge", icon: Puzzle },
 ] as const;
 
 export default function MorePage() {
@@ -28,6 +27,13 @@ export default function MorePage() {
             <Surface variant="interactive" className={styles.secondaryCard}>
               <span className={styles.secondaryIcon} aria-hidden="true"><NotebookPen size={19}/></span>
               <div><h2>Notes</h2><p>Private Markdown and attachments</p></div>
+              <span className={styles.open}>Open</span>
+            </Surface>
+          </Link>
+          <Link href="/integrations/blackboard" className={styles.sectionLink}>
+            <Surface variant="interactive" className={styles.secondaryCard}>
+              <span className={styles.secondaryIcon} aria-hidden="true"><ShieldCheck size={19}/></span>
+              <div><h2>Blackboard</h2><p>Secure calendar sync and notifications</p></div>
               <span className={styles.open}>Open</span>
             </Surface>
           </Link>

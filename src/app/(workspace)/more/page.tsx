@@ -47,8 +47,7 @@ export default function MorePage() {
           <div className={styles.accountHeading}>
             <h2>Account</h2>
             <p>
-              Account sign-in arrives with Supabase session support. Until then this
-              control previews how signing out of this device will behave.
+              Your Supabase session protects this workspace and its personal data.
             </p>
           </div>
           <SignOutControl />

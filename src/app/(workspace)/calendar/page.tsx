@@ -8,7 +8,7 @@ import { buildCalendarItems } from "@/features/calendar/calendar-items";
 import { CalendarWorkspace } from "@/features/calendar/calendar-workspace";
 import { dayRangeIn, resolveTimeZone, todayIn } from "@/lib/date/day";
 import { listCalendarEventsInRange } from "@/services/calendar-events/calendar-event-repository";
-import { isSupabaseConfigured } from "@/services/supabase/server";
+import { isSupabaseConfigured } from "@/services/supabase/public-config";
 import { listTasksForCalendarRange } from "@/services/tasks/task-repository";
 
 import styles from "./calendar-page.module.css";

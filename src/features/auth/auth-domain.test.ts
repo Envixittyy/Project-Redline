@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   decideWorkspaceAccess,
+  AUTH_UNAVAILABLE_REASON,
+  isAuthUnavailableNotice,
   isSessionExpiredNotice,
   parseSignInForm,
   signInInitialState,
@@ -10,10 +12,6 @@ import {
 } from "./auth-domain";
 
 describe("decideWorkspaceAccess", () => {
-  it("allows while no session source is connected", () => {
-    expect(decideWorkspaceAccess(null)).toEqual({ status: "allow" });
-  });
-
   it("allows an authenticated session", () => {
     expect(decideWorkspaceAccess("authenticated")).toEqual({ status: "allow" });
   });
@@ -29,6 +27,13 @@ describe("decideWorkspaceAccess", () => {
     expect(decideWorkspaceAccess("expired")).toEqual({
       status: "redirect",
       path: `/login?reason=${SESSION_EXPIRED_REASON}`,
+    });
+  });
+
+  it("fails closed when the auth service is unavailable", () => {
+    expect(decideWorkspaceAccess("unavailable")).toEqual({
+      status: "redirect",
+      path: `/login?reason=${AUTH_UNAVAILABLE_REASON}`,
     });
   });
 });
@@ -95,5 +100,13 @@ describe("isSessionExpiredNotice", () => {
   it("ignores other reasons", () => {
     expect(isSessionExpiredNotice("unknown")).toBe(false);
     expect(isSessionExpiredNotice(undefined)).toBe(false);
+  });
+});
+
+describe("isAuthUnavailableNotice", () => {
+  it("recognizes the unavailable reason without confusing it for expiry", () => {
+    expect(isAuthUnavailableNotice(AUTH_UNAVAILABLE_REASON)).toBe(true);
+    expect(isAuthUnavailableNotice([AUTH_UNAVAILABLE_REASON])).toBe(true);
+    expect(isAuthUnavailableNotice(SESSION_EXPIRED_REASON)).toBe(false);
   });
 });

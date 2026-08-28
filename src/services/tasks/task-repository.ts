@@ -3,7 +3,7 @@ import "server-only";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 import { addDays, dayRangeIn, resolveTimeZone, todayIn } from "@/lib/date/day";
-import { getSupabaseClient } from "@/services/supabase/server";
+import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import {
   openTaskStatuses,
   type Task,
@@ -100,7 +100,7 @@ function toRow(draft: TaskDraft | TaskPatch): Record<string, unknown> {
 function fail(action: string, error: PostgrestError): never {
   // Surface the real cause in server logs; callers translate it to a UI message.
   console.error("[tasks] " + action + " failed:", error);
-  throw new TaskRepositoryError("Could not " + action + ". " + error.message, error);
+  throw new TaskRepositoryError("Could not " + action + ". Please try again.", error);
 }
 
 /**
@@ -111,12 +111,12 @@ function fail(action: string, error: PostgrestError): never {
  * a calendar event, and no event table is consulted.
  */
 export async function listTasksForView(view: TaskView): Promise<Task[]> {
-  const supabase = getSupabaseClient();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
   const timeZone = resolveTimeZone();
   const today = todayIn(timeZone);
   const tomorrow = addDays(today, 1);
 
-  let query = supabase.from(TABLE).select(COLUMNS);
+  let query = supabase.from(TABLE).select(COLUMNS).eq("user_id", userId);
 
   switch (view) {
     case "inbox": {
@@ -188,8 +188,13 @@ export async function listTasksForView(view: TaskView): Promise<Task[]> {
 }
 
 export async function getTask(id: string): Promise<Task | null> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(COLUMNS)
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
 
   if (error) fail("load the task", error);
 
@@ -213,12 +218,13 @@ export async function listTasksForCalendarRange(
   fromDate: string,
   toDateExclusive: string,
 ): Promise<CalendarTaskRange> {
-  const supabase = getSupabaseClient();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
 
   const [scheduledResult, deadlineResult] = await Promise.all([
     supabase
       .from(TABLE)
       .select(COLUMNS)
+      .eq("user_id", userId)
       .neq("status", "cancelled")
       .not("scheduled_start", "is", null)
       .lt("scheduled_start", end)
@@ -228,6 +234,7 @@ export async function listTasksForCalendarRange(
     supabase
       .from(TABLE)
       .select(COLUMNS)
+      .eq("user_id", userId)
       .neq("status", "cancelled")
       .gte("due_date", fromDate)
       .lt("due_date", toDateExclusive)
@@ -245,8 +252,12 @@ export async function listTasksForCalendarRange(
 }
 
 export async function createTask(draft: TaskDraft): Promise<Task> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from(TABLE).insert(toRow(draft)).select(COLUMNS).single();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .insert({ ...toRow(draft), user_id: userId })
+    .select(COLUMNS)
+    .single();
 
   if (error) fail("create the task", error);
 
@@ -254,7 +265,7 @@ export async function createTask(draft: TaskDraft): Promise<Task> {
 }
 
 export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
-  const supabase = getSupabaseClient();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
   const row = toRow(patch);
 
   if (Object.keys(row).length === 0) {
@@ -267,6 +278,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     .from(TABLE)
     .update(row)
     .eq("id", id)
+    .eq("user_id", userId)
     .select(COLUMNS)
     .maybeSingle();
 
@@ -281,7 +293,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
  * completed_at is set for completed tasks and null for every other status.
  */
 export async function setTaskCompletion(id: string, completed: boolean): Promise<Task> {
-  const supabase = getSupabaseClient();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
   const { data, error } = await supabase
     .from(TABLE)
     .update({
@@ -289,6 +301,7 @@ export async function setTaskCompletion(id: string, completed: boolean): Promise
       completed_at: completed ? new Date().toISOString() : null,
     })
     .eq("id", id)
+    .eq("user_id", userId)
     .select(COLUMNS)
     .maybeSingle();
 
@@ -305,12 +318,12 @@ export async function setTaskCompletion(id: string, completed: boolean): Promise
  * like status, priority, area, and project filters.
  */
 export async function listTasksForSmartList(listId: SmartListId): Promise<Task[]> {
-  const supabase = getSupabaseClient();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
   const timeZone = resolveTimeZone();
   const today = todayIn(timeZone);
   const tomorrow = addDays(today, 1);
 
-  let query = supabase.from(TABLE).select(COLUMNS);
+  let query = supabase.from(TABLE).select(COLUMNS).eq("user_id", userId);
 
   switch (listId) {
     case "inbox": {
@@ -423,8 +436,15 @@ export async function listTasksForSmartList(listId: SmartListId): Promise<Task[]
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  const supabase = getSupabaseClient();
-  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
 
   if (error) fail("delete the task", error);
+  if (!data) throw new TaskRepositoryError("That task no longer exists.");
 }

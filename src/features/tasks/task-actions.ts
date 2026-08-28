@@ -15,7 +15,7 @@ import {
   setTaskCompletion,
   updateTask,
 } from "@/services/tasks/task-repository";
-import { SupabaseNotConfiguredError } from "@/services/supabase/server";
+import { authFailureMessage, SupabaseNotConfiguredError } from "@/services/supabase/errors";
 import {
   isTaskPriority,
   isTaskStatus,
@@ -95,6 +95,9 @@ function toFailure(error: unknown): ActionResult {
   if (error instanceof SupabaseNotConfiguredError) {
     return { ok: false, message: "Supabase is not configured, so tasks cannot be saved yet." };
   }
+
+  const authMessage = authFailureMessage(error);
+  if (authMessage) return { ok: false, message: authMessage };
 
   console.error("[tasks] action failed:", error);
 

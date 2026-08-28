@@ -4,16 +4,16 @@ A personal, single-user productivity application intended to bring tasks, calend
 
 ## Current phase
 
-**Phase 1D — Calendar and scheduled-task rendering.** Calendar provides responsive Month, Week, and Agenda views backed by native Life OS events and a read-time projection of scheduled tasks. Native events support create, edit, and delete. Scheduled tasks remain task rows, expose completion state, and open the existing task editor for rescheduling. Due-only tasks render as visually separate deadline indicators.
+**Phase 1G-B — authenticated owner-scoped persistence.** Supabase Auth sessions are stored in secure cookies, the workspace is server-protected, and task/calendar access runs through the authenticated user with PostgreSQL RLS enforcing ownership. Existing rows have a controlled service-role-only backfill path.
 
-The repository still contains no school data, authentication, recurring events or tasks, habits, or external synchronization. Blackboard and Google Calendar are represented only as future-safe event source values.
+The repository still contains no persisted school data, recurring events or tasks, habits, or external synchronization. Blackboard and Google Calendar are represented only as future-safe event source values.
 
 ## Stack
 
 - Next.js 16 with the App Router
 - React 19 and TypeScript
 - Tailwind CSS 4
-- Supabase (PostgreSQL) for task and calendar-event persistence, accessed server-side only
+- Supabase Auth and PostgreSQL for cookie-backed sessions and owner-scoped task/calendar persistence
 - Lucide React icons
 - ESLint with Next.js Core Web Vitals and TypeScript rules
 - Vercel-compatible Next.js deployment
@@ -22,7 +22,7 @@ shadcn/ui is intentionally not installed yet. Phase 1B's controls are small nati
 
 ## Local development
 
-Requires Node.js 20.9 or later and pnpm.
+Requires Node.js 22 or later and pnpm.
 
 ```bash
 pnpm install
@@ -40,10 +40,11 @@ Open [http://localhost:3000](http://localhost:3000).
 | `pnpm typecheck` | Validate TypeScript without emitting files |
 | `pnpm build` | Create a production build |
 | `pnpm start` | Serve the production build |
+| `pnpm backfill:owner` | Run the controlled existing-row owner backfill |
 
 ## Environment setup
 
-Tasks and Calendar require Supabase. Copy the example file and fill in the two server-side values:
+Authentication, Tasks, and Calendar require Supabase. Copy the example file and fill in the public project values:
 
 ```powershell
 Copy-Item .env.example .env.local
@@ -51,19 +52,19 @@ Copy-Item .env.example .env.local
 
 | Variable | Purpose |
 | --- | --- |
-| `SUPABASE_URL` | Your project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only key. Never prefix it with `NEXT_PUBLIC_` |
+| `NEXT_PUBLIC_SUPABASE_URL` | Public Supabase project URL used by cookie-backed clients |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public project key; access remains restricted by RLS |
 | `APP_TIME_ZONE` | Optional IANA zone deciding what "today" means. Defaults to the server's zone, so set it when deploying |
 
-Then apply the schemas in `supabase/migrations` to your project in filename order, either with the Supabase CLI (`supabase db push`) or by running the SQL files in the Supabase SQL editor.
+The server-only `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are required only for the controlled owner backfill and isolated RLS integration tests. They are not used by normal feature repositories.
 
-Without these variables the Tasks and Calendar pages render setup notices instead of failing, and the rest of the app works normally.
+Apply schemas in `supabase/migrations` in filename order, then follow [the Supabase Auth and owner-backfill runbook](docs/SUPABASE_AUTH.md) before opening the application to normal traffic.
 
-Never commit real credentials. Browser-exposed variables must only contain values designed to be public; the service role key is read only in server code and is never sent to the browser.
+Without the public variables, the private workspace fails closed at the login surface. Never commit real credentials.
 
 ### Access model
 
-Phase 1D has no authentication. The `tasks` and `calendar_events` tables have row level security enabled with **no policies**, so the anon key can read nothing. All access goes through Next.js server code using the service role key, which bypasses RLS. See `docs/ARCHITECTURE.md` for how authentication will be introduced later.
+`tasks` and `calendar_events` carry `user_id` ownership. Authenticated CRUD uses a request-scoped publishable-key client, and RLS permits only rows where `auth.uid() = user_id`. Anonymous and cross-owner access are denied. The service role exists solely for explicitly named maintenance operations.
 
 ## Repository map
 
@@ -84,10 +85,10 @@ Phase 1D has no authentication. The `tasks` and `calendar_events` tables have ro
 - **Phase 1A:** Foundation and architecture
 - **Phase 1B:** Application shell, navigation, theme system, and glass interface
 - **Phase 1C:** Tasks and persistence
-- **Phase 1D:** Calendar and scheduled-task rendering (current)
+- **Phase 1D:** Calendar and scheduled-task rendering
 - **Phase 1E:** Home dashboard and widgets
 - **Phase 1F:** School
-- **Phase 1G:** Football and More
+- **Phase 1G:** Authentication boundary and More (current)
 - **Phase 1H:** PWA and mobile polish
 - **Phase 1I:** QA, accessibility, performance, and cleanup
 - **Phase 1J:** Deployment

@@ -2,7 +2,7 @@ import "server-only";
 
 import type { PostgrestError } from "@supabase/supabase-js";
 
-import { getSupabaseClient } from "@/services/supabase/server";
+import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type {
   CalendarEvent,
   CalendarEventDraft,
@@ -83,15 +83,16 @@ function toRow(draft: CalendarEventDraft | CalendarEventPatch): Record<string, u
 
 function fail(action: string, error: PostgrestError): never {
   console.error("[calendar-events] " + action + " failed:", error);
-  throw new CalendarEventRepositoryError("Could not " + action + ". " + error.message, error);
+  throw new CalendarEventRepositoryError("Could not " + action + ". Please try again.", error);
 }
 
 /** Events overlapping the half-open instant range `[start, end)`. */
 export async function listCalendarEventsInRange(start: string, end: string): Promise<CalendarEvent[]> {
-  const supabase = getSupabaseClient();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
   const { data, error } = await supabase
     .from(TABLE)
     .select(COLUMNS)
+    .eq("user_id", userId)
     .lt("starts_at", end)
     .gt("ends_at", start)
     .order("starts_at", { ascending: true })
@@ -102,8 +103,12 @@ export async function listCalendarEventsInRange(start: string, end: string): Pro
 }
 
 export async function createCalendarEvent(draft: CalendarEventDraft): Promise<CalendarEvent> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from(TABLE).insert(toRow(draft)).select(COLUMNS).single();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .insert({ ...toRow(draft), user_id: userId })
+    .select(COLUMNS)
+    .single();
 
   if (error) fail("create the event", error);
   return toCalendarEvent(data as CalendarEventRow);
@@ -113,11 +118,12 @@ export async function updateCalendarEvent(
   id: string,
   patch: CalendarEventPatch,
 ): Promise<CalendarEvent> {
-  const supabase = getSupabaseClient();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
   const { data, error } = await supabase
     .from(TABLE)
     .update(toRow(patch))
     .eq("id", id)
+    .eq("user_id", userId)
     // External events are read-only until their integration phase.
     .eq("source", "life_os")
     .select(COLUMNS)
@@ -130,11 +136,12 @@ export async function updateCalendarEvent(
 }
 
 export async function deleteCalendarEvent(id: string): Promise<void> {
-  const supabase = getSupabaseClient();
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
   const { data, error } = await supabase
     .from(TABLE)
     .delete()
     .eq("id", id)
+    .eq("user_id", userId)
     .eq("source", "life_os")
     .select("id")
     .maybeSingle();

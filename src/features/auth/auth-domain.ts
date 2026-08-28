@@ -1,20 +1,20 @@
 export const LOGIN_PATH = "/login";
 
 export const SESSION_EXPIRED_REASON = "session-expired";
+export const AUTH_UNAVAILABLE_REASON = "auth-unavailable";
 
-/**
- * `null` means "no session source is connected yet", which is the Phase 1G-A
- * presentation-only state. When Supabase session checks arrive, the guard
- * keeps the same decision shape; only the session source changes.
- */
-export type WorkspaceSessionStatus = "authenticated" | "unauthenticated" | "expired";
+export type WorkspaceSessionStatus =
+  | "authenticated"
+  | "unauthenticated"
+  | "expired"
+  | "unavailable";
 
 export type WorkspaceAccessDecision =
   | { status: "allow" }
   | { status: "redirect"; path: string };
 
 export function decideWorkspaceAccess(
-  session: WorkspaceSessionStatus | null,
+  session: WorkspaceSessionStatus,
 ): WorkspaceAccessDecision {
   if (session === "expired") {
     return {
@@ -25,7 +25,9 @@ export function decideWorkspaceAccess(
   if (session === "unauthenticated") {
     return { status: "redirect", path: LOGIN_PATH };
   }
-  // `null` (no session source yet) and an authenticated session both allow.
+  if (session === "unavailable") {
+    return { status: "redirect", path: `${LOGIN_PATH}?reason=${AUTH_UNAVAILABLE_REASON}` };
+  }
   return { status: "allow" };
 }
 
@@ -77,4 +79,11 @@ export function isSessionExpiredNotice(reason: string | string[] | undefined): b
     return reason.includes(SESSION_EXPIRED_REASON);
   }
   return reason === SESSION_EXPIRED_REASON;
+}
+
+export function isAuthUnavailableNotice(reason: string | string[] | undefined): boolean {
+  if (Array.isArray(reason)) {
+    return reason.includes(AUTH_UNAVAILABLE_REASON);
+  }
+  return reason === AUTH_UNAVAILABLE_REASON;
 }

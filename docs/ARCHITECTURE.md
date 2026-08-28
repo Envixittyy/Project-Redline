@@ -15,7 +15,7 @@ src/
     shell/                Domain-neutral shell and navigation composition
     ui/                   Reusable, domain-neutral interface components
   features/
-    auth/                 Sign-in/sign-out presentation state and session seams
+    auth/                 Sign-in/sign-out actions and server session guard
     calendar/             Calendar read model, views, and native event editor
     tasks/                Task interface, server actions, and presentation rules
   hooks/                  Shared React hooks with more than one real consumer
@@ -25,7 +25,7 @@ src/
   services/
     calendar-events/      Source-aware calendar-event persistence
     integrations/         Adapters for external systems
-    supabase/             Server-side Supabase client
+    supabase/             Browser, request, proxy, and admin trust boundaries
     tasks/                Task persistence
   styles/                 Global semantic design tokens
   types/                  Types shared across genuine domain boundaries
@@ -41,7 +41,7 @@ The `(workspace)` route group applies `AppShell` to Home, Tasks, Calendar, Schoo
 
 Primary destinations are defined once in `src/lib/navigation.ts` and consumed by both the persistent desktop sidebar and safe-area-aware mobile tab bar. Mobile content reserves enough bottom space for the fixed bar. Desktop content is constrained to a readable frame and can expand into multi-column dashboard layouts.
 
-School remains a visual placeholder. More reserves clear entries for Football, Projects, Areas, and Integrations while keeping Appearance and the presentation-only Account sign-out as its functional sections.
+School remains a visual placeholder. More reserves clear entries for Football, Projects, Areas, and Integrations while keeping Appearance and authenticated Account sign-out as its functional sections.
 
 Calendar is a working route as of Phase 1D. Its Month, Week, and Agenda modes are query parameters (`/calendar?view=week&date=2026-08-27`) so view and anchor date remain linkable. The page is a server component that resolves the visible range and reads events and tasks in parallel; `CalendarWorkspace` is the interaction boundary for view controls and editors. The mobile Month grid compresses item copy into semantic marks, Week uses an internally scrollable seven-day surface rather than overflowing the page, and Agenda is a readable narrow-screen list.
 
@@ -89,7 +89,9 @@ Blackboard is limited to calendar-related information unless requirements change
 
 ## Data layer
 
-Supabase (PostgreSQL) holds task and native calendar-event data. `src/services/supabase/server.ts` builds a single server-side client from `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; it imports `server-only` so it can never be pulled into a client bundle. When the variables are absent it throws a typed `SupabaseNotConfiguredError` and data-backed routes render setup notices rather than failing.
+Supabase Auth and PostgreSQL hold the session plus task/native-event data. `src/services/supabase/request.ts` creates a fresh `@supabase/ssr` client for each request from secure cookies and the public project key. It verifies JWT claims before returning the authenticated subject. Normal repositories never receive or import the service-role client. `src/services/supabase/admin.ts` is a separately named, server-only maintenance boundary.
+
+Root `proxy.ts` follows the Next.js 16 Proxy convention and refreshes Supabase cookies before rendering, including the private/no-store response headers required when auth cookies change. It does not make authorization decisions. The `(workspace)` layout is the route-level enforcement point, and repositories repeat authentication because Server Actions remain independently callable entry points.
 
 `src/services/tasks/task-repository.ts` is the only module that speaks to the table. It maps snake_case rows to the camelCase `Task` type in `src/types/task.ts`, builds each view's query, and converts Postgres errors into `TaskRepositoryError` after logging the cause. Features never see a Supabase client.
 
@@ -101,7 +103,7 @@ Data access stays server-side by default and exposes narrow operations to featur
 
 ## Task schema
 
-`supabase/migrations` holds the SQL history. The `tasks` table carries `title`, `description`, `status`, `priority`, `due_date`, optional `due_at`, `scheduled_start`, `scheduled_end`, `area`, `project`, `course`, and the created, updated, and completed timestamps. `task_status` and `task_priority` are Postgres enums, so an unknown value fails at the database rather than silently persisting. `submitted` is distinct from `completed`: submission means the work was handed in, while completion remains the terminal Done state that owns `completed_at`.
+`supabase/migrations` holds the SQL history. The `tasks` table carries owner `user_id`, `title`, `description`, `status`, `priority`, `due_date`, optional `due_at`, `scheduled_start`, `scheduled_end`, `area`, `project`, `course`, and the created, updated, and completed timestamps. `task_status` and `task_priority` are Postgres enums, so an unknown value fails at the database rather than silently persisting. `submitted` is distinct from `completed`: submission means the work was handed in, while completion remains the terminal Done state that owns `completed_at`.
 
 Check constraints keep invalid states unrepresentable: a title cannot be blank, a scheduled end requires a start and cannot precede it, and `completed_at` is set exactly when the status is `completed`. A trigger maintains `updated_at`. Three indexes support the views: `(status, due_date)` for every dated view, `completed_at desc` for Completed, and a partial index on `scheduled_start` that the Phase 1D calendar range query will also use.
 
@@ -109,7 +111,7 @@ Check constraints keep invalid states unrepresentable: a title cannot be blank, 
 
 ## Calendar-event schema
 
-`calendar_events` stores `title`, `description`, `starts_at`, `ends_at`, `all_day`, `event_type`, `source`, `external_id`, `source_url`, optional `course`, and created/updated timestamps. `calendar_event_source` prepares the stable identities `life_os`, `blackboard`, and `google_calendar`; only `life_os` has behavior in Phase 1D. External identity is unique per source when present. End is always strictly after start, and all-day intervals use an exclusive end instant.
+`calendar_events` stores owner `user_id`, `title`, `description`, `starts_at`, `ends_at`, `all_day`, `event_type`, `source`, `external_id`, `source_url`, optional `course`, and created/updated timestamps. `calendar_event_source` prepares the stable identities `life_os`, `blackboard`, and `google_calendar`; only `life_os` has behavior in Phase 1D. External identity is unique per owner and source when present. End is always strictly after start, and all-day intervals use an exclusive end instant.
 
 `event_type` is constrained by native server-action validation rather than a database enum so future source adapters can preserve provider categories without changing the table. Course is free text until School establishes course metadata. Calendar item styling exposes a semantic per-item accent custom property; future course metadata may supply it without hard-coding course colors into Calendar components.
 
@@ -139,18 +141,11 @@ Courses remain free text on persisted tasks and events. There is not yet a persi
 
 ## Authentication
 
-Authentication is still absent at the session and data layer; the application remains single-user and private by design. Privacy does not depend on that absence. The `tasks` table has row level security enabled with no policies, so the anon and publishable keys can read nothing even if one leaks. The service role key bypasses RLS and is used only in server code.
+Phase 1G-B connects the existing auth presentation to Supabase password authentication and cookie-backed SSR sessions. `getClaims()` is the authoritative server check; local storage is not consulted. Missing and expired sessions redirect to `/login`, authenticated visits to `/login` return to the workspace, and provider outages fail closed at the public auth surface.
 
-Phase 1G-A added the presentation and integration boundary without real session logic. `src/features/auth` owns the sign-in/sign-out presentation state, the pure `decideWorkspaceAccess` guard decision, and the `"server-only"` seams (`authenticateUser`, `endUserSession`, `readWorkspaceSession`) that report "not connected yet" instead of touching Supabase. The public `(auth)` route group hosts `/login` outside the workspace shell, and the More page hosts the sign-out control. `(workspace)/layout.tsx` awaits `requireWorkspaceAccess()` before rendering; because `readWorkspaceSession` still returns `null`, the guard allows access and the workspace stays fully usable. No fake authenticated state exists and no client storage participates in access decisions.
+Both personal tables use a nullable-first `user_id uuid references auth.users(id)` migration, owner indexes, and separate select/insert/update/delete policies scoped to `authenticated`. `WITH CHECK ((select auth.uid()) = user_id)` prevents forged-owner inserts and ownership transfer. Anonymous users have no matching policy. Application writes also derive `user_id` from verified claims, but that filter is defense in depth rather than the security boundary.
 
-Introducing real authentication is additive:
-
-1. Add a nullable `user_id uuid references auth.users(id)` to `tasks`, backfill it with the single existing owner, then make it `not null`.
-2. Add owner policies (`user_id = auth.uid()`) for select, insert, update, and delete.
-3. Create a request-scoped client that carries the user's session, and switch the repository to it. The service role client stays for trusted background work only.
-4. Point the `src/features/auth` seams at Supabase (`signInWithPassword`, `signOut`, `getSession`), keeping the workspace layout guard as the enforcement point unless a proxy/matcher proves the better boundary for Next.js 16.
-
-No route, component, or domain type currently assumes an anonymous user, so none of them need rewriting.
+Existing rows are preserved. A service-role-only RPC assigns only null owners atomically; a separate service-role-only finalizer verifies zero ownerless rows before setting `NOT NULL`. The operator supplies the environment-specific owner UUID at runtime, never through committed SQL. See `docs/SUPABASE_AUTH.md` for the staged procedure and recovery rules.
 
 ## Tasks and calendar are separate domains
 

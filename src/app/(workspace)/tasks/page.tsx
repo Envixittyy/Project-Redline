@@ -8,7 +8,7 @@ import { QuickAdd } from "@/features/tasks/quick-add";
 import { TaskCollection } from "@/features/tasks/task-collection";
 import { TaskViewNav } from "@/features/tasks/task-view-nav";
 import { addDays, resolveTimeZone, todayIn } from "@/lib/date/day";
-import { isSupabaseConfigured } from "@/services/supabase/server";
+import { isSupabaseConfigured } from "@/services/supabase/public-config";
 import { listTasksForView } from "@/services/tasks/task-repository";
 import { defaultTaskView, isTaskView, type Task, type TaskView } from "@/types/task";
 
@@ -91,10 +91,8 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
           </span>
           <h2>Connect Supabase to start capturing tasks</h2>
           <p>
-            Copy <code>.env.example</code> to <code>.env.local</code>, set <code>SUPABASE_URL</code>{" "}
-            and <code>SUPABASE_SERVICE_ROLE_KEY</code>, then apply{" "}
-            <code>supabase/migrations</code> to your project. The service role key is read only on
-            the server and is never sent to the browser.
+            Copy <code>.env.example</code> to <code>.env.local</code>, set the public Supabase URL
+            and publishable key, then apply <code>supabase/migrations</code> to your project.
           </p>
         </Surface>
       )}

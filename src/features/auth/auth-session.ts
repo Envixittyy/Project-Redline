@@ -3,40 +3,66 @@ import "server-only";
 import { redirect } from "next/navigation";
 
 import { decideWorkspaceAccess, type WorkspaceSessionStatus } from "./auth-domain";
+import {
+  AuthenticationRequiredError,
+  SupabaseNotConfiguredError,
+  SupabaseTemporarilyUnavailableError,
+} from "@/services/supabase/errors";
+import {
+  createRequestSupabaseClient,
+  requireAuthenticatedSupabase,
+} from "@/services/supabase/request";
+import { isTemporarySupabaseAuthError } from "@/services/supabase/session-domain";
 
 export type AuthOutcome = { ok: true } | { ok: false; message: string };
 
-/**
- * Phase 1G-A presentation boundary. Real sign-in arrives in a later phase as
- * `supabase.auth.signInWithPassword`; until then every attempt reports that
- * account sign-in is not connected yet instead of faking a session.
- */
-export async function authenticateUser(): Promise<AuthOutcome> {
-  return {
-    ok: false,
-    message: "Account sign-in isn't connected yet. It arrives with Supabase session support.",
-  };
+export async function authenticateUser(email: string, password: string): Promise<AuthOutcome> {
+  try {
+    const client = await createRequestSupabaseClient();
+    const { error } = await client.auth.signInWithPassword({ email, password });
+
+    if (!error) return { ok: true };
+    if (isTemporarySupabaseAuthError(error)) {
+      return { ok: false, message: "The account service is temporarily unavailable. Try again." };
+    }
+    return { ok: false, message: "The email or password is incorrect." };
+  } catch (error) {
+    if (error instanceof SupabaseNotConfiguredError) {
+      return { ok: false, message: "Supabase Auth is not configured for this application." };
+    }
+    console.error("[auth] sign in failed:", error);
+    return { ok: false, message: "The account service is temporarily unavailable. Try again." };
+  }
 }
 
-/**
- * Phase 1G-A presentation boundary. Real sign-out arrives in a later phase as
- * `supabase.auth.signOut`.
- */
 export async function endUserSession(): Promise<AuthOutcome> {
-  return {
-    ok: false,
-    message: "Account sign-out isn't connected yet, so there's no session to end on this device.",
-  };
+  try {
+    const client = await createRequestSupabaseClient();
+    const { error } = await client.auth.signOut({ scope: "local" });
+    if (!error) return { ok: true };
+
+    console.error("[auth] sign out failed:", error);
+    return { ok: false, message: "Could not sign out this device. Please try again." };
+  } catch (error) {
+    console.error("[auth] sign out failed:", error);
+    return { ok: false, message: "Could not sign out this device. Please try again." };
+  }
 }
 
-/**
- * Session source for the workspace guard. A later phase points this at
- * `supabase.auth.getSession()`. `null` means "no session source connected
- * yet" and the guard allows access so the workspace stays usable during the
- * presentation-only phase.
- */
-export async function readWorkspaceSession(): Promise<WorkspaceSessionStatus | null> {
-  return null;
+export async function readWorkspaceSession(): Promise<WorkspaceSessionStatus> {
+  try {
+    await requireAuthenticatedSupabase();
+    return "authenticated";
+  } catch (error) {
+    if (error instanceof AuthenticationRequiredError) {
+      return error.reason === "expired" ? "expired" : "unauthenticated";
+    }
+    if (error instanceof SupabaseNotConfiguredError) return "unauthenticated";
+    if (error instanceof SupabaseTemporarilyUnavailableError) return "unavailable";
+
+    console.error("[auth] session verification failed:", error);
+    return "unavailable";
+  }
 }
 
 export async function requireWorkspaceAccess(): Promise<void> {

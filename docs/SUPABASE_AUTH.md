@@ -15,7 +15,23 @@ The publishable key is expected in the browser/server SSR boundary. It is not a 
 
 ## Migration and existing-row backfill
 
-Back up the project before changing ownership. Apply migrations in filename order. The Phase 1G-B migration performs these safe first-stage actions:
+The Supabase CLI is installed as a development dependency and `supabase/config.toml` is committed without secrets. For a new hosted development project, authenticate the CLI and link this checkout to the project reference shown in the Dashboard URL:
+
+```powershell
+pnpm exec supabase login
+pnpm exec supabase link --project-ref <project-ref>
+```
+
+Preview the pending migration set before changing the remote database, then apply it:
+
+```powershell
+pnpm exec supabase db push --dry-run
+pnpm exec supabase db push
+```
+
+`db push` records migration timestamps remotely and applies only pending files in `supabase/migrations`. Do not use `supabase db reset --linked`: that command drops and rebuilds the linked remote schema. A fresh project should receive all committed migrations, including the private Storage bucket and its policies.
+
+Back up any project that already contains application data before changing ownership. The Phase 1G-B migration performs these safe first-stage actions:
 
 1. Adds nullable `user_id` foreign keys and supporting indexes.
 2. Enables owner-only RLS policies immediately. Existing ownerless rows become inaccessible to normal users but are not deleted.
@@ -30,7 +46,7 @@ $env:OWNER_USER_ID = "<auth-user-uuid>"
 pnpm backfill:owner
 ```
 
-The first run verifies that the UUID belongs to the project, updates only rows whose `user_id` is null, and reports ownerless counts. Both table updates occur in one database transaction. Re-running it is safe because already-owned rows are unchanged.
+The first run verifies that the UUID belongs to the project, updates only rows whose `user_id` is null, and reports ownerless counts. Both table updates occur in one database transaction. Re-running it is safe because already-owned rows are unchanged. Run this even on a new empty project so the final step can enforce `NOT NULL` ownership on `tasks` and `calendar_events`.
 
 Review the reported counts and confirm the intended owner can see the existing records. Then enforce non-null ownership:
 

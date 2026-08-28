@@ -2,6 +2,7 @@ import "server-only";
 
 import type { PostgrestError } from "@supabase/supabase-js";
 
+import { formatPostgrestErrorDiagnostic } from "@/services/supabase/errors";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type { Course, CourseWithMeetings, PersistedCourseMeeting } from "@/types/course";
 import type { CourseMeeting } from "@/types/course-meeting";
@@ -23,7 +24,7 @@ export class CourseRepositoryError extends Error {
 }
 
 function fail(action: string, error: PostgrestError): never {
-  console.error(`[courses] ${action} failed:`, error);
+  console.error(`[courses] ${action} failed: ${formatPostgrestErrorDiagnostic(error)}`);
   throw new CourseRepositoryError(`Could not ${action}. Please try again.`, error);
 }
 
@@ -115,4 +116,3 @@ export async function deleteMeeting(id: string): Promise<void> {
   if (error) fail("delete the meeting", error);
   if (!data) throw new CourseRepositoryError("That meeting no longer exists.");
 }
-

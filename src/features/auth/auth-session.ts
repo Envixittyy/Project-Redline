@@ -1,6 +1,6 @@
 import "server-only";
 
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 
 import { decideWorkspaceAccess, type WorkspaceSessionStatus } from "./auth-domain";
 import {
@@ -54,6 +54,7 @@ export async function readWorkspaceSession(): Promise<WorkspaceSessionStatus> {
     await requireAuthenticatedSupabase();
     return "authenticated";
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof AuthenticationRequiredError) {
       return error.reason === "expired" ? "expired" : "unauthenticated";
     }

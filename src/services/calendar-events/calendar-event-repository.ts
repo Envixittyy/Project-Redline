@@ -2,6 +2,7 @@ import "server-only";
 
 import type { PostgrestError } from "@supabase/supabase-js";
 
+import { formatPostgrestErrorDiagnostic } from "@/services/supabase/errors";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type {
   CalendarEvent,
@@ -82,7 +83,9 @@ function toRow(draft: CalendarEventDraft | CalendarEventPatch): Record<string, u
 }
 
 function fail(action: string, error: PostgrestError): never {
-  console.error("[calendar-events] " + action + " failed:", error);
+  console.error(
+    "[calendar-events] " + action + " failed: " + formatPostgrestErrorDiagnostic(error),
+  );
   throw new CalendarEventRepositoryError("Could not " + action + ". Please try again.", error);
 }
 

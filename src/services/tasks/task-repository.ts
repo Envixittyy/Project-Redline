@@ -3,6 +3,7 @@ import "server-only";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 import { addDays, dayRangeIn, resolveTimeZone, todayIn } from "@/lib/date/day";
+import { formatPostgrestErrorDiagnostic } from "@/services/supabase/errors";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import {
   openTaskStatuses,
@@ -103,7 +104,7 @@ function toRow(draft: TaskDraft | TaskPatch): Record<string, unknown> {
 
 function fail(action: string, error: PostgrestError): never {
   // Surface the real cause in server logs; callers translate it to a UI message.
-  console.error("[tasks] " + action + " failed:", error);
+  console.error("[tasks] " + action + " failed: " + formatPostgrestErrorDiagnostic(error));
   throw new TaskRepositoryError("Could not " + action + ". Please try again.", error);
 }
 

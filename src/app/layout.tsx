@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
-import { appearanceInitScript, defaultThemeMode } from "@/lib/theme/appearance";
+import { AppearanceInitScript } from "@/components/appearance-init-script";
+import { defaultThemeMode } from "@/lib/theme/appearance";
 import { defaultAccentPalette } from "@/lib/theme/palettes";
 
 import "./globals.css";
@@ -32,10 +33,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-theme={defaultThemeMode}
       suppressHydrationWarning
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: appearanceInitScript }} />
-      </head>
-      <body>{children}</body>
+      <body>
+        <AppearanceInitScript />
+        {children}
+      </body>
     </html>
   );
 }

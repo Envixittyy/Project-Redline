@@ -1,4 +1,33 @@
+import type { PostgrestError } from "@supabase/supabase-js";
+
 export type AuthenticationFailureReason = "missing" | "expired";
+
+export type PostgrestErrorDiagnostic = {
+  code: PostgrestError["code"];
+  message: PostgrestError["message"];
+  details: PostgrestError["details"] | null;
+  hint: PostgrestError["hint"] | null;
+};
+
+/**
+ * Copy PostgREST's useful fields into an enumerable value for server logs.
+ * Framework error serialization can otherwise reduce the provider error to `{}`.
+ */
+export function postgrestErrorDiagnostic(
+  error: PostgrestErrorDiagnostic,
+): PostgrestErrorDiagnostic {
+  return {
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+  };
+}
+
+/** A single string survives Next.js development-console forwarding intact. */
+export function formatPostgrestErrorDiagnostic(error: PostgrestErrorDiagnostic): string {
+  return JSON.stringify(postgrestErrorDiagnostic(error));
+}
 
 export class SupabaseNotConfiguredError extends Error {
   constructor(missing: string[]) {

@@ -41,6 +41,8 @@ Open [http://localhost:3000](http://localhost:3000).
 | `pnpm build` | Create a production build |
 | `pnpm start` | Serve the production build |
 | `pnpm backfill:owner` | Run the controlled existing-row owner backfill |
+| `pnpm exec supabase db push --dry-run` | Preview pending migrations for the linked Supabase project |
+| `pnpm exec supabase db push` | Apply pending migrations to the linked Supabase project |
 
 ## Environment setup
 
@@ -59,7 +61,7 @@ Copy-Item .env.example .env.local
 
 The server-only `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are required only for the controlled owner backfill and isolated RLS integration tests. They are not used by normal feature repositories.
 
-Apply schemas in `supabase/migrations` in filename order, then follow [the Supabase Auth and owner-backfill runbook](docs/SUPABASE_AUTH.md) before opening the application to normal traffic.
+Use the committed Supabase CLI configuration to apply `supabase/migrations`, then follow [the Supabase Auth and owner-backfill runbook](docs/SUPABASE_AUTH.md) before opening the application to normal traffic. A configured Auth project without these migrations can sign users in but cannot serve the protected workspace.
 
 Without the public variables, the private workspace fails closed at the login surface. Never commit real credentials.
 

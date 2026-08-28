@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const file=(path:string)=>readFileSync(resolve(process.cwd(),path),"utf8");
 const migration=file("supabase/migrations/20260828200000_phase_1_foundation.sql");
+const relationshipTriggerFix=file("supabase/migrations/20260829000000_fix_phase1_relationship_owner_trigger.sql");
 
 describe("Phase 1 foundation security contract",()=>{
   it("owner-scopes courses, meetings, notes, and attachment metadata",()=>{
@@ -29,6 +30,15 @@ describe("Phase 1 foundation security contract",()=>{
     expect(collection).toContain("remove([storagePath])");
     expect(item).toContain("createSignedUrl");
     for(const source of [collection,item])expect(source).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
+  });
+
+  it("guards table-specific trigger fields inside table-specific branches",()=>{
+    expect(relationshipTriggerFix).toMatch(/if tg_table_name = 'tasks' then[\s\S]*new\.parent_task_id/);
+    expect(relationshipTriggerFix).toMatch(/elsif tg_table_name = 'course_meetings' then[\s\S]*new\.course_id/);
+    expect(relationshipTriggerFix).toMatch(/elsif tg_table_name = 'notes' then[\s\S]*new\.task_id/);
+    expect(relationshipTriggerFix).toMatch(/elsif tg_table_name = 'attachments' then[\s\S]*new\.note_id/);
+    expect(relationshipTriggerFix).not.toContain("tg_table_name = 'tasks' and new.parent_task_id");
+    expect(relationshipTriggerFix).not.toContain("tg_table_name = 'course_meetings' and not exists");
   });
 
   it("uses durable offline identities and truthful queue states",()=>{

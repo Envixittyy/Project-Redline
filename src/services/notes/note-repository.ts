@@ -2,6 +2,7 @@ import "server-only";
 
 import type { PostgrestError } from "@supabase/supabase-js";
 
+import { formatPostgrestErrorDiagnostic } from "@/services/supabase/errors";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type { Note } from "@/types/note";
 
@@ -12,7 +13,7 @@ export class NoteRepositoryError extends Error {
   constructor(message: string, readonly detail?: PostgrestError) { super(message); this.name = "NoteRepositoryError"; }
 }
 function fail(action: string, error: PostgrestError): never {
-  console.error(`[notes] ${action} failed:`, error);
+  console.error(`[notes] ${action} failed: ${formatPostgrestErrorDiagnostic(error)}`);
   throw new NoteRepositoryError(`Could not ${action}. Please try again.`, error);
 }
 function toNote(row: NoteRow): Note { return { id:row.id,title:row.title,body:row.body,taskId:row.task_id,courseId:row.course_id,archivedAt:row.archived_at,createdAt:row.created_at,updatedAt:row.updated_at }; }
@@ -49,4 +50,3 @@ export async function archiveNote(id: string): Promise<void> {
   if (error) fail("archive the note", error);
   if (!data) throw new NoteRepositoryError("That note no longer exists.");
 }
-

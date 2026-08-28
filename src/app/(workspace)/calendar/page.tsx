@@ -36,7 +36,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
         <span className={styles.noticeIcon} aria-hidden="true"><DatabaseZap size={22} /></span>
         <h2>Connect Supabase to use Calendar</h2>
         <p>
-          Configure the server-side Supabase variables and apply both migrations in <code>supabase/migrations</code>.
+          Configure Supabase and apply the committed migrations in <code>supabase/migrations</code>.
           Calendar events and task scheduling stay in separate tables.
         </p>
       </Surface>

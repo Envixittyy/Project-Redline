@@ -1,0 +1,16 @@
+.shell {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  padding:
+    calc(1.5rem + env(safe-area-inset-top))
+    calc(1.25rem + env(safe-area-inset-right))
+    calc(1.5rem + env(safe-area-inset-bottom))
+    calc(1.25rem + env(safe-area-inset-left));
+}
+
+.frame {
+  display: grid;
+  gap: 1.15rem;
+  width: min(100%, 26rem);
+}

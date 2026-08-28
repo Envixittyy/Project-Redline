@@ -9,11 +9,13 @@ The repository is a deliberately small foundation for a personal, single-user ap
 ```text
 src/
   app/
+    (auth)/               Public auth routes outside the workspace shell
     (workspace)/          Routes sharing the responsive application shell
   components/
     shell/                Domain-neutral shell and navigation composition
     ui/                   Reusable, domain-neutral interface components
   features/
+    auth/                 Sign-in/sign-out presentation state and session seams
     calendar/             Calendar read model, views, and native event editor
     tasks/                Task interface, server actions, and presentation rules
   hooks/                  Shared React hooks with more than one real consumer
@@ -39,7 +41,7 @@ The `(workspace)` route group applies `AppShell` to Home, Tasks, Calendar, Schoo
 
 Primary destinations are defined once in `src/lib/navigation.ts` and consumed by both the persistent desktop sidebar and safe-area-aware mobile tab bar. Mobile content reserves enough bottom space for the fixed bar. Desktop content is constrained to a readable frame and can expand into multi-column dashboard layouts.
 
-School remains a visual placeholder. More reserves clear entries for Football, Projects, Areas, and Integrations while keeping Appearance as its only functional section.
+School remains a visual placeholder. More reserves clear entries for Football, Projects, Areas, and Integrations while keeping Appearance and the presentation-only Account sign-out as its functional sections.
 
 Calendar is a working route as of Phase 1D. Its Month, Week, and Agenda modes are query parameters (`/calendar?view=week&date=2026-08-27`) so view and anchor date remain linkable. The page is a server component that resolves the visible range and reads events and tasks in parallel; `CalendarWorkspace` is the interaction boundary for view controls and editors. The mobile Month grid compresses item copy into semantic marks, Week uses an internally scrollable seven-day surface rather than overflowing the page, and Agenda is a readable narrow-screen list.
 
@@ -135,18 +137,18 @@ Task dragging uses `rescheduleTask` and the validating `rescheduleTaskAction`. `
 
 Courses remain free text on persisted tasks and events. There is not yet a persisted School course or course-meeting model. `src/types/course-meeting.ts` therefore defines only the minimal calendar-facing identity and weekly recurrence adapter needed by the later School/UI phase, including a pass-through semantic color. Archiving is also not represented in the task schema, so the calendar does not claim archive behavior until that domain exists.
 
-## Future authentication
+## Authentication
 
-Authentication is intentionally absent and the application is single-user and private by design.
+Authentication is still absent at the session and data layer; the application remains single-user and private by design. Privacy does not depend on that absence. The `tasks` table has row level security enabled with no policies, so the anon and publishable keys can read nothing even if one leaks. The service role key bypasses RLS and is used only in server code.
 
-Privacy does not depend on that absence. The `tasks` table has row level security enabled with no policies, so the anon and publishable keys can read nothing even if one leaks. The service role key bypasses RLS and is used only in server code.
+Phase 1G-A added the presentation and integration boundary without real session logic. `src/features/auth` owns the sign-in/sign-out presentation state, the pure `decideWorkspaceAccess` guard decision, and the `"server-only"` seams (`authenticateUser`, `endUserSession`, `readWorkspaceSession`) that report "not connected yet" instead of touching Supabase. The public `(auth)` route group hosts `/login` outside the workspace shell, and the More page hosts the sign-out control. `(workspace)/layout.tsx` awaits `requireWorkspaceAccess()` before rendering; because `readWorkspaceSession` still returns `null`, the guard allows access and the workspace stays fully usable. No fake authenticated state exists and no client storage participates in access decisions.
 
-Introducing authentication is additive:
+Introducing real authentication is additive:
 
 1. Add a nullable `user_id uuid references auth.users(id)` to `tasks`, backfill it with the single existing owner, then make it `not null`.
 2. Add owner policies (`user_id = auth.uid()`) for select, insert, update, and delete.
 3. Create a request-scoped client that carries the user's session, and switch the repository to it. The service role client stays for trusted background work only.
-4. Add login UI in its own feature folder and enforce sessions in the current Next.js proxy convention.
+4. Point the `src/features/auth` seams at Supabase (`signInWithPassword`, `signOut`, `getSession`), keeping the workspace layout guard as the enforcement point unless a proxy/matcher proves the better boundary for Next.js 16.
 
 No route, component, or domain type currently assumes an anonymous user, so none of them need rewriting.
 

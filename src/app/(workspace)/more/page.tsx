@@ -4,6 +4,7 @@ import { FolderKanban, LandPlot, Puzzle, Trophy } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
 import { AppearanceControls } from "@/features/appearance/appearance-controls";
+import { SignOutControl } from "@/features/auth/sign-out-control";
 
 import styles from "./more-page.module.css";
 
@@ -19,7 +20,7 @@ const secondarySections = [
 export default function MorePage() {
   return (
     <>
-      <PageHeader title="More" description="Appearance lives here now; secondary areas will join it as their phases begin." />
+      <PageHeader title="More" description="Appearance and account controls live here; secondary areas will join as their phases begin." />
       <div className={styles.sections}>
         <section className={styles.secondaryGrid} aria-label="Future sections">
           {secondarySections.map((section) => {
@@ -40,6 +41,17 @@ export default function MorePage() {
             <p>Choose how the workspace feels on this device. Preferences stay local to your browser.</p>
           </div>
           <AppearanceControls />
+        </Surface>
+
+        <Surface variant="glass" className={styles.account} id="account">
+          <div className={styles.accountHeading}>
+            <h2>Account</h2>
+            <p>
+              Account sign-in arrives with Supabase session support. Until then this
+              control previews how signing out of this device will behave.
+            </p>
+          </div>
+          <SignOutControl />
         </Surface>
       </div>
     </>

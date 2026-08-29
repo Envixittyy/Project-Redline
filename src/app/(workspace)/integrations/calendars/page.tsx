@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
 import { calendarProviderCatalog } from "@/services/integrations/calendar/provider-catalog";
+import { isGoogleCalendarOAuthConfigured } from "@/services/integrations/calendar/google-oauth";
 import { listExternalCalendarConnections } from "@/services/external-calendars/external-calendar-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
 
@@ -10,7 +12,9 @@ import styles from "./calendars-page.module.css";
 
 export const metadata: Metadata = { title: "Calendar connections" };
 
-export default async function CalendarConnectionsPage() {
+export default async function CalendarConnectionsPage({ searchParams }: PageProps<"/integrations/calendars">) {
+  const params = await searchParams;
+  const googleResult = Array.isArray(params.google) ? params.google[0] : params.google;
   let connections: Awaited<ReturnType<typeof listExternalCalendarConnections>> = [];
   let failure: string | null = null;
 
@@ -32,6 +36,18 @@ export default async function CalendarConnectionsPage() {
         description="External calendars remain fixed provider records. Their declared capabilities decide what Forward may read or change."
       />
       <div className={styles.layout}>
+        {googleResult === "connected" ? (
+          <Surface variant="subtle" className={styles.notice} role="status">
+            <h2>Google Calendar connected</h2>
+            <p>The credential is encrypted. Calendar discovery and event synchronization are the next server-owned operations.</p>
+          </Surface>
+        ) : null}
+        {googleResult && googleResult !== "connected" ? (
+          <Surface variant="subtle" className={styles.notice} role="alert">
+            <h2>Google Calendar was not connected</h2>
+            <p>The request was denied, expired, or could not be exchanged. No provider error detail or credential was stored in the browser.</p>
+          </Surface>
+        ) : null}
         {failure ? (
           <Surface variant="subtle" className={styles.notice} role="alert">
             <h2>Connections are not available yet</h2>
@@ -65,6 +81,13 @@ export default async function CalendarConnectionsPage() {
                       <span className={styles.capability} key={capability}>{capability.replaceAll("_", " ")}</span>
                     ))}
                   </div>
+                ) : null}
+                {provider.id === "google" && !connected ? (
+                  isGoogleCalendarOAuthConfigured() ? (
+                    <Link className={styles.connectLink} href="/api/integrations/calendar/google/start">Connect read-only</Link>
+                  ) : (
+                    <p className={styles.setupHint}>Set APP_ORIGIN and the two GOOGLE_CALENDAR_* server variables to enable OAuth.</p>
+                  )
                 ) : null}
               </Surface>
             );

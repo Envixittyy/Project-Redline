@@ -163,6 +163,11 @@
   gap: 0.9rem;
 }
 
+.captureCard[data-targeted="true"] {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 1px var(--accent-border), var(--shadow-soft);
+}
+
 .captureMeta {
   display: flex;
   justify-content: space-between;

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarSync, FolderKanban, Inbox, LandPlot, Layers, NotebookPen, ShieldCheck, Trophy } from "lucide-react";
+import { CalendarSync, FolderKanban, Inbox, LandPlot, Layers, NotebookPen, ShieldCheck, Sparkles, Trophy } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
@@ -55,6 +55,13 @@ export default function MorePage() {
             <Surface variant="interactive" className={styles.secondaryCard}>
               <span className={styles.secondaryIcon} aria-hidden="true"><Layers size={19}/></span>
               <div><h2>Notion</h2><p>Selective two-way knowledge sync</p></div>
+              <span className={styles.open}>Open</span>
+            </Surface>
+          </Link>
+          <Link href="/settings/ai" className={styles.sectionLink}>
+            <Surface variant="interactive" className={styles.secondaryCard}>
+              <span className={styles.secondaryIcon} aria-hidden="true"><Sparkles size={19}/></span>
+              <div><h2>Cloud AI</h2><p>Privacy boundaries & models</p></div>
               <span className={styles.open}>Open</span>
             </Surface>
           </Link>

@@ -63,6 +63,11 @@
   font-size: 0.8rem;
   font-weight: 720;
   text-decoration: none;
+  cursor: pointer;
+}
+
+button.connectLink {
+  width: 100%;
 }
 
 .providerCard .setupHint {

@@ -37,4 +37,14 @@ pnpm exec supabase db push
 
 Never use `supabase db reset --linked` on a database containing data. Restart the development server after changing environment variables, sign in to Forward, open **More → Calendar connections**, and choose **Connect read-only**.
 
-Successful consent currently establishes the encrypted account connection. Calendar discovery, refresh serialization, and event synchronization are the next P3 checkpoint; the UI does not claim that mirrored events are current before those operations exist.
+Successful consent establishes the encrypted account connection. Choose **Sync now** to discover every calendar in the account and mirror selected calendars into Forward. Newly discovered calendars are selected by default; selection controls are intentionally deferred until required.
+
+## Synchronization behavior
+
+- The initial sync uses a stable owner-time-zone horizon from 90 days before today through 365 days after today. That stable query is required for safe incremental Google sync tokens.
+- Later syncs use each calendar's encrypted incremental cursor. A Google `410 Gone` response clears that cursor in memory and safely repeats a full sync for that calendar.
+- Cancelled events become source-aware tombstones. Events absent from a full provider result receive `missing_since`; they are retained instead of being deleted.
+- Access-token refresh uses a short owner-scoped database lease. Concurrent requests cannot overwrite one another's rotated encrypted token envelope.
+- Provider records remain read-only and cannot open the native event editor. Syncing never creates or converts native tasks, work sessions, or calendar events.
+
+The migration and OAuth configuration must be applied before runtime proof is possible. A successful fixture test or production build does not prove Google consent, token refresh, or live Calendar API access.

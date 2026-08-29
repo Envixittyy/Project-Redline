@@ -28,6 +28,7 @@ export type ExternalCalendarEvent = {
 
 export type CalendarSyncPage = {
   events: readonly ExternalCalendarEvent[];
+  deletedExternalEventIds: readonly string[];
   nextPageToken: string | null;
   nextSyncToken: string | null;
 };
@@ -40,6 +41,7 @@ export interface ExternalCalendarProvider {
     externalCalendarId: string;
     startsAt: string;
     endsAt: string;
+    timeZone: string;
     pageToken?: string;
     syncToken?: string;
   }): Promise<CalendarSyncPage>;

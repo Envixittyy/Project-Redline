@@ -1,0 +1,297 @@
+.composerCard,
+.captureCard,
+.emptyState {
+  padding: 1rem;
+}
+
+.composerHeading,
+.launcherHeading,
+.cardAction,
+.proposalReview,
+.composerFooter {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.composerHeading > span,
+.launcherIcon {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--accent-muted);
+  color: var(--accent-text);
+}
+
+.composerHeading h2,
+.composerHeading p,
+.launcherHeading h2,
+.launcherHeading p,
+.emptyState h2,
+.emptyState p {
+  margin: 0;
+}
+
+.composerHeading h2,
+.launcherHeading h2,
+.emptyState h2 {
+  font-size: 1rem;
+}
+
+.composerHeading p,
+.launcherHeading p,
+.emptyState p,
+.composerFooter p,
+.cardAction p,
+.proposalReview p,
+.finalState {
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.composerForm,
+.proposal {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.captureField,
+.proposal label {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.captureField textarea,
+.proposal input {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.75rem;
+  resize: vertical;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-interactive);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.captureField textarea:focus,
+.proposal input:focus {
+  border-color: var(--accent-border);
+}
+
+.composerFooter,
+.proposalReview,
+.cardAction {
+  justify-content: space-between;
+}
+
+.composerFooter p,
+.proposalReview p,
+.cardAction p,
+.finalState {
+  margin: 0;
+}
+
+.primaryButton,
+.secondaryButton,
+.captureTrigger,
+.compactTrigger {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 720;
+}
+
+.primaryButton {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-muted);
+  color: var(--accent-text);
+}
+
+.secondaryButton {
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-interactive);
+  color: var(--text-secondary);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.inboxList {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.captureCard {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.captureMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--text-tertiary);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.captureMeta span {
+  color: var(--accent-text);
+}
+
+.rawText {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.cardAction,
+.proposal {
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.actionError {
+  margin: 0;
+  color: var(--accent-text);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.emptyState {
+  text-align: center;
+}
+
+.emptyState p {
+  margin-top: 0.35rem;
+}
+
+.captureTrigger {
+  width: 100%;
+  margin-top: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-muted);
+  color: var(--accent-text);
+}
+
+.captureTrigger span {
+  margin-right: auto;
+}
+
+.captureTrigger kbd {
+  color: var(--text-tertiary);
+  font-size: 0.67rem;
+}
+
+.compactTrigger {
+  width: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-muted);
+  color: var(--accent-text);
+}
+
+.launcherBackdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  align-items: end;
+  padding: 1rem;
+  background: var(--scrim);
+  backdrop-filter: blur(12px);
+}
+
+.launcherPanel {
+  width: min(100%, 38rem);
+  max-height: calc(100svh - 2rem);
+  margin-inline: auto;
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-elevated);
+}
+
+.launcherHeading > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
+.launcherHeading > div:nth-child(2) > p {
+  color: var(--accent-text);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.launcherHeading > button {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.inboxLink {
+  display: block;
+  margin-top: 0.9rem;
+  color: var(--accent-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+@media (max-width: 34rem) {
+  .composerFooter,
+  .proposalReview,
+  .cardAction {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+}
+
+@media (min-width: 40rem) {
+  .launcherBackdrop {
+    align-items: center;
+  }
+}

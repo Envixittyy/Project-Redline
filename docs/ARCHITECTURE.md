@@ -29,6 +29,7 @@ src/
     date/                 Calendar-day and time-zone helpers
     theme/                Theme metadata such as supported accent palettes
   services/
+    captures/             Immutable capture reads and transactional proposal operations
     calendar-events/      Source-aware calendar-event persistence
     courses/              Course and recurring-meeting persistence
     notes/                Note persistence
@@ -49,7 +50,7 @@ The `(workspace)` route group applies `AppShell` to Home, Tasks, Calendar, Schoo
 
 Primary destinations are defined once in `src/lib/navigation.ts` and consumed by both the persistent desktop sidebar and safe-area-aware mobile tab bar. Mobile content reserves enough bottom space for the fixed bar. Desktop content is constrained to a readable frame and can expand into multi-column dashboard layouts.
 
-The shell also owns one small command-palette client boundary. `Ctrl/Cmd+K` and visible desktop/mobile triggers open the same navigation-only palette; it routes to existing pages and does not create a second mutation path around feature server actions.
+The shell also owns two small global client boundaries. `Ctrl/Cmd+K` opens the navigation-only command palette. `Ctrl/Cmd+Shift+Space` and visible desktop/mobile controls open Universal Capture. Both reuse feature routes and server actions rather than introducing parallel persistence paths.
 
 School persists owner-scoped courses and recurring weekly meetings. The timetable projects meeting occurrences into Calendar through the calendar domain adapter; it never writes duplicated native event rows. Notes is a secondary route linked from More so the five-item mobile navigation remains stable.
 
@@ -116,6 +117,10 @@ Root `proxy.ts` follows the Next.js 16 Proxy convention and refreshes Supabase c
 `src/services/tasks/task-repository.ts` is the only module that speaks to the table. It maps snake_case rows to the camelCase `Task` type in `src/types/task.ts`, builds each view's query, and converts Postgres errors into `TaskRepositoryError` after logging the cause. Features never see a Supabase client.
 
 Mutations run through server actions in `src/features/tasks/task-actions.ts`. Actions validate their own input because a server action is a public endpoint, return a discriminated `ActionResult` instead of throwing across the boundary, and call `revalidatePath` so server-rendered views refresh.
+
+P2 Universal Capture follows the same request-client boundary in `src/services/captures/capture-repository.ts`. `captures.raw_content`, its kind, owner, and capture time are immutable evidence. Interpretations and proposals are separate owner-scoped rows. The initial deterministic interpreter derives an editable task title from the first useful text line; it does not call an AI provider.
+
+Preparing a proposal and committing it are distinct operations. The commit RPC locks the capture and proposal, records explicit confirmation, creates the Inbox task and a server-authored inverse in one transaction, and then exposes a ten-minute undo window. Undo refuses to delete a task that has since changed or gained subtasks. Tasks remain tasks throughout this flow; no calendar-event row is created.
 
 Data access stays server-side by default and exposes narrow operations to features. Do not create a large speculative schema. Add tables and constraints alongside the product phase that establishes their behavior.
 

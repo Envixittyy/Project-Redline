@@ -65,6 +65,12 @@
   text-decoration: none;
 }
 
+.mobileActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .main {
   width: min(100%, var(--content-max-width));
   margin-inline: auto;

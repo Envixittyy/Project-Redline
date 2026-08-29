@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CaptureTransitionError,
+  captureTextTaskTitle,
   createInboxTextCapture,
   transitionCapture,
 } from "./capture-domain";
@@ -26,5 +27,21 @@ describe("capture domain", () => {
     const capture = createInboxTextCapture("capture-1", "Finish the lab", "2026-08-29T08:00:00Z");
     expect(() => transitionCapture(capture, { type: "commit", operationBatchId: "batch-1" }))
       .toThrow(CaptureTransitionError);
+  });
+
+  it("derives a bounded task title from the first useful line", () => {
+    const capture = createInboxTextCapture(
+      "capture-1",
+      `\n  Finish   the lab  \nBring the notebook`,
+      "2026-08-29T08:00:00Z",
+    );
+
+    expect(captureTextTaskTitle(capture)).toBe("Finish the lab");
+  });
+
+  it("rejects text beyond the storage contract", () => {
+    expect(() =>
+      createInboxTextCapture("capture-1", "x".repeat(10001), "2026-08-29T08:00:00Z"),
+    ).toThrow("10,000");
   });
 });

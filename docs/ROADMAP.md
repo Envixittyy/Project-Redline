@@ -111,9 +111,10 @@ graph TD
   - Dedicated distraction-free view with optional minimal timer and keyboard navigation.
 
 ### Phase 7: Advanced Blackboard Proposal Ingestion
-- **7A: Blackboard Assignment & Deadline Proposal Engine [`ARCHITECTURE REVIEW REQUIRED` | Medium | Risk: High | Reviewer: Codex]**
+- **7A: Blackboard Assignment & Deadline Proposal Engine [`PLANNED` | Architecture gate approved | Medium | Risk: High | Reviewer: Codex]**
   - Detect newly synchronized items in `external_records` and emit structured proposal objects to Universal Capture.
   - Enable one-click user review and conversion into native Redline tasks without automated task pollution.
+  - Approved architecture: one stable proposal per stable provider-UID record, semantic-revision refresh/reopen rules, explicit capture commit/undo, and source-aware notification dedupe. UID-less fallback records remain mirrors only. See `docs/FORWARD_ARCHITECTURE.md` section 7. Phase 7A remains unimplemented.
 - **7B: Secure School Change Notifications [`PLANNED` | Small | Risk: Low | Model: Gemini 3.7 Flash]**
   - Trigger in-app and push notifications for newly detected syllabus or deadline changes with direct links to the proposal review view.
 

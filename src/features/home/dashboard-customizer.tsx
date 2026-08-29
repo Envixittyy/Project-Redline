@@ -12,6 +12,7 @@ import { Surface } from "@/components/ui/surface";
 import styles from "./dashboard-customizer.module.css";
 
 const widgetOptions = [
+  { id: "planning", label: "Plan My Day" },
   { id: "schedule", label: "Schedule" },
   { id: "today", label: "Today" },
   { id: "overdue", label: "Overdue" },
@@ -24,6 +25,7 @@ type WidgetId = (typeof widgetOptions)[number]["id"];
 type WidgetVisibility = Record<WidgetId, boolean>;
 
 const defaultVisibility: WidgetVisibility = {
+  planning: true,
   schedule: true,
   today: true,
   overdue: true,
@@ -149,6 +151,7 @@ export function DashboardCustomizer({ children }: { children: ReactNode }) {
 
       <div
         className={styles.grid}
+        data-hide-planning={!visibility.planning || undefined}
         data-hide-schedule={!visibility.schedule || undefined}
         data-hide-today={!visibility.today || undefined}
         data-hide-overdue={!visibility.overdue || undefined}

@@ -120,10 +120,11 @@ graph TD
 
 ### Phase 8: Notion Knowledge Integration (P5)
 - **8A: Notion Authentication & Outbound Note Export [`PLANNED` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
-  - Notion integration setup with encrypted token storage in `integration_credentials`.
+  - Notion integration setup reusing encrypted `integration_accounts.encrypted_credential` storage.
   - Export Redline Markdown notes to Notion pages, storing `remotePageId`, `remoteUrl`, and SHA-256 content fingerprints.
-- **8B: Selective Two-Way Update Synchronization [`ARCHITECTURE REVIEW REQUIRED` | Large | Risk: High | Reviewer: Codex]**
+- **8B: Selective Two-Way Update Synchronization [`PLANNED` | Architecture gate approved | Large | Risk: High | Reviewer: Codex]**
   - Ingest remote Notion page updates, apply loop-suppression fingerprints, and handle edit conflicts with Forward remaining the authoritative master.
+  - Approved architecture: per-note opt-in import, one explicitly tracked active managed Notion root, canonical last-common fingerprints, staged generation writes, and persisted three-snapshot conflicts with explicit resolution. See `docs/FORWARD_ARCHITECTURE.md` section 8. Phase 8B remains unimplemented.
 
 ### Phase 9: Cloud AI Provider & Privacy Gates (P6 Core)
 - **9A: Provider Adapters & Typed Action Dispatcher [`PLANNED` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**

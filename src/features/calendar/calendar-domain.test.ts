@@ -442,6 +442,54 @@ describe("course meetings", () => {
         }),
       ).toHaveLength(0);
     });
+
+    it("coexists seamlessly with generic external events, native events, tasks, course meetings, and work sessions", () => {
+      const googleEvent: ExternalCalendarProjection = {
+        id: "rec-gcal-1",
+        provider: "google",
+        calendarId: "primary",
+        externalCalendarId: "primary",
+        calendarName: "Google Personal",
+        access: "read_only",
+        externalEventId: "gcal-evt-1",
+        revision: "etag1",
+        title: "Dentist Appointment",
+        startsAt: "2026-08-29T02:00:00.000Z",
+        endsAt: "2026-08-29T03:00:00.000Z",
+        allDay: false,
+        status: "confirmed",
+      };
+
+      const nativeTask = task({
+        id: "task-homework",
+        title: "Finish Math HW",
+        dueDate: "2026-08-29",
+      });
+
+      const items = buildCalendarItems(
+        [],
+        [],
+        [nativeTask],
+        MANILA,
+        [],
+        "2026-08-29",
+        "2026-08-30",
+        [],
+        [],
+        [blackboardProjection, googleEvent],
+      );
+
+      expect(items).toHaveLength(3);
+      const kinds = items.map((i) => i.kind);
+      expect(kinds).toContain("external_event");
+      expect(kinds).toContain("deadline");
+
+      const externalProviders = items
+        .filter((i): i is Extract<typeof i, { kind: "external_event" }> => i.kind === "external_event")
+        .map((i) => i.externalEvent.provider);
+      expect(externalProviders).toContain("blackboard");
+      expect(externalProviders).toContain("google");
+    });
   });
 });
 

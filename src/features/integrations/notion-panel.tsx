@@ -1,0 +1,273 @@
+"use client";
+
+import {
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink,
+  Layers,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+
+import { Surface } from "@/components/ui/surface";
+import type {
+  NotionAccountStatus,
+  NotionPageLink,
+  NotionSyncConflict,
+  NotionSyncDirection,
+} from "@/services/integrations/notion/types";
+
+import {
+  connectNotionAction,
+  disconnectNotionAction,
+  resolveNotionConflictAction,
+  syncNoteAction,
+  unlinkNoteAction,
+  updateNotionLinkDirectionAction,
+} from "./notion-actions";
+import styles from "./notion-panel.module.css";
+
+type NotionPanelProps = {
+  status: NotionAccountStatus;
+  links: NotionPageLink[];
+  conflicts: NotionSyncConflict[];
+  notes: Array<{ id: string; title: string }>;
+};
+
+export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProps) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
+
+  function run(action: () => Promise<{ ok: boolean; message: string }>) {
+    startTransition(async () => {
+      const res = await action();
+      setMessage(res.message);
+      router.refresh();
+    });
+  }
+
+  const notesMap = new Map(notes.map((n) => [n.id, n.title]));
+
+  return (
+    <div className={styles.layout}>
+      {/* Connection Card */}
+      <Surface variant="glass" className={styles.card}>
+        <header>
+          <Layers size={20} />
+          <div>
+            <p>Notion Integration</p>
+            <h2>{status.connected ? "Connected" : "Not connected"}</h2>
+          </div>
+          <span className={styles.statusBadge} data-status={status.connected ? "synced" : "error"}>
+            {status.connected ? "Connected" : "Disconnected"}
+          </span>
+        </header>
+
+        <p className={styles.copy}>
+          Connect an internal integration token to export and synchronize notes. Tokens are
+          encrypted with AES-256-GCM and never exposed to the client.
+        </p>
+
+        <form
+          className={styles.form}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const data = new FormData(e.currentTarget);
+            const token = data.get("token");
+            const hint = data.get("hint");
+            run(() => connectNotionAction(token, hint));
+          }}
+        >
+          <label className={styles.field}>
+            Integration Token (Internal secret)
+            <input
+              name="token"
+              type="password"
+              className={styles.input}
+              placeholder="secret_..."
+              required
+              autoComplete="off"
+            />
+          </label>
+
+          <label className={styles.field}>
+            Workspace Label (Optional hint)
+            <input
+              name="hint"
+              type="text"
+              className={styles.input}
+              placeholder={status.credentialHint || "My Workspace"}
+              autoComplete="off"
+            />
+          </label>
+
+          <div className={styles.actions}>
+            <button className={styles.buttonPrimary} type="submit" disabled={pending}>
+              {status.connected ? "Replace Token" : "Connect Notion"}
+            </button>
+            {status.connected ? (
+              <button
+                className={styles.buttonDanger}
+                type="button"
+                disabled={pending}
+                onClick={() => run(disconnectNotionAction)}
+              >
+                Disconnect
+              </button>
+            ) : null}
+          </div>
+        </form>
+
+        {message ? (
+          <p role="status" className={styles.message}>
+            {message}
+          </p>
+        ) : null}
+      </Surface>
+
+      {/* Conflicts Review */}
+      {conflicts.length > 0 ? (
+        <Surface variant="base" className={styles.card}>
+          <header>
+            <AlertCircle size={20} color="#f87171" />
+            <div>
+              <p>Action Required</p>
+              <h2>Sync Conflicts ({conflicts.length})</h2>
+            </div>
+          </header>
+          <p className={styles.copy}>
+            Concurrent edits occurred on both Forward and Notion. Choose which version to retain:
+          </p>
+
+          <div className={styles.layout}>
+            {conflicts.map((conflict) => (
+              <div key={conflict.id} className={styles.conflictBox}>
+                <div>
+                  <strong>Note: {conflict.localSnapshot.title}</strong>
+                  <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                    Forward title: &ldquo;{conflict.localSnapshot.title}&rdquo; · Notion title: &ldquo;{conflict.remoteSnapshot.title}&rdquo;
+                  </p>
+                </div>
+                <div className={styles.actions}>
+                  <button
+                    className={styles.buttonPrimary}
+                    disabled={pending}
+                    onClick={() =>
+                      run(() => resolveNotionConflictAction(conflict.id, "keep_redline"))
+                    }
+                  >
+                    Keep Forward Version
+                  </button>
+                  <button
+                    className={styles.buttonSecondary}
+                    disabled={pending}
+                    onClick={() =>
+                      run(() => resolveNotionConflictAction(conflict.id, "use_notion"))
+                    }
+                  >
+                    Use Notion Version
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Surface>
+      ) : null}
+
+      {/* Linked Notes */}
+      <Surface variant="base" className={styles.card}>
+        <header>
+          <CheckCircle2 size={20} />
+          <div>
+            <p>Synchronized Content</p>
+            <h2>Linked Notes ({links.length})</h2>
+          </div>
+        </header>
+
+        {links.length === 0 ? (
+          <p className={styles.copy}>
+            No notes are linked yet. Open any note in the Notes workspace to export or link it to Notion.
+          </p>
+        ) : (
+          <ul className={styles.linksList}>
+            {links.map((link) => {
+              const noteTitle = notesMap.get(link.noteId) || link.baseSnapshot?.title || "Untitled Note";
+              return (
+                <li key={link.id} className={styles.linkItem}>
+                  <div className={styles.linkInfo}>
+                    <span className={styles.linkTitle}>
+                      {noteTitle}
+                      <a
+                        href={link.remoteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "var(--text-secondary)" }}
+                        title="Open in Notion"
+                      >
+                        <ExternalLink size={14} />
+                      </a>
+                    </span>
+                    <div className={styles.linkMeta}>
+                      <span className={styles.statusBadge} data-status={link.status}>
+                        {link.status.replace(/_/g, " ")}
+                      </span>
+                      <span>
+                        Last sync:{" "}
+                        {link.lastSuccessAt
+                          ? new Date(link.lastSuccessAt).toLocaleString()
+                          : "Never"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={styles.linkControls}>
+                    <select
+                      className={styles.select}
+                      disabled={pending}
+                      value={link.direction}
+                      onChange={(e) =>
+                        run(() =>
+                          updateNotionLinkDirectionAction(
+                            link.noteId,
+                            e.target.value as NotionSyncDirection,
+                          ),
+                        )
+                      }
+                    >
+                      <option value="forward_to_notion">Export Only (Forward → Notion)</option>
+                      <option value="selective_two_way">Two-Way (Forward ↔ Notion)</option>
+                    </select>
+
+                    <button
+                      className={styles.buttonSecondary}
+                      disabled={pending || link.status === "syncing"}
+                      type="button"
+                      onClick={() => run(() => syncNoteAction(link.noteId))}
+                      title="Sync now"
+                    >
+                      <RefreshCw size={14} />
+                      Sync
+                    </button>
+
+                    <button
+                      className={styles.buttonDanger}
+                      disabled={pending}
+                      type="button"
+                      onClick={() => run(() => unlinkNoteAction(link.noteId))}
+                      title="Unlink"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Surface>
+    </div>
+  );
+}

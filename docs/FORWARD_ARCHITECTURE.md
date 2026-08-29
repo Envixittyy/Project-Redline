@@ -37,7 +37,7 @@ The locked direction is linear, cool, futuristic glass: blue-black/graphite/slat
 CAPTURE → INTERPRET → PROPOSE → CONFIRM → COMMIT → UNDO
 ```
 
-Basic text capture creates an Inbox capture without AI. A repository added in P2 should persist raw capture, interpretations, and references to proposals; it must not overwrite raw evidence with inferred fields.
+Basic text capture creates an Inbox capture without AI. P2 persists raw capture, interpretations, proposals, and operation-batch references in separate owner-scoped tables; inferred fields never overwrite raw evidence. The first shipped interpretation is deliberately deterministic: the first useful text line becomes an editable task proposal. Confirmation atomically creates an ordinary Inbox task plus a server-owned inverse. Undo is idempotent, expires after ten minutes, and refuses to remove a task that changed or gained children after commit.
 
 ## AI actions and permission
 

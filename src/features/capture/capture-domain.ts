@@ -51,6 +51,20 @@ export type CaptureInterpretation = {
   proposalIds: readonly string[];
 };
 
+export type CaptureProposal = {
+  id: string;
+  captureId: string;
+  action: "create_task";
+  status: "proposed" | "confirmed" | "committed" | "rejected";
+  title: string;
+  createdAt: string;
+};
+
+export type CaptureInboxItem = RawCapture & {
+  proposal: CaptureProposal | null;
+  undoExpiresAt: string | null;
+};
+
 export type CaptureEvent =
   | { type: "interpret"; interpretationId: string }
   | { type: "propose" }
@@ -110,6 +124,7 @@ export function transitionCapture(capture: RawCapture, event: CaptureEvent): Raw
 export function createInboxTextCapture(id: string, text: string, capturedAt: string): RawCapture {
   const normalized = text.trim();
   if (!normalized) throw new Error("Capture text cannot be empty.");
+  if (normalized.length > 10000) throw new Error("Capture text is limited to 10,000 characters.");
   if (Number.isNaN(Date.parse(capturedAt))) throw new Error("Capture time must be an ISO instant.");
 
   return {
@@ -121,4 +136,19 @@ export function createInboxTextCapture(id: string, text: string, capturedAt: str
     operationBatchId: null,
     errorCode: null,
   };
+}
+
+/** P2's deterministic interpretation: the first useful line becomes an editable task title. */
+export function captureTextTaskTitle(capture: RawCapture): string {
+  if (capture.content.kind !== "text" && capture.content.kind !== "pasted_text") {
+    throw new Error("Only text captures can become tasks in this phase.");
+  }
+
+  const firstLine = capture.content.text
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/\s+/g, " "))
+    .find(Boolean);
+
+  if (!firstLine) throw new Error("Capture text cannot be empty.");
+  return firstLine.slice(0, 200);
 }

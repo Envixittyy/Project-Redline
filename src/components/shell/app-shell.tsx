@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { DesktopNavigation, MobileTabBar } from "./app-navigation";
 import { CommandPalette, CommandPaletteTrigger } from "./command-palette";
+import { CaptureLauncher, CaptureTrigger } from "@/features/capture/capture-launcher";
 import { PwaClient } from "@/features/offline/pwa-client";
 import styles from "./app-shell.module.css";
 
@@ -25,6 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <DesktopNavigation />
+        <CaptureTrigger />
         <CommandPaletteTrigger />
 
         <div className={styles.sidebarFooter}>
@@ -41,7 +43,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link className={styles.mobileIdentity} href="/">
             Forward
           </Link>
-          <CommandPaletteTrigger compact />
+          <div className={styles.mobileActions}>
+            <CaptureTrigger compact />
+            <CommandPaletteTrigger compact />
+          </div>
         </div>
         <main id="main-content" className={styles.main} tabIndex={-1}>
           {children}
@@ -50,6 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <MobileTabBar />
       <PwaClient />
+      <CaptureLauncher />
       <CommandPalette />
     </div>
   );

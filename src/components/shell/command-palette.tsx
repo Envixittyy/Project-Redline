@@ -4,6 +4,7 @@ import {
   CalendarDays,
   GraduationCap,
   House,
+  Inbox,
   ListTodo,
   NotebookPen,
   Search,
@@ -40,6 +41,13 @@ const commands: readonly Command[] = [
     href: "/",
     icon: House,
     keywords: "dashboard overview today",
+  },
+  {
+    label: "Capture Inbox",
+    description: "Review raw captures and proposed actions",
+    href: "/inbox",
+    icon: Inbox,
+    keywords: "capture raw input review proposal",
   },
   {
     label: "Tasks",

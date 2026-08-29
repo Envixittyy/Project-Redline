@@ -19,7 +19,7 @@ import {
 const TABLE = "tasks";
 
 const COLUMNS =
-  "id, title, description, status, priority, due_date, due_at, scheduled_start, scheduled_end, area, project, course, parent_task_id, created_at, updated_at, completed_at";
+  "id, title, description, status, priority, due_date, due_at, scheduled_start, scheduled_end, area, project, course, course_id, parent_task_id, created_at, updated_at, completed_at";
 
 type TaskRow = {
   id: string;
@@ -34,6 +34,7 @@ type TaskRow = {
   area: string | null;
   project: string | null;
   course: string | null;
+  course_id: string | null;
   parent_task_id: string | null;
   created_at: string;
   updated_at: string;
@@ -64,6 +65,7 @@ function toTask(row: TaskRow): Task {
     area: row.area,
     project: row.project,
     course: row.course,
+    courseId: row.course_id,
     parentTaskId: row.parent_task_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -96,6 +98,7 @@ function toRow(draft: TaskDraft | TaskPatch): Record<string, unknown> {
   if (draft.area !== undefined) row.area = emptyToNull(draft.area);
   if (draft.project !== undefined) row.project = emptyToNull(draft.project);
   if (draft.course !== undefined) row.course = emptyToNull(draft.course);
+  if (draft.courseId !== undefined) row.course_id = emptyToNull(draft.courseId);
   if (draft.parentTaskId !== undefined) row.parent_task_id = emptyToNull(draft.parentTaskId);
   if (draft.clientOperationId !== undefined) row.client_operation_id = emptyToNull(draft.clientOperationId);
 

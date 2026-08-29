@@ -1,11 +1,16 @@
-import type { BlackboardFeedItem } from "./ical";
+import type { BlackboardFeedItem, DuePrecision } from "./ical";
 
 export type ExistingBlackboardRecord = {
   id: string;
   externalUid: string;
   contentHash: string;
+  proposalRevision?: string | null;
   taskId: string | null;
   dueAt: string | null;
+  dueDate?: string | null;
+  duePrecision?: DuePrecision;
+  courseId?: string | null;
+  normalizedDescription?: string | null;
   missingSince: string | null;
 };
 

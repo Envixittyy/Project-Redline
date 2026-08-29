@@ -8,7 +8,7 @@ import {
   safeNotificationPayload,
 } from "@/services/notifications/notification-domain";
 
-import { parseBlackboardICalendar } from "./ical";
+import { computeProposalRevision, parseBlackboardICalendar } from "./ical";
 import { isPublicAddress, validateFeedUrl } from "./safe-url";
 import {
   matchBlackboardCourse,
@@ -36,12 +36,92 @@ describe("Blackboard iCalendar", () => {
       title: "[CS101] Essay",
       courseCode: "CS101",
       dueAt: "2030-01-02T09:00:00.000Z",
+      dueDate: "2030-01-02",
+      duePrecision: "instant",
       sourceUrl: "https://learn.example.edu/item/1",
+      isFallbackUid: false,
     });
     expect(item.contentHash).toHaveLength(64);
+    expect(item.proposalRevision).toHaveLength(64);
   });
 
-  it("uses deterministic fallback identity without merging different deadlines", () => {
+  it("parses all-day date interval as date precision without inventing UTC instant", () => {
+    const allDayFeed =
+      "BEGIN:VCALENDAR\r\n" +
+      "BEGIN:VEVENT\r\n" +
+      "UID:item-date-1\r\n" +
+      "SUMMARY:History Project Due\r\n" +
+      "DTSTART;VALUE=DATE:20261120\r\n" +
+      "END:VEVENT\r\n" +
+      "END:VCALENDAR";
+    const [item] = parseBlackboardICalendar(allDayFeed);
+    expect(item.duePrecision).toBe("date");
+    expect(item.dueDate).toBe("2026-11-20");
+    expect(item.dueAt).toBeNull();
+  });
+
+  it("parses valid TZID into accurate UTC instant", () => {
+    const tzidFeed =
+      "BEGIN:VCALENDAR\r\n" +
+      "BEGIN:VEVENT\r\n" +
+      "UID:item-tz-1\r\n" +
+      "SUMMARY:Physics Quiz\r\n" +
+      "DTEND;TZID=America/New_York:20261015T140000\r\n" +
+      "END:VEVENT\r\n" +
+      "END:VCALENDAR";
+    const [item] = parseBlackboardICalendar(tzidFeed);
+    expect(item.duePrecision).toBe("instant");
+    expect(item.dueAt).toBe("2026-10-15T18:00:00.000Z"); // EDT is UTC-4
+    expect(item.dueDate).toBe("2026-10-15");
+  });
+
+  it("flags floating date-times as unresolved precision", () => {
+    const floatingFeed =
+      "BEGIN:VCALENDAR\r\n" +
+      "BEGIN:VEVENT\r\n" +
+      "UID:item-floating-1\r\n" +
+      "SUMMARY:Math Homework\r\n" +
+      "DTSTART:20261015T140000\r\n" +
+      "END:VEVENT\r\n" +
+      "END:VCALENDAR";
+    const [item] = parseBlackboardICalendar(floatingFeed);
+    expect(item.duePrecision).toBe("unresolved");
+    expect(item.dueAt).toBeNull();
+  });
+
+  it("computes canonical proposal revision ignoring provider timestamp and URL churn", () => {
+    const rev1 = computeProposalRevision({
+      title: "  Final Paper  ",
+      description: "Submit PDF",
+      dueDate: "2026-12-01",
+      dueAt: "2026-12-01T23:59:00.000Z",
+      duePrecision: "instant",
+      courseCode: "ENG201",
+    });
+
+    const rev2 = computeProposalRevision({
+      title: "Final Paper",
+      description: "Submit PDF",
+      dueDate: "2026-12-01",
+      dueAt: "2026-12-01T23:59:00.000Z",
+      duePrecision: "instant",
+      courseCode: "ENG201",
+    });
+
+    const revChanged = computeProposalRevision({
+      title: "Final Paper - Revised",
+      description: "Submit PDF",
+      dueDate: "2026-12-01",
+      dueAt: "2026-12-01T23:59:00.000Z",
+      duePrecision: "instant",
+      courseCode: "ENG201",
+    });
+
+    expect(rev1).toBe(rev2);
+    expect(rev1).not.toBe(revChanged);
+  });
+
+  it("uses deterministic fallback identity and marks isFallbackUid", () => {
     const a = parseBlackboardICalendar(
       feed.replace("UID:item-1\r\n", "").replace("DTEND:20300102", "DTEND:20300103"),
     )[0];
@@ -49,6 +129,7 @@ describe("Blackboard iCalendar", () => {
       feed.replace("UID:item-1\r\n", "").replace("DTEND:20300102", "DTEND:20300104"),
     )[0];
     expect(a.uid).toMatch(/^fallback:/);
+    expect(a.isFallbackUid).toBe(true);
     expect(a.uid).not.toBe(b.uid);
   });
 });

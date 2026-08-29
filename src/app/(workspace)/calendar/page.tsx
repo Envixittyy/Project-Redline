@@ -10,7 +10,8 @@ import { dayRangeIn, resolveTimeZone, todayIn } from "@/lib/date/day";
 import { listCalendarEventsInRange } from "@/services/calendar-events/calendar-event-repository";
 import { listCourseMeetingsForCalendar } from "@/services/courses/course-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
-import { listTasksForCalendarRange } from "@/services/tasks/task-repository";
+import { listTaskLinkOptions, listTasksByIds, listTasksForCalendarRange } from "@/services/tasks/task-repository";
+import { listWorkSessionsInRange } from "@/services/work-sessions/work-session-repository";
 
 import styles from "./calendar-page.module.css";
 
@@ -43,22 +44,36 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
     );
   } else {
     let calendarData:
-      | { items: ReturnType<typeof buildCalendarItems>; failure: null }
-      | { items: null; failure: string };
+      | { items: ReturnType<typeof buildCalendarItems>; taskOptions: Array<{ id: string; title: string }>; failure: null }
+      | { items: null; taskOptions: []; failure: string };
 
     try {
-      const [events, taskRange, meetings] = await Promise.all([
+      const [events, taskRange, meetings, workSessions, taskOptions] = await Promise.all([
         listCalendarEventsInRange(range.start, range.end),
         listTasksForCalendarRange(range.start, range.end, fromDate, toDateExclusive),
         listCourseMeetingsForCalendar(),
+        listWorkSessionsInRange(range.start, range.end),
+        listTaskLinkOptions(),
       ]);
-      const items = buildCalendarItems(events, taskRange.scheduled, taskRange.deadlines, timeZone, meetings, fromDate, toDateExclusive)
+      const workSessionTasks = await listTasksByIds(workSessions.map((session) => session.taskId));
+      const items = buildCalendarItems(
+        events,
+        taskRange.scheduled,
+        taskRange.deadlines,
+        timeZone,
+        meetings,
+        fromDate,
+        toDateExclusive,
+        workSessions,
+        workSessionTasks,
+      )
         .filter((item) => item.date >= fromDate && item.date < toDateExclusive);
 
-      calendarData = { items, failure: null };
+      calendarData = { items, taskOptions, failure: null };
     } catch (error) {
       calendarData = {
         items: null,
+        taskOptions: [],
         failure: error instanceof Error ? error.message : "Something went wrong reading calendar data.",
       };
     }
@@ -73,13 +88,14 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           today={today}
           timeZone={timeZone}
           items={calendarData.items}
+          taskOptions={calendarData.taskOptions}
         />
       ) : (
         <Surface variant="subtle" className={styles.notice} role="alert">
           <span className={styles.noticeIcon} aria-hidden="true"><CalendarDays size={22} /></span>
           <h2>Calendar could not be loaded</h2>
           <p>{calendarData.failure}</p>
-          <p>If tasks already work, apply the new Phase 1D calendar migration to Supabase.</p>
+          <p>If tasks already work, apply the latest Calendar migrations to Supabase.</p>
         </Surface>
       );
   }

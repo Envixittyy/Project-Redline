@@ -224,6 +224,20 @@ export async function listTaskLinkOptions(): Promise<Array<Pick<Task, "id" | "ti
   return data as Array<Pick<Task, "id" | "title">>;
 }
 
+/** Owner-scoped task hydration for projections that store task IDs separately. */
+export async function listTasksByIds(ids: readonly string[]): Promise<Task[]> {
+  if (ids.length === 0) return [];
+  const { client: supabase, userId } = await requireAuthenticatedSupabase();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(COLUMNS)
+    .eq("user_id", userId)
+    .in("id", [...new Set(ids)])
+    .limit(500);
+  if (error) fail("load linked tasks", error);
+  return (data as TaskRow[]).map(toTask);
+}
+
 export type CalendarTaskRange = {
   scheduled: Task[];
   deadlines: Task[];

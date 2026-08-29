@@ -7,10 +7,12 @@ import { useMemo, useState } from "react";
 import { TaskEditor } from "@/features/tasks/task-editor";
 import type { CalendarEvent } from "@/types/calendar-event";
 import type { Task } from "@/types/task";
+import type { WorkSession } from "@/types/work-session";
 
 import type { CalendarItem } from "./calendar-items";
 import { eachDay, shiftCalendarAnchor, type CalendarView } from "./calendar-date";
 import { EventEditor } from "./event-editor";
+import { WorkSessionEditor } from "./work-session-editor";
 import styles from "./calendar-workspace.module.css";
 
 const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -24,6 +26,7 @@ type CalendarWorkspaceProps = {
   today: string;
   timeZone: string;
   items: CalendarItem[];
+  taskOptions: Array<{ id: string; title: string }>;
 };
 
 function calendarHref(view: CalendarView, date: string) {
@@ -57,6 +60,9 @@ function itemMeta(item: CalendarItem, timeZone: string): string {
     if (item.event.allDay) return "All day";
     return `${formatTime(item.event.start, timeZone)}–${formatTime(item.event.end, timeZone)}`;
   }
+  if (item.kind === "work_session") {
+    return `${formatTime(item.workSession.startsAt, timeZone)}–${formatTime(item.workSession.endsAt, timeZone)}`;
+  }
 
   if (!item.task.scheduledStart) return "Scheduled task";
   const start = formatTime(item.task.scheduledStart, timeZone);
@@ -71,14 +77,16 @@ function CalendarItemButton({
   compact = false,
   onOpenEvent,
   onOpenTask,
+  onOpenWorkSession,
 }: {
   item: CalendarItem;
   timeZone: string;
   compact?: boolean;
   onOpenEvent: (event: CalendarEvent) => void;
   onOpenTask: (task: Task) => void;
+  onOpenWorkSession: (session: WorkSession) => void;
 }) {
-  const task = item.kind === "deadline" || item.kind === "scheduled_task" ? item.task : null;
+  const task = item.kind === "deadline" || item.kind === "scheduled_task" || item.kind === "work_session" ? item.task : null;
   const completed = task?.status === "completed";
 
   return (
@@ -87,7 +95,11 @@ function CalendarItemButton({
       className={styles.item}
       data-kind={item.kind}
       data-completed={completed || undefined}
-      onClick={() => item.kind === "event" ? onOpenEvent(item.event) : item.kind === "course_meeting" ? undefined : onOpenTask(item.task)}
+      onClick={() => {
+        if (item.kind === "event") onOpenEvent(item.event);
+        else if (item.kind === "work_session") onOpenWorkSession(item.workSession);
+        else if (item.kind !== "course_meeting") onOpenTask(item.task);
+      }}
       title={`${itemTitle(item)} · ${itemMeta(item, timeZone)}`}
     >
       <span className={styles.itemIcon} aria-hidden="true">
@@ -110,10 +122,13 @@ export function CalendarWorkspace({
   today,
   timeZone,
   items,
+  taskOptions,
 }: CalendarWorkspaceProps) {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [newEventDate, setNewEventDate] = useState<string | null>(null);
+  const [editingWorkSession, setEditingWorkSession] = useState<WorkSession | null>(null);
+  const [newWorkSessionDate, setNewWorkSessionDate] = useState<string | null>(null);
 
   const days = useMemo(() => eachDay(fromDate, toDateExclusive), [fromDate, toDateExclusive]);
   const grouped = useMemo(() => {
@@ -129,9 +144,11 @@ export function CalendarWorkspace({
   const previous = shiftCalendarAnchor(view, anchor, -1);
   const next = shiftCalendarAnchor(view, anchor, 1);
   const eventDate = newEventDate ?? anchor;
+  const workSessionDate = newWorkSessionDate ?? anchor;
 
   const openEvent = (event: CalendarEvent) => setEditingEvent(event);
   const openTask = (task: Task) => setEditingTask(task);
+  const openWorkSession = (session: WorkSession) => setEditingWorkSession(session);
 
   return (
     <section className={styles.workspace} aria-label="Calendar">
@@ -155,6 +172,9 @@ export function CalendarWorkspace({
               </Link>
             ))}
           </nav>
+          <button type="button" className={styles.secondaryAddButton} onClick={() => setNewWorkSessionDate(anchor)}>
+            <Clock3 size={17} aria-hidden="true" /> <span>Plan work</span>
+          </button>
           <button type="button" className={styles.addButton} aria-label="New event" onClick={() => setNewEventDate(anchor)}>
             <Plus size={17} aria-hidden="true" /> <span>New event</span>
           </button>
@@ -164,6 +184,7 @@ export function CalendarWorkspace({
       <div className={styles.legend} aria-label="Calendar item legend">
         <span data-kind="course_meeting"><BookOpen size={12}/> Course meeting</span>
         <span data-kind="event"><CircleDot size={12} /> Event</span>
+        <span data-kind="work_session"><Clock3 size={12} /> Task work session</span>
         <span data-kind="scheduled_task"><Clock3 size={12} /> Scheduled task</span>
         <span data-kind="deadline"><CalendarClock size={12} /> Due-only deadline</span>
       </div>
@@ -185,7 +206,7 @@ export function CalendarWorkspace({
                     </button>
                     <div className={styles.monthItems}>
                       {dayItems.slice(0, 3).map((item) => (
-                        <CalendarItemButton key={item.key} item={item} timeZone={timeZone} compact onOpenEvent={openEvent} onOpenTask={openTask} />
+                        <CalendarItemButton key={item.key} item={item} timeZone={timeZone} compact onOpenEvent={openEvent} onOpenTask={openTask} onOpenWorkSession={openWorkSession} />
                       ))}
                       {dayItems.length > 3 ? <span className={styles.moreCount}>+{dayItems.length - 3} more</span> : null}
                     </div>
@@ -200,7 +221,7 @@ export function CalendarWorkspace({
                 <h3>{formatDay(date, { weekday: "short", month: "short", day: "numeric" })}</h3>
                 <div>
                   {(grouped.get(date) ?? []).map((item) => (
-                    <CalendarItemButton key={`mobile:${item.key}`} item={item} timeZone={timeZone} onOpenEvent={openEvent} onOpenTask={openTask} />
+                    <CalendarItemButton key={`mobile:${item.key}`} item={item} timeZone={timeZone} onOpenEvent={openEvent} onOpenTask={openTask} onOpenWorkSession={openWorkSession} />
                   ))}
                 </div>
               </section>
@@ -222,7 +243,7 @@ export function CalendarWorkspace({
                 </header>
                 <div className={styles.weekItems}>
                   {(grouped.get(date) ?? []).map((item) => (
-                    <CalendarItemButton key={item.key} item={item} timeZone={timeZone} onOpenEvent={openEvent} onOpenTask={openTask} />
+                    <CalendarItemButton key={item.key} item={item} timeZone={timeZone} onOpenEvent={openEvent} onOpenTask={openTask} onOpenWorkSession={openWorkSession} />
                   ))}
                   {(grouped.get(date) ?? []).length === 0 ? <p className={styles.clearDay}>Clear</p> : null}
                 </div>
@@ -247,7 +268,7 @@ export function CalendarWorkspace({
               </header>
               <div className={styles.agendaItems}>
                 {(grouped.get(date) ?? []).map((item) => (
-                  <CalendarItemButton key={item.key} item={item} timeZone={timeZone} onOpenEvent={openEvent} onOpenTask={openTask} />
+                  <CalendarItemButton key={item.key} item={item} timeZone={timeZone} onOpenEvent={openEvent} onOpenTask={openTask} onOpenWorkSession={openWorkSession} />
                 ))}
               </div>
             </section>
@@ -268,6 +289,20 @@ export function CalendarWorkspace({
 
       {editingTask ? (
         <TaskEditor key={editingTask.id} task={editingTask} timeZone={timeZone} onClose={() => setEditingTask(null)} />
+      ) : null}
+
+      {newWorkSessionDate !== null || editingWorkSession ? (
+        <WorkSessionEditor
+          key={editingWorkSession?.id ?? `new-work:${workSessionDate}`}
+          session={editingWorkSession}
+          initialDate={workSessionDate}
+          taskOptions={taskOptions}
+          timeZone={timeZone}
+          onClose={() => {
+            setEditingWorkSession(null);
+            setNewWorkSessionDate(null);
+          }}
+        />
       ) : null}
     </section>
   );

@@ -2,6 +2,7 @@ import { addDays } from "@/lib/date/day";
 import type { CalendarEvent } from "@/types/calendar-event";
 import type { CourseMeeting } from "@/types/course-meeting";
 import type { Task } from "@/types/task";
+import type { WorkSession } from "@/types/work-session";
 
 import { dateForInstant, lastOccupiedDate } from "./calendar-date";
 import {
@@ -12,13 +13,16 @@ import {
   type NativeCalendarEntry,
   type TaskDeadlineCalendarEntry,
   type TaskScheduleCalendarEntry,
+  type TaskWorkSessionCalendarEntry,
   courseMeetingToCalendarEntries,
   type CourseMeetingCalendarEntry,
+  workSessionToCalendarEntry,
 } from "./calendar-domain";
 
 export type CalendarItem =
   | { key: string; kind: "event"; date: string; event: CalendarEvent; entry: NativeCalendarEntry }
   | { key: string; kind: "scheduled_task"; date: string; task: Task; entry: TaskScheduleCalendarEntry }
+  | { key: string; kind: "work_session"; date: string; task: Task; workSession: WorkSession; entry: TaskWorkSessionCalendarEntry }
   | { key: string; kind: "deadline"; date: string; task: Task; entry: TaskDeadlineCalendarEntry }
   | { key: string; kind: "course_meeting"; date: string; meeting: CourseMeeting; entry: CourseMeetingCalendarEntry };
 
@@ -43,6 +47,8 @@ export function buildCalendarItems(
   meetings: CourseMeeting[] = [],
   fromDate?: string,
   toDateExclusive?: string,
+  workSessions: WorkSession[] = [],
+  workSessionTasks: Task[] = [],
 ): CalendarItem[] {
   const items: CalendarItem[] = [];
 
@@ -84,10 +90,28 @@ export function buildCalendarItems(
     }
   }
 
+  const sessionTasks = new Map(workSessionTasks.map((task) => [task.id, task]));
+  for (const workSession of workSessions) {
+    const task = sessionTasks.get(workSession.taskId);
+    if (!task) continue;
+    const entry = workSessionToCalendarEntry(workSession, task, timeZone);
+    if (!entry || !matchesCalendarFilters(entry, defaultCalendarFilters)) continue;
+    for (const date of occupiedDates(entry.start!, entry.end, timeZone)) {
+      items.push({
+        key: `${entry.key}:${date}`,
+        kind: "work_session",
+        date,
+        task,
+        workSession,
+        entry,
+      });
+    }
+  }
+
   return items.sort((left, right) => {
     const byDate = left.date.localeCompare(right.date);
     if (byDate !== 0) return byDate;
-    const rank = { course_meeting: 0, event: 1, scheduled_task: 2, deadline: 3 } as const;
+    const rank = { course_meeting: 0, event: 1, work_session: 2, scheduled_task: 3, deadline: 4 } as const;
     return rank[left.kind] - rank[right.kind];
   });
 }

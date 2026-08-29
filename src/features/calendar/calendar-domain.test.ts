@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CourseMeeting } from "@/types/course-meeting";
 import type { Task } from "@/types/task";
+import type { WorkSession } from "@/types/work-session";
 
 import {
   CalendarRescheduleError,
@@ -11,6 +12,7 @@ import {
   isTaskOverdue,
   rescheduleTask,
   taskToCalendarEntries,
+  workSessionToCalendarEntry,
 } from "./calendar-domain";
 import { buildCalendarItems } from "./calendar-items";
 
@@ -86,6 +88,40 @@ describe("task calendar projection", () => {
       MANILA,
     );
     expect(entries.map((entry) => entry.kind)).toEqual(["task_deadline", "task_schedule"]);
+  });
+
+  it("projects multiple task-owned work sessions without changing the deadline", () => {
+    const sourceTask = task({ dueDate: "2026-08-30" });
+    const workSession: WorkSession = {
+      id: "session-1",
+      taskId: sourceTask.id,
+      startsAt: "2026-08-28T01:00:00.000Z",
+      endsAt: "2026-08-28T02:30:00.000Z",
+      status: "planned",
+      source: "manual",
+      completedAt: null,
+      createdAt: "2026-08-20T00:00:00.000Z",
+      updatedAt: "2026-08-20T00:00:00.000Z",
+    };
+
+    expect(workSessionToCalendarEntry(workSession, sourceTask, MANILA)).toMatchObject({
+      kind: "task_work_session",
+      task: { id: sourceTask.id, dueDate: "2026-08-30" },
+      workSession: { id: "session-1" },
+      start: workSession.startsAt,
+      end: workSession.endsAt,
+    });
+    expect(buildCalendarItems(
+      [],
+      [],
+      [sourceTask],
+      MANILA,
+      [],
+      undefined,
+      undefined,
+      [workSession],
+      [sourceTask],
+    ).map((item) => item.kind)).toEqual(["work_session", "deadline"]);
   });
 
   it("builds both in-range presentations once and hides Done by default", () => {

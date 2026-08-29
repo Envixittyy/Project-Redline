@@ -200,6 +200,19 @@ The focus domain projects existing Tasks, Work Sessions, Native Calendar Events,
 
 Distant backlog items (undated inbox, someday tasks, future dates) and completed items are excluded from active presentation. Exiting Focus Mode returns seamlessly to the standard workspace without data alterations.
 
+## Phase 8 Notion Knowledge Integration contract
+
+Phase 8 (`src/services/integrations/notion/`) implements selective two-way note synchronization and outbound export with loop suppression, canonical AST normalization, and explicit conflict resolution.
+
+Key contracts:
+- **Authority**: Forward (Redline) is the authoritative operational master. Synchronization is opt-in per note (`forward_to_notion` or `selective_two_way`).
+- **Remote Boundary**: Forward manages a single top-level toggle block containing a versioned marker `⚡ Forward Sync [link:<id>] [v:<version>] [attempt:<attempt>]`. Content outside the managed toggle belongs exclusively to Notion and is never overwritten or deleted.
+- **Canonical AST**: Pure normalization between Redline Markdown and Notion Block DTOs (`heading_1`–`heading_3`, `paragraph`, `bulleted_list_item`, `numbered_list_item`, `to_do`, `code`, `quote`). Unsupported blocks (e.g. databases, embeds, tables) fail closed with `unsupported_remote_content` and are never corrupted.
+- **Loop Suppression**: Pure 4-state transition planner with deterministic SHA-256 fingerprinting, self-write echo suppression (`remote_fingerprint === last_pushed_fingerprint`), and independent converged edit recognition.
+- **Safe Remote Writes**: Staged generation append, remote verify, atomic swap of `remote_root_block_id`, followed by old root archival.
+- **Conflict Resolution**: Divergent concurrent edits create `notion_sync_conflicts` with 3-way snapshots (`base`, `local`, `remote`) and require explicit user resolution (`keep_redline` or `use_notion`).
+- **Security & RLS**: All paths execute via `requireAuthenticatedSupabase()` using security-invoker RPCs (`notion_apply_remote_import`, `notion_resolve_conflict`, `notion_retire_link`). Credentials are encrypted with AES-256-GCM in `integration_accounts.encrypted_credential` and never sent to clients.
+
 ## Authentication
 
 Supabase password authentication uses cookie-backed SSR sessions. `getClaims()` is the authoritative server check; local storage is not consulted. Missing and expired sessions redirect to `/login`, authenticated visits to `/login` return to the workspace, and provider outages fail closed at the public auth surface.

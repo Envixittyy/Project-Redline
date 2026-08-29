@@ -9,6 +9,13 @@ import { enqueueOfflineMutation } from "@/lib/offline/queue";
 import type { Course } from "@/types/course";
 import type { Attachment, Note } from "@/types/note";
 
+import {
+  exportNoteToNotionAction,
+  syncNoteAction,
+} from "@/features/integrations/notion-actions";
+import type { NotionPageLink } from "@/services/integrations/notion/types";
+import { ExternalLink, Layers, RefreshCw } from "lucide-react";
+
 import { archiveNoteAction, saveNoteAction } from "./note-actions";
 import { MarkdownPreview } from "./markdown-preview";
 import styles from "./note-workspace.module.css";
@@ -18,12 +25,16 @@ export function NoteWorkspace({
   notes,
   courses,
   tasks,
-  initialSearch
+  initialSearch,
+  notionConnected = false,
+  notionLinks = [],
 }: {
   notes: Note[];
   courses: Course[];
   tasks: TaskOption[];
-  initialSearch: string
+  initialSearch: string;
+  notionConnected?: boolean;
+  notionLinks?: NotionPageLink[];
 }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(notes[0]?.id ?? null);
@@ -180,6 +191,8 @@ export function NoteWorkspace({
     if (response.ok) setAttachments(current => current.filter(item => item.id !== file.id));
     else setMessage("The attachment could not be deleted.");
   };
+  const activeLink = selectedId ? notionLinks.find((l) => l.noteId === selectedId) ?? null : null;
+
   return <div className={styles.layout}>
     <aside className={styles.sidebar}>
       <form action="/notes" className={styles.search}>
@@ -225,6 +238,68 @@ export function NoteWorkspace({
           </button> : null}
         </div>
       </header>
+
+      {selected && notionConnected ? (
+        <div className={styles.notionBar}>
+          <div className={styles.notionInfo}>
+            <Layers size={16} />
+            <span>Notion</span>
+            {activeLink ? (
+              <>
+                <span className={styles.notionBadge} data-status={activeLink.status}>
+                  {activeLink.status.replace(/_/g, " ")}
+                </span>
+                <a
+                  href={activeLink.remoteUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Open in Notion"
+                  style={{ display: "inline-flex", alignItems: "center", color: "var(--text-secondary)" }}
+                >
+                  <ExternalLink size={14} />
+                </a>
+              </>
+            ) : (
+              <span style={{ color: "var(--text-secondary)" }}>Not linked</span>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            {activeLink ? (
+              <button
+                type="button"
+                disabled={pending || activeLink.status === "syncing"}
+                onClick={() =>
+                  startTransition(async () => {
+                    const res = await syncNoteAction(selected.id);
+                    setMessage(res.message);
+                    router.refresh();
+                  })
+                }
+              >
+                <RefreshCw size={14} />
+                Sync
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  const parentPageId = window.prompt("Enter target Notion Parent Page ID:")?.trim();
+                  if (!parentPageId) return;
+                  startTransition(async () => {
+                    const res = await exportNoteToNotionAction(selected.id, parentPageId);
+                    setMessage(res.message);
+                    router.refresh();
+                  });
+                }}
+              >
+                Export to Notion
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
       {message ? <p className={styles.error} role="alert">{message}</p> : null}
       <div className={styles.fields}>
         <label>

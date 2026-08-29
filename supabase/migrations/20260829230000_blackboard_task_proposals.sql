@@ -66,10 +66,6 @@ begin
 end;
 $$;
 
-create trigger tasks_relationship_owner
-  before insert or update on public.tasks
-  for each row execute function public.enforce_task_relationship_owner();
-
 create or replace function public.enforce_external_record_relationship_owner() returns trigger
 language plpgsql
 set search_path = ''

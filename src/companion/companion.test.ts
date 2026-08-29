@@ -189,3 +189,4 @@ describe("CompanionServer HTTP API Integration", () => {
     expect(statusAfterUnpair.status).toBe(401);
   });
 });
+

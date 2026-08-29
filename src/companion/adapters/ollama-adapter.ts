@@ -151,3 +151,4 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
     }
   }
 }
+

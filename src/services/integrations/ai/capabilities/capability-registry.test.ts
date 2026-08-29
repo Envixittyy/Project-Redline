@@ -111,3 +111,4 @@ describe("Redline AI Capability Registry & Security Invariants", () => {
     }
   });
 });
+

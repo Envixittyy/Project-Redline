@@ -99,3 +99,4 @@ describe("Local Companion Client Integration", () => {
     expect(statusAfter.error).toContain("expired or invalid");
   });
 });
+

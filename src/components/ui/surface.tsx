@@ -15,8 +15,13 @@ export function Surface({
   variant = "base",
   ...props
 }: SurfaceProps) {
+  const motionClass = variant === "interactive" ? "motion-interactive" : "";
+
   return (
-    <div className={`${styles.surface} ${styles[variant]} ${className}`} {...props}>
+    <div
+      className={`${styles.surface} ${styles[variant]} ${motionClass} ${className}`}
+      {...props}
+    >
       {children}
     </div>
   );

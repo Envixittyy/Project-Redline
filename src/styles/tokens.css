@@ -70,7 +70,8 @@
   --motion-spring: linear(0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 32.6%, 0.937 41.8%, 0.984 53.6%, 1.006 69.8%, 1);
   --motion-distance: 0.5rem;
   --mobile-nav-height: 4.15rem;
-  --sidebar-width: 17rem;
+  --sidebar-width: 15.5rem;
+  --content-max-width: 78rem;
 
   /* Compatibility aliases while existing components migrate to the contract. */
   --surface-elevated: var(--surface-raised);

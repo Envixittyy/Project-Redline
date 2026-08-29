@@ -49,6 +49,8 @@ The `(workspace)` route group applies `AppShell` to Home, Tasks, Calendar, Schoo
 
 Primary destinations are defined once in `src/lib/navigation.ts` and consumed by both the persistent desktop sidebar and safe-area-aware mobile tab bar. Mobile content reserves enough bottom space for the fixed bar. Desktop content is constrained to a readable frame and can expand into multi-column dashboard layouts.
 
+The shell also owns one small command-palette client boundary. `Ctrl/Cmd+K` and visible desktop/mobile triggers open the same navigation-only palette; it routes to existing pages and does not create a second mutation path around feature server actions.
+
 School persists owner-scoped courses and recurring weekly meetings. The timetable projects meeting occurrences into Calendar through the calendar domain adapter; it never writes duplicated native event rows. Notes is a secondary route linked from More so the five-item mobile navigation remains stable.
 
 Calendar is a working route as of Phase 1D. Its Month, Week, and Agenda modes are query parameters (`/calendar?view=week&date=2026-08-27`) so view and anchor date remain linkable. The page is a server component that resolves the visible range and reads events and tasks in parallel; `CalendarWorkspace` is the interaction boundary for view controls and editors. The mobile Month grid compresses item copy into semantic marks, Week uses an internally scrollable seven-day surface rather than overflowing the page, and Agenda is a readable narrow-screen list.
@@ -85,7 +87,7 @@ The root layout provides descriptive metadata and semantic HTML. Global focus-vi
 
 ## Local UI preferences
 
-Appearance remains a device-local UI preference with a versioned storage key. Home now renders real owner-scoped Today, Overdue, Upcoming, and School summaries. It intentionally has no ordering, resizing, drag-and-drop, or customizable dashboard persistence.
+Appearance remains a device-local UI preference with a versioned storage key. Home renders real owner-scoped Today, Overdue, Upcoming, and School summaries. A narrow client wrapper stores only widget visibility on the current device while the cards and their data remain server-rendered. P1 intentionally has no ordering, resizing, drag-and-drop, or server-side dashboard preference persistence.
 
 ## Notes, attachments, and offline behavior
 

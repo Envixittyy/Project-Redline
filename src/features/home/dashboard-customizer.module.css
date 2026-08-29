@@ -101,6 +101,7 @@
   gap: 1rem;
 }
 
+.grid[data-hide-planning] > [data-dashboard-widget="planning"],
 .grid[data-hide-schedule] > [data-dashboard-widget="schedule"],
 .grid[data-hide-today] > [data-dashboard-widget="today"],
 .grid[data-hide-overdue] > [data-dashboard-widget="overdue"],
@@ -134,6 +135,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .grid > [data-dashboard-widget="planning"],
   .grid > [data-dashboard-widget="today"],
   .grid > [data-dashboard-widget="notes"] {
     grid-column: 1 / -1;
@@ -143,6 +145,10 @@
 @media (min-width: 76rem) {
   .grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .grid > [data-dashboard-widget="planning"] {
+    grid-column: 1 / -1;
   }
 
   .grid > [data-dashboard-widget="today"] {

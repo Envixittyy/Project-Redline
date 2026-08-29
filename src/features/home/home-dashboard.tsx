@@ -10,6 +10,7 @@ import {
 
 import { Surface } from "@/components/ui/surface";
 import type { CalendarItem } from "@/features/calendar/calendar-items";
+import { WhatShouldIDoNow } from "@/features/planning/what-should-i-do-now";
 import type { CourseWithMeetings } from "@/types/course";
 import type { Task } from "@/types/task";
 
@@ -75,6 +76,12 @@ export function HomeDashboard({
 
   return (
     <DashboardCustomizer>
+      <WhatShouldIDoNow
+        tasks={today}
+        scheduleItems={schedule}
+        timeZone={timeZone}
+      />
+
       <Surface
         variant="glass"
         className={`${styles.card} motion-enter`}

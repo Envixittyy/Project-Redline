@@ -3,6 +3,7 @@
 import {
   CalendarDays,
   CalendarSync,
+  Compass,
   GraduationCap,
   House,
   Inbox,
@@ -11,6 +12,7 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  Sparkles,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -36,6 +38,20 @@ type Command = {
 };
 
 const commands: readonly Command[] = [
+  {
+    label: "Plan My Day",
+    description: "Review deterministic schedule suggestions for today",
+    href: "/#planning",
+    icon: Compass,
+    keywords: "plan my day schedule optimizer recommendations work sessions focus",
+  },
+  {
+    label: "What Should I Do Now?",
+    description: "Check deterministic recommendation for your current focus",
+    href: "/#planning",
+    icon: Sparkles,
+    keywords: "what should i do now focus next recommendation active task",
+  },
   {
     label: "Home",
     description: "Return to today’s overview",

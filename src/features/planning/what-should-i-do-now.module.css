@@ -1,0 +1,113 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.15rem;
+  border-radius: 1rem;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.headerTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.iconWrapper {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  background: var(--accent-muted);
+  color: var(--accent-text);
+  flex: none;
+}
+
+.iconWrapper[data-kind="active_work_session"] {
+  background: oklch(65% 0.2 150 / 18%);
+  color: oklch(75% 0.18 150);
+}
+
+.iconWrapper[data-kind="imminent_commitment"] {
+  background: oklch(70% 0.18 45 / 18%);
+  color: oklch(80% 0.16 45);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.headline {
+  margin: 0.15rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.description {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+  flex-wrap: wrap;
+}
+
+.planButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent, #ffffff);
+  font-size: 0.78rem;
+  font-weight: 750;
+  cursor: pointer;
+  transition: all var(--motion-fast);
+}
+
+.planButton:hover {
+  filter: brightness(1.1);
+}
+
+.secondaryLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: all var(--motion-fast);
+}
+
+.secondaryLink:hover {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}

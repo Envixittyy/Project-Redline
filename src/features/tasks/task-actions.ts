@@ -27,10 +27,14 @@ export type ActionResult = { ok: true } | { ok: false; message: string };
 
 const TASKS_PATH = "/tasks";
 const CALENDAR_PATH = "/calendar";
+const HOME_PATH = "/";
+const FOCUS_PATH = "/focus";
 
 function revalidateTaskConsumers() {
   revalidatePath(TASKS_PATH);
   revalidatePath(CALENDAR_PATH);
+  revalidatePath(HOME_PATH);
+  revalidatePath(FOCUS_PATH);
 }
 
 class InvalidInputError extends Error {}

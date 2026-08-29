@@ -92,9 +92,18 @@ export function WhatShouldIDoNow({
         <p className={styles.description}>{recommendation.description}</p>
 
         <div className={styles.actions}>
+          <Link
+            href="/focus"
+            className={styles.planButton}
+            title="Open distraction-free Focus Mode"
+          >
+            <Zap size={15} aria-hidden="true" />
+            Focus Mode
+          </Link>
+
           <button
             type="button"
-            className={styles.planButton}
+            className={styles.secondaryLink}
             onClick={() => setPlanningModalOpen(true)}
           >
             <Compass size={15} aria-hidden="true" />

@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
   X,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -38,6 +39,13 @@ type Command = {
 };
 
 const commands: readonly Command[] = [
+  {
+    label: "Focus Mode (Goldfish)",
+    description: "Distraction-free view of what matters right now",
+    href: "/focus",
+    icon: Zap,
+    keywords: "focus goldfish mode now today distraction free timer",
+  },
   {
     label: "Plan My Day",
     description: "Review deterministic schedule suggestions for today",

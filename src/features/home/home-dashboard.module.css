@@ -121,6 +121,86 @@
   border-radius: 999px;
 }
 
+.scheduleList {
+  display: grid;
+  gap: 0.45rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scheduleItem {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem;
+  border-radius: 0.7rem;
+  background: var(--surface-subtle);
+}
+
+.sourceIndicator {
+  width: 0.45rem;
+  height: 2.2rem;
+  flex: none;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.scheduleContent {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 0.15rem;
+}
+
+.scheduleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.scheduleTitle {
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduleTime {
+  flex: none;
+  font-size: 0.7rem;
+  font-weight: 750;
+  color: var(--accent-text);
+  letter-spacing: -0.01em;
+}
+
+.scheduleMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.scheduleIconWrapper {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-tertiary);
+  flex: none;
+}
+
+.scheduleMeta {
+  overflow: hidden;
+  font-size: 0.69rem;
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
 .note {
   display: flex;
   align-items: center;

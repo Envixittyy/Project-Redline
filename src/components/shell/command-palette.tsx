@@ -2,6 +2,7 @@
 
 import {
   CalendarDays,
+  CalendarSync,
   GraduationCap,
   House,
   Inbox,
@@ -69,6 +70,13 @@ const commands: readonly Command[] = [
     href: "/calendar",
     icon: CalendarDays,
     keywords: "events month week agenda",
+  },
+  {
+    label: "Calendar connections",
+    description: "Review external providers and capabilities",
+    href: "/integrations/calendars",
+    icon: CalendarSync,
+    keywords: "google microsoft outlook icloud caldav ics sync",
   },
   {
     label: "School",

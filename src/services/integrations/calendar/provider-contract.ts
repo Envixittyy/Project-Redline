@@ -1,15 +1,11 @@
-export const calendarProviderCapabilities = [
-  "list_calendars",
-  "list_events",
-  "create_event",
-  "update_event",
-  "delete_event",
-  "incremental_sync",
-  "watch_changes",
-] as const;
+import {
+  calendarProviderCapabilities,
+  type CalendarAccessMode,
+  type CalendarProviderCapability,
+} from "@/types/external-calendar";
 
-export type CalendarProviderCapability = (typeof calendarProviderCapabilities)[number];
-export type CalendarAccessMode = "read_only" | "read_write";
+export { calendarProviderCapabilities };
+export type { CalendarAccessMode, CalendarProviderCapability };
 
 export type ExternalCalendarRef = {
   providerId: string;

@@ -1,6 +1,7 @@
 import { addDays } from "@/lib/date/day";
 import type { CalendarEvent } from "@/types/calendar-event";
 import type { CourseMeeting } from "@/types/course-meeting";
+import type { ExternalCalendarProjection } from "@/types/external-calendar";
 import type { Task } from "@/types/task";
 import type { WorkSession } from "@/types/work-session";
 
@@ -17,10 +18,13 @@ import {
   courseMeetingToCalendarEntries,
   type CourseMeetingCalendarEntry,
   workSessionToCalendarEntry,
+  externalCalendarEventToEntry,
+  type ExternalCalendarEntry,
 } from "./calendar-domain";
 
 export type CalendarItem =
   | { key: string; kind: "event"; date: string; event: CalendarEvent; entry: NativeCalendarEntry }
+  | { key: string; kind: "external_event"; date: string; externalEvent: ExternalCalendarProjection; entry: ExternalCalendarEntry }
   | { key: string; kind: "scheduled_task"; date: string; task: Task; entry: TaskScheduleCalendarEntry }
   | { key: string; kind: "work_session"; date: string; task: Task; workSession: WorkSession; entry: TaskWorkSessionCalendarEntry }
   | { key: string; kind: "deadline"; date: string; task: Task; entry: TaskDeadlineCalendarEntry }
@@ -49,6 +53,7 @@ export function buildCalendarItems(
   toDateExclusive?: string,
   workSessions: WorkSession[] = [],
   workSessionTasks: Task[] = [],
+  externalEvents: ExternalCalendarProjection[] = [],
 ): CalendarItem[] {
   const items: CalendarItem[] = [];
 
@@ -57,6 +62,20 @@ export function buildCalendarItems(
     if (!entry || !matchesCalendarFilters(entry, defaultCalendarFilters)) continue;
     for (const date of occupiedDates(entry.start!, entry.end, timeZone)) {
       items.push({ key: `${entry.key}:${date}`, kind: "event", date, event, entry });
+    }
+  }
+
+  for (const externalEvent of externalEvents) {
+    const entry = externalCalendarEventToEntry(externalEvent, timeZone);
+    if (!entry || !matchesCalendarFilters(entry, defaultCalendarFilters)) continue;
+    for (const date of occupiedDates(entry.start!, entry.end, timeZone)) {
+      items.push({
+        key: `${entry.key}:${date}`,
+        kind: "external_event",
+        date,
+        externalEvent,
+        entry,
+      });
     }
   }
 
@@ -111,7 +130,7 @@ export function buildCalendarItems(
   return items.sort((left, right) => {
     const byDate = left.date.localeCompare(right.date);
     if (byDate !== 0) return byDate;
-    const rank = { course_meeting: 0, event: 1, work_session: 2, scheduled_task: 3, deadline: 4 } as const;
+    const rank = { course_meeting: 0, event: 1, external_event: 2, work_session: 3, scheduled_task: 4, deadline: 5 } as const;
     return rank[left.kind] - rank[right.kind];
   });
 }

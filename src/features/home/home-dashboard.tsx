@@ -3,15 +3,18 @@ import {
   AlertCircle,
   BookOpen,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
   NotebookPen,
 } from "lucide-react";
 
 import { Surface } from "@/components/ui/surface";
+import type { CalendarItem } from "@/features/calendar/calendar-items";
 import type { CourseWithMeetings } from "@/types/course";
 import type { Task } from "@/types/task";
 
 import { DashboardCustomizer } from "./dashboard-customizer";
+import { HomeScheduleList } from "./home-schedule";
 import styles from "./home-dashboard.module.css";
 
 function taskTiming(task: Task) {
@@ -52,6 +55,8 @@ function TaskList({
 type HomeDashboardProps = {
   courses: CourseWithMeetings[];
   overdue: Task[];
+  schedule: CalendarItem[];
+  timeZone: string;
   today: Task[];
   upcoming: Task[];
 };
@@ -59,6 +64,8 @@ type HomeDashboardProps = {
 export function HomeDashboard({
   courses,
   overdue,
+  schedule,
+  timeZone,
   today,
   upcoming,
 }: HomeDashboardProps) {
@@ -70,6 +77,32 @@ export function HomeDashboard({
     <DashboardCustomizer>
       <Surface
         variant="glass"
+        className={`${styles.card} motion-enter`}
+        data-dashboard-widget="schedule"
+      >
+        <header>
+          <span aria-hidden="true">
+            <CalendarDays size={18} />
+          </span>
+          <div>
+            <p>Schedule</p>
+            <h3>
+              {schedule.length
+                ? `${schedule.length} commitment${schedule.length === 1 ? "" : "s"}`
+                : "Clear schedule"}
+            </h3>
+          </div>
+          <Link href="/calendar">Open</Link>
+        </header>
+        <HomeScheduleList
+          items={schedule}
+          timeZone={timeZone}
+          empty="Nothing scheduled for today. Your day is open."
+        />
+      </Surface>
+
+      <Surface
+        variant="base"
         className={`${styles.card} ${styles.today} motion-enter`}
         data-dashboard-widget="today"
       >
@@ -82,7 +115,7 @@ export function HomeDashboard({
             <h3>
               {today.length
                 ? `${today.length} item${today.length === 1 ? "" : "s"}`
-                : "Clear schedule"}
+                : "Clear tasks"}
             </h3>
           </div>
           <Link href="/tasks?view=today">Open</Link>

@@ -134,3 +134,51 @@ export function buildCalendarItems(
     return rank[left.kind] - rank[right.kind];
   });
 }
+
+/**
+ * Sorts calendar items chronologically for timeline and schedule widgets.
+ * All-day entries appear first, followed by timed entries sorted by start time,
+ * then end time, with deterministic tie-breaking by source rank and title.
+ */
+export function sortCalendarItemsChronologically(
+  items: readonly CalendarItem[],
+): CalendarItem[] {
+  return [...items].sort((left, right) => {
+    const byDate = left.date.localeCompare(right.date);
+    if (byDate !== 0) return byDate;
+
+    const leftAllDay = left.entry.allDay;
+    const rightAllDay = right.entry.allDay;
+    if (leftAllDay !== rightAllDay) {
+      return leftAllDay ? -1 : 1;
+    }
+
+    if (!leftAllDay && !rightAllDay) {
+      const leftStart = left.entry.start ? Date.parse(left.entry.start) : 0;
+      const rightStart = right.entry.start ? Date.parse(right.entry.start) : 0;
+      if (leftStart !== rightStart) {
+        return leftStart - rightStart;
+      }
+
+      const leftEnd = left.entry.end ? Date.parse(left.entry.end) : 0;
+      const rightEnd = right.entry.end ? Date.parse(right.entry.end) : 0;
+      if (leftEnd !== rightEnd) {
+        return leftEnd - rightEnd;
+      }
+    }
+
+    const rank = {
+      course_meeting: 0,
+      event: 1,
+      external_event: 2,
+      work_session: 3,
+      scheduled_task: 4,
+      deadline: 5,
+    } as const;
+    const byRank = rank[left.kind] - rank[right.kind];
+    if (byRank !== 0) return byRank;
+
+    return left.entry.title.localeCompare(right.entry.title);
+  });
+}
+

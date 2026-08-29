@@ -16,7 +16,10 @@ import {
   taskToCalendarEntries,
   workSessionToCalendarEntry,
 } from "./calendar-domain";
-import { buildCalendarItems } from "./calendar-items";
+import {
+  buildCalendarItems,
+  sortCalendarItemsChronologically,
+} from "./calendar-items";
 
 const MANILA = "Asia/Manila";
 
@@ -278,4 +281,67 @@ describe("course meetings", () => {
       courseKeys: ["another-course"],
     })).toEqual([]);
   });
+
+  describe("sortCalendarItemsChronologically", () => {
+    it("orders all-day entries before timed entries and sorts timed entries by start time", () => {
+      const items = buildCalendarItems(
+        [
+          {
+            id: "event-allday",
+            title: "Holiday",
+            description: null,
+            start: "2026-08-28T16:00:00.000Z",
+            end: "2026-08-29T16:00:00.000Z",
+            allDay: true,
+            eventType: "general",
+            source: "life_os",
+            externalId: null,
+            sourceUrl: null,
+            course: null,
+            createdAt: "2026-08-20T00:00:00.000Z",
+            updatedAt: "2026-08-20T00:00:00.000Z",
+          },
+          {
+            id: "event-timed",
+            title: "Lab Session",
+            description: null,
+            start: "2026-08-29T06:00:00.000Z",
+            end: "2026-08-29T08:00:00.000Z",
+            allDay: false,
+            eventType: "academic",
+            source: "life_os",
+            externalId: null,
+            sourceUrl: null,
+            course: null,
+            createdAt: "2026-08-20T00:00:00.000Z",
+            updatedAt: "2026-08-20T00:00:00.000Z",
+          },
+        ],
+        [
+          task({
+            id: "task-early",
+            title: "Morning Review",
+            scheduledStart: "2026-08-29T01:00:00.000Z",
+            scheduledEnd: "2026-08-29T02:00:00.000Z",
+          }),
+        ],
+        [],
+        MANILA,
+        [],
+        "2026-08-29",
+        "2026-08-30",
+        [],
+        [],
+        [],
+      ).filter((item) => item.date === "2026-08-29");
+
+      const sorted = sortCalendarItemsChronologically(items);
+      expect(sorted.map((item) => item.entry.title)).toEqual([
+        "Holiday",
+        "Morning Review",
+        "Lab Session",
+      ]);
+    });
+  });
 });
+

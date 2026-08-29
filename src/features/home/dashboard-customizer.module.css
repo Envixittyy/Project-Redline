@@ -101,6 +101,7 @@
   gap: 1rem;
 }
 
+.grid[data-hide-schedule] > [data-dashboard-widget="schedule"],
 .grid[data-hide-today] > [data-dashboard-widget="today"],
 .grid[data-hide-overdue] > [data-dashboard-widget="overdue"],
 .grid[data-hide-upcoming] > [data-dashboard-widget="upcoming"],

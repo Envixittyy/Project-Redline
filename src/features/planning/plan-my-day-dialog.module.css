@@ -280,6 +280,28 @@
   font-size: 0.9rem;
 }
 
+.feedbackBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.feedbackSuccess {
+  border: 1px solid oklch(75% 0.15 150 / 30%);
+  background: oklch(25% 0.05 150 / 20%);
+  color: oklch(90% 0.1 150);
+}
+
+.feedbackError {
+  border: 1px solid oklch(65% 0.2 25 / 30%);
+  background: oklch(25% 0.06 25 / 25%);
+  color: oklch(90% 0.1 25);
+}
+
 .footer {
   display: flex;
   align-items: center;

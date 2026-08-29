@@ -79,6 +79,24 @@ export async function createWorkSession(draft: WorkSessionDraft): Promise<WorkSe
   return toWorkSession(data as WorkSessionRow);
 }
 
+export async function createWorkSessions(drafts: WorkSessionDraft[]): Promise<WorkSession[]> {
+  if (drafts.length === 0) return [];
+  const { client, userId } = await requireAuthenticatedSupabase();
+  const rows = drafts.map((draft) => ({
+    user_id: userId,
+    task_id: draft.taskId,
+    starts_at: draft.startsAt,
+    ends_at: draft.endsAt,
+    source: draft.source ?? "planner",
+  }));
+  const { data, error } = await client
+    .from("task_work_sessions")
+    .insert(rows)
+    .select(COLUMNS);
+  if (error) fail("create the work sessions", error);
+  return (data as WorkSessionRow[]).map(toWorkSession);
+}
+
 export async function updateWorkSession(
   id: string,
   draft: WorkSessionDraft,

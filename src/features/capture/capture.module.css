@@ -70,7 +70,8 @@
 }
 
 .captureField textarea,
-.proposal input {
+.proposal input,
+.proposal textarea {
   width: 100%;
   min-height: 3rem;
   padding: 0.75rem;
@@ -85,7 +86,8 @@
 }
 
 .captureField textarea:focus,
-.proposal input:focus {
+.proposal input:focus,
+.proposal textarea:focus {
   border-color: var(--accent-border);
 }
 
@@ -104,6 +106,7 @@
 
 .primaryButton,
 .secondaryButton,
+.dismissButton,
 .captureTrigger,
 .compactTrigger {
   display: inline-flex;
@@ -131,9 +134,22 @@
   color: var(--text-secondary);
 }
 
+.dismissButton {
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-tertiary);
+}
+
+.dismissButton:hover {
+  background: var(--surface-interactive);
+  color: var(--text-secondary);
+}
+
 .primaryButton:disabled,
-.secondaryButton:disabled {
-  cursor: progress;
+.secondaryButton:disabled,
+.dismissButton:disabled {
+  cursor: not-allowed;
   opacity: 0.65;
 }
 
@@ -147,9 +163,15 @@
   gap: 0.9rem;
 }
 
+.captureCard[data-targeted="true"] {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 1px var(--accent-border), var(--shadow-soft);
+}
+
 .captureMeta {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 1rem;
   color: var(--text-tertiary);
   font-size: 0.7rem;
@@ -158,8 +180,88 @@
   text-transform: uppercase;
 }
 
-.captureMeta span {
+.sourceBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-muted) 60%, transparent);
+  border: 1px solid var(--accent-border);
   color: var(--accent-text);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.courseBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.proposalDetails {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.sourceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--accent-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sourceLink:hover {
+  text-decoration: underline;
+}
+
+.divergenceNotice {
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-elevated) 80%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.divergenceNotice p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.missingNotice {
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
+  color: var(--text-tertiary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.actionButtons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .rawText {
@@ -279,13 +381,20 @@
 @media (max-width: 34rem) {
   .composerFooter,
   .proposalReview,
-  .cardAction {
+  .cardAction,
+  .divergenceNotice {
     align-items: stretch;
     flex-direction: column;
   }
 
+  .actionButtons {
+    flex-direction: column;
+    width: 100%;
+  }
+
   .primaryButton,
-  .secondaryButton {
+  .secondaryButton,
+  .dismissButton {
     width: 100%;
   }
 }

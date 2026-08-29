@@ -10,6 +10,7 @@ import type {
 } from "@/types/external-calendar";
 import { formatPostgrestErrorDiagnostic } from "@/services/supabase/errors";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
+import { listBlackboardCalendarProjectionsInRange } from "@/services/integrations/blackboard/blackboard-repository";
 
 type ConnectionRow = {
   id: string;
@@ -114,8 +115,20 @@ export async function saveGoogleCalendarConnection(input: {
   if (error) fail("save the Google Calendar connection", error);
 }
 
-/** Read-only mirror projection for the visible half-open Calendar range. */
+/** Read-only mirror projection for the visible half-open Calendar range across external calendars and Blackboard. */
 export async function listExternalCalendarEventsInRange(
+  start: string,
+  end: string,
+): Promise<ExternalCalendarProjection[]> {
+  const [genericEvents, blackboardEvents] = await Promise.all([
+    listGenericExternalCalendarEventsInRange(start, end),
+    listBlackboardCalendarProjectionsInRange(start, end),
+  ]);
+
+  return [...genericEvents, ...blackboardEvents];
+}
+
+async function listGenericExternalCalendarEventsInRange(
   start: string,
   end: string,
 ): Promise<ExternalCalendarProjection[]> {

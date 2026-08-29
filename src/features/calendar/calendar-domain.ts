@@ -282,9 +282,9 @@ export function externalCalendarEventToEntry(
     start,
     end: new Date(event.endsAt).toISOString(),
     allDay: event.allDay,
-    courseKey: null,
-    courseLabel: null,
-    courseColor: null,
+    courseKey: event.courseId ?? event.courseCode ?? null,
+    courseLabel: event.courseCode ?? null,
+    courseColor: event.courseColor ?? null,
     externalEvent: event,
     issues: [],
   };

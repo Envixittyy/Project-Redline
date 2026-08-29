@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  acknowledgeProposalDivergence,
   commitCaptureTask,
   createTextCapture,
+  dismissCaptureProposal,
   prepareCaptureTask,
   undoCaptureTask,
 } from "@/services/captures/capture-repository";
@@ -14,9 +16,9 @@ export type CaptureActionResult = { ok: true } | { ok: false; message: string };
 
 class InvalidCaptureInputError extends Error {}
 
-function requireId(value: unknown): string {
+function requireId(value: unknown, label = "That item"): string {
   if (typeof value !== "string" || value.trim() === "") {
-    throw new InvalidCaptureInputError("That capture could not be identified.");
+    throw new InvalidCaptureInputError(`${label} could not be identified.`);
   }
   return value;
 }
@@ -43,9 +45,17 @@ function requireTitle(value: unknown): string {
   return title;
 }
 
+function optionalString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
 function revalidateCaptureConsumers() {
   revalidatePath("/inbox");
   revalidatePath("/tasks");
+  revalidatePath("/calendar");
+  revalidatePath("/focus");
   revalidatePath("/");
 }
 
@@ -75,7 +85,7 @@ export async function createCaptureAction(text: unknown): Promise<CaptureActionR
 
 export async function prepareCaptureTaskAction(captureId: unknown): Promise<CaptureActionResult> {
   try {
-    await prepareCaptureTask(requireId(captureId));
+    await prepareCaptureTask(requireId(captureId, "That capture"));
     revalidatePath("/inbox");
     return { ok: true };
   } catch (error) {
@@ -87,9 +97,43 @@ export async function commitCaptureTaskAction(
   captureId: unknown,
   proposalId: unknown,
   title: unknown,
+  description?: unknown,
+  dueDate?: unknown,
+  dueAt?: unknown,
+  courseId?: unknown,
 ): Promise<CaptureActionResult> {
   try {
-    await commitCaptureTask(requireId(captureId), requireId(proposalId), requireTitle(title));
+    await commitCaptureTask(
+      requireId(captureId, "That capture"),
+      requireId(proposalId, "That proposal"),
+      requireTitle(title),
+      optionalString(description),
+      optionalString(dueDate),
+      optionalString(dueAt),
+      optionalString(courseId),
+    );
+    revalidateCaptureConsumers();
+    return { ok: true };
+  } catch (error) {
+    return toFailure(error);
+  }
+}
+
+export async function dismissProposalAction(proposalId: unknown): Promise<CaptureActionResult> {
+  try {
+    await dismissCaptureProposal(requireId(proposalId, "That proposal"));
+    revalidateCaptureConsumers();
+    return { ok: true };
+  } catch (error) {
+    return toFailure(error);
+  }
+}
+
+export async function acknowledgeProposalDivergenceAction(
+  proposalId: unknown,
+): Promise<CaptureActionResult> {
+  try {
+    await acknowledgeProposalDivergence(requireId(proposalId, "That proposal"));
     revalidateCaptureConsumers();
     return { ok: true };
   } catch (error) {
@@ -99,7 +143,7 @@ export async function commitCaptureTaskAction(
 
 export async function undoCaptureTaskAction(captureId: unknown): Promise<CaptureActionResult> {
   try {
-    await undoCaptureTask(requireId(captureId));
+    await undoCaptureTask(requireId(captureId, "That capture"));
     revalidateCaptureConsumers();
     return { ok: true };
   } catch (error) {

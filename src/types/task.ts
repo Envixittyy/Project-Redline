@@ -81,6 +81,7 @@ export type Task = {
   area: string | null;
   project: string | null;
   course: string | null;
+  courseId?: string | null;
   parentTaskId?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -99,6 +100,7 @@ export type TaskDraft = {
   area?: string | null;
   project?: string | null;
   course?: string | null;
+  courseId?: string | null;
   parentTaskId?: string | null;
   clientOperationId?: string | null;
 };

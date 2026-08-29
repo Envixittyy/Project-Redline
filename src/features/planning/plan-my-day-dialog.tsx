@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Info,
+  Loader2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -13,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarItem } from "@/features/calendar/calendar-items";
 import type { Task } from "@/types/task";
 
+import { applyPlanAction } from "./planning-actions";
 import {
   generateDayPlan,
   type DayPlanProposal,
@@ -33,6 +35,8 @@ export function PlanMyDayDialog({
   onClose,
 }: PlanMyDayDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const plan: DayPlanProposal = useMemo(() => {
     return generateDayPlan({
@@ -54,6 +58,7 @@ export function PlanMyDayDialog({
   }, []);
 
   function toggleSession(id: string) {
+    if (isSubmitting || feedback?.type === "success") return;
     setSelectedSessionIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -63,6 +68,36 @@ export function PlanMyDayDialog({
       }
       return next;
     });
+  }
+
+  async function handleApplyPlan() {
+    if (isSubmitting || selectedSessionIds.size === 0) return;
+    setIsSubmitting(true);
+    setFeedback(null);
+
+    const sessionsToCommit = plan.proposedSessions
+      .filter((s) => selectedSessionIds.has(s.id))
+      .map((s) => ({
+        taskId: s.task.id,
+        startsAt: s.startsAt,
+        endsAt: s.endsAt,
+      }));
+
+    const result = await applyPlanAction({ sessions: sessionsToCommit });
+
+    setIsSubmitting(false);
+    if (result.ok) {
+      const sessionWord = result.createdCount === 1 ? "session" : "sessions";
+      const msg = result.createdCount > 0
+        ? `Saved ${result.createdCount} work ${sessionWord} to your calendar.`
+        : "Selected work sessions are already scheduled.";
+      setFeedback({ type: "success", message: msg });
+      setTimeout(() => {
+        onClose();
+      }, 1200);
+    } else {
+      setFeedback({ type: "error", message: result.message });
+    }
   }
 
   function formatTime(iso: string) {
@@ -76,6 +111,7 @@ export function PlanMyDayDialog({
   const plannedHours = Math.floor(plan.totalPlannedWorkMinutes / 60);
   const plannedMins = plan.totalPlannedWorkMinutes % 60;
   const plannedTimeStr = plannedHours > 0 ? `${plannedHours}h ${plannedMins}m` : `${plannedMins}m`;
+  const selectedCount = selectedSessionIds.size;
 
   return (
     <dialog
@@ -96,12 +132,29 @@ export function PlanMyDayDialog({
             className={styles.iconButton}
             aria-label="Close planning modal"
             onClick={onClose}
+            disabled={isSubmitting}
           >
             <X size={18} aria-hidden="true" />
           </button>
         </header>
 
         <div className={styles.body}>
+          {feedback ? (
+            <div
+              className={`${styles.feedbackBanner} ${
+                feedback.type === "success" ? styles.feedbackSuccess : styles.feedbackError
+              } motion-enter`}
+              role="status"
+            >
+              {feedback.type === "success" ? (
+                <CheckCircle2 size={18} aria-hidden="true" />
+              ) : (
+                <AlertTriangle size={18} aria-hidden="true" />
+              )}
+              <span>{feedback.message}</span>
+            </div>
+          ) : null}
+
           <div className={styles.summaryBar}>
             <div className={styles.metricCard}>
               <span className={styles.metricLabel}>Planned Focus</span>
@@ -137,6 +190,7 @@ export function PlanMyDayDialog({
                         className={styles.sessionCheckbox}
                         checked={isSelected}
                         onChange={() => toggleSession(session.id)}
+                        disabled={isSubmitting || feedback?.type === "success"}
                         aria-label={`Select session for ${session.task.title}`}
                       />
                       <div className={styles.sessionTime}>
@@ -207,7 +261,7 @@ export function PlanMyDayDialog({
           <div className={styles.footerNotice}>
             <Info size={15} aria-hidden="true" />
             <span>
-              Proposal review only. Persisting sessions to task_work_sessions is reserved for Phase 5C.
+              Explicit confirmation persists selected sessions to task_work_sessions and projects them to your calendar.
             </span>
           </div>
 
@@ -216,17 +270,34 @@ export function PlanMyDayDialog({
               type="button"
               className={styles.secondaryButton}
               onClick={onClose}
+              disabled={isSubmitting}
             >
               Dismiss
             </button>
             <button
               type="button"
               className={styles.primaryButton}
-              disabled
-              title="Work session persistence will be active in Phase 5C"
+              disabled={isSubmitting || selectedCount === 0 || feedback?.type === "success"}
+              onClick={handleApplyPlan}
+              title={
+                selectedCount === 0
+                  ? "Select at least one work session to apply"
+                  : "Commit selected work sessions to your calendar"
+              }
             >
-              <CalendarCheck size={16} style={{ marginRight: 6, display: "inline" }} />
-              Accept Schedule (Phase 5C)
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" style={{ marginRight: 6, display: "inline" }} />
+                  Applying Plan...
+                </>
+              ) : (
+                <>
+                  <CalendarCheck size={16} style={{ marginRight: 6, display: "inline" }} />
+                  {selectedCount === 0
+                    ? "Select Sessions"
+                    : `Apply Plan (${selectedCount} session${selectedCount === 1 ? "" : "s"})`}
+                </>
+              )}
             </button>
           </div>
         </footer>

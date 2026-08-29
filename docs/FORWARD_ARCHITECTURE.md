@@ -433,19 +433,180 @@ Implementation order is fixed:
 
 ---
 
-## 9. Local AI Companion & Cloud Privacy
+## 9. Cloud AI Provider, Transfer Consent & Local Companion Boundary
 
-### Local Companion Architecture (Transport & Security Undecided)
+### 9.1 Review decision and Phase 9 boundary
+
+The Phase 9B architecture gate is **approved but unimplemented**. Phase 9 may add the Anthropic, Gemini, and OpenAI cloud adapters, provider/model preferences, typed action dispatch, and the consent flow defined here. It does not choose a local-companion transport, add arbitrary OpenAI-compatible endpoints, implement image capture/storage, or enable autonomous routines. Those remain Phase 10 and Phase 11 work.
+
+Cloud inference is optional. Capture, tasks, calendar, notes, school, focus, and deterministic planning continue to work when every AI provider is disabled or unavailable.
+
+The approved private-data flow is:
+
+```text
+explicit user AI intent
+        ↓ authenticated server resolves only user-selected owner-scoped sources
+canonical minimized payload + source revision manifest + SHA-256 digest
+        ↓ no user content has left Forward
+interactive modal: provider, model, purpose, exact data classes/items/fields, size
+        ↓ dedicated consent action creates a short-lived one-use authorization
+atomic dispatch claim re-resolves sources and proves the same digest
+        ↓ server-only fixed-endpoint cloud adapter
+untrusted provider response → bounded parser → domain/owner validation
+        ↓ no mutation authority inherited from transfer consent
+reviewable AI operation proposal → explicit commit → reversible domain operation
+```
+
+No provider request carrying user content may occur before the dispatch claim succeeds. Preparing the disclosure, cancelling it, closing it, or merely selecting `ask_each_time` is not consent.
+
+### 9.2 Data classification and minimization
+
+All app records are private by default. Phase 9 uses four outbound classes:
+
+| Class | Examples | Transfer rule |
+| --- | --- | --- |
+| `direct_prompt` | Text typed into the visible AI composer for this request | A clearly labelled provider-specific Send action is the user's explicit transfer action when no hidden app context is attached. |
+| `private_text` | Task fields, note title/body, capture text, calendar/course context | Requires the interactive transfer modal for every payload containing selected or automatically retrieved app data. |
+| `private_binary` | Image, screenshot, photo, or attachment bytes | Requires a fresh interactive modal for every transfer; consent cannot be remembered. Actual ingestion remains Phase 10B. |
+| `forbidden` | OAuth/API credentials, encrypted envelopes, Blackboard feed URLs, storage object keys or signed URLs, auth cookies/tokens, encryption keys, provider secrets, service-role values | Forward never retrieves or appends these values to a prompt, disclosure manifest, provider payload, model tool result, log, or model-visible error. User-authored prompt text remains explicit user input and is not treated as permission to read application secrets. |
+
+Context assembly is explicit and allow-listed. The server includes only the fields required for the visible purpose: for example, selected task title/description/deadline fields or a selected note title/body. It does not default to the entire task list, note corpus, calendar, school history, or capture Inbox. User IDs, internal timestamps, provider URLs, provenance metadata, and unrelated relationship data are excluded unless a later reviewed use case proves they are necessary.
+
+Every request has provider-independent limits for source count, text characters, image count, individual bytes, and total bytes. Oversized content is rejected or visibly truncated before consent; the disclosure reports the final transmitted counts and sizes. Source content is treated as quoted data, never appended to system/developer instructions.
+
+### 9.3 Transfer consent and mutation permission are independent
+
+Two independent decisions are mandatory:
+
+1. **Cloud transfer authorization** answers whether one exact payload may leave Forward for one named provider/model/purpose.
+2. **Application action authorization** answers whether a parsed proposal may read or mutate current Forward entities.
+
+Approving the first never approves the second. A cloud response can only propose typed application actions. Mutations remain behind Propose → Review → Commit and are revalidated against fresh state at commit time.
+
+The permission modes have these Phase 9 meanings:
+
+| Mode | Phase 9 behavior |
+| --- | --- |
+| `suggest_only` | Show validated proposals; never enable their commit action. |
+| `ask_before_changing` | Default. Require explicit review and confirmation for each mutating operation batch. |
+| `trusted_automation` | Reserved for Phase 11 action-specific, user-authored bounded policies. Phase 9 exposes no general switch that lets cloud output mutate data automatically. |
+
+Cloud fallback modes are preferences, not authority. `off` denies cloud dispatch. `ask_each_time` opens the disclosure flow. `automatic_on_low_confidence` may automatically *offer* that flow after a local result is inadequate, but it cannot send private text or binary data until the user approves the exact transfer. It also cannot silently change provider/model. A remembered global consent, prechecked “always allow,” a browser-local flag, or a client-supplied `userConfirmed` boolean is insufficient. The current `maySendToCloud` helper is scaffold only and must be replaced by this server-enforced decision before Phase 9 ships.
+
+### 9.4 Bound consent record and state machine
+
+Preparing a private transfer creates an owner-scoped `ai_transfer_requests` row without storing the raw payload. The record contains:
+
+- a random transfer ID and `user_id`;
+- provider ID, model ID, purpose, and requested capability;
+- data classes, source count, text/image byte counts, and exact allow-listed field names;
+- owner-scoped source references plus their content revisions or fingerprints;
+- a versioned canonical payload SHA-256 digest;
+- `awaiting_consent`, `consented`, `dispatching`, `succeeded`, `failed`, `cancelled`, or `expired` status;
+- creation, consent, claim, completion, and expiry timestamps;
+- bounded application error code and optional resulting AI operation-batch ID.
+
+Source references use application entity IDs only inside the RLS-protected row. They never contain raw object keys, signed URLs, credentials, or copied content. A transfer expires five minutes after preparation. Provider, model, purpose, capability, selected fields, source membership, source revision, direct prompt, or normalized binary digest changes invalidate the preview and require a new transfer request.
+
+The modal's **Send once** action calls a dedicated authenticated server operation that derives the actor from `auth.uid()` and moves that exact row from `awaiting_consent` to `consented`. Dispatch then uses a second atomic claim from `consented` to `dispatching`. Only the claimant may perform provider egress. Double-clicks, replayed requests, expired rows, cancelled rows, a second browser tab, or a changed payload fail closed.
+
+A direct-prompt-only request still creates and claims a transfer row. Its clearly labelled provider-specific Send click is the consent event, so preparation and consent may occur in the same server action without showing a redundant second modal. The normalized prompt is digest-bound exactly like attached context; adding any private app source changes the decision to the full disclosure flow.
+
+Immediately before claim, the server re-reads every app source through its owner-scoped repository, rebuilds the minimized payload, validates and normalizes any resubmitted direct prompt, and compares the canonical digest. It never trusts app-source content, source IDs, field lists, provider/model, or a digest supplied by the browser. A mismatch returns “Review updated data” and sends nothing.
+
+The database transaction cannot encompass the external network call. The one-use claim prevents known local duplicates, and a provider idempotency key derived from the transfer ID is used where the provider supports one. Forward never automatically retries an ambiguous timeout or connection loss because the provider may already have received the content. The user must review and authorize a new transfer.
+
+### 9.5 Provider adapters, credentials, and egress
+
+Cloud adapters live under `src/services/integrations/ai/<provider>`, import `server-only`, and translate the provider-independent request into SDK/HTTP payloads. Phase 9 uses deployment-managed server environment credentials. Provider/model selection is configurable only among enabled catalog entries; user-supplied API keys and bring-your-own arbitrary endpoints are not added without a separate requirement and credential review.
+
+Each adapter has fixed HTTPS API origins, redirect refusal, bounded connect/overall timeouts, response-size limits, and a declared capability/model catalog. Client components never import a cloud SDK, receive credentials, choose an arbitrary `baseURL`, or call providers directly. Provider error bodies and SDK objects are reduced to allow-listed application error codes before crossing the adapter boundary. Normal requests use the authenticated request client and RLS; no service-role client participates in context assembly, transfer authorization, proposal creation, or action commit.
+
+Provider-native tool callbacks are disabled in Phase 9. A provider cannot call task, note, calendar, Supabase, URL-fetch, storage, or integration functions. `allowedActions` is a server-derived typed allow-list, not a client/model string list, and provider content cannot expand it.
+
+### 9.6 Payload integrity and entity handles
+
+The canonical payload format is versioned and deterministic: sorted keys, explicit nulls, normalized Unicode/whitespace, stable date/instant formats, an ordered source manifest, and content digests for binary parts. Tests use fixtures so serialization behavior does not become an accidental security contract.
+
+Provider payloads use request-bound opaque entity handles rather than raw database UUIDs. The handle map is part of the protected transfer manifest. When parsing actions such as `update_task`, `complete_task`, `schedule_task`, or `send_to_notion`, the dispatcher resolves only handles issued for that request and proves current ownership. Unknown or unselected handles are rejected rather than interpreted as application IDs.
+
+Phase 9 is single-turn at the disclosure boundary. Model-proposed reads may be evaluated locally for a reviewable result, but their results are not sent back to the provider automatically. Any second provider call, tool loop, retrieval expansion, provider switch, or additional source requires a newly prepared payload and consent when it contains private app data.
+
+### 9.7 Response validation and typed action dispatch
+
+The provider response is untrusted. Before it becomes a proposal, Phase 9 must enforce:
+
+- exact supported schema version and action discriminants;
+- a bounded action count and bounded string/array sizes;
+- rejection of unknown fields where they could hide unsupported behavior;
+- offset-bearing instants, valid increasing ranges, enumerated priorities/statuses, and other domain invariants;
+- request-bound entity-handle resolution and fresh owner checks;
+- intersection with the server-authored allowed-action set.
+
+Raw model JSON, SQL, JavaScript, shell commands, URLs to fetch, provider tool calls, and SDK response objects are never executable application input. Validated proposals are persisted as owner-scoped `operation_batches` with `source = 'ai'` and `status = 'proposed'`; their typed steps contain only the minimized application-action input needed for review. Raw prompts and provider bodies are not copied into operation rows.
+
+Commit uses action-specific repositories/RPCs rather than a generic “execute model action” database function. It locks or freshly reads targets, repeats authorization and validation, records server-authored inverse steps where the domain supports undo, and returns a conflict when state has changed. Unsupported actions remain visible suggestions or are rejected; the dispatcher must not partially execute a batch unless the reviewed transaction explicitly defines atomic all-or-nothing behavior.
+
+### 9.8 Image and attachment rule
+
+Phase 9 approves the consent contract for future binary transfers but does not implement image ingestion. Until Phase 10B provides all of the following, cloud image capability remains disabled:
+
+- owner-scoped private storage and immutable attachment identity;
+- server-verifiable content digest and media-type/size validation;
+- a bounded derivative that removes EXIF/location and unrelated metadata and downscales/transcodes visibly;
+- an exact thumbnail/count/byte disclosure with fresh **Send once** consent;
+- server-to-provider byte upload without exposing private signed URLs or storage keys;
+- deterministic cleanup of temporary derivatives.
+
+The original binary is never silently substituted for the disclosed derivative. OCR text derived locally is `private_text` and requires its own disclosure if sent.
+
+### 9.9 Audit, retention, and logging
+
+Transfer audit is metadata-only. `ai_transfer_requests` may retain the provider/model, purpose, classes, field names, counts, sizes, payload digest, source revision references, state timestamps, result code, and related operation-batch ID. It does not retain direct prompt text, note/task content, image bytes, filenames, provider request/response bodies, credentials, signed URLs, or raw provider error bodies.
+
+Transfer metadata expires after 30 days and must be purged by a database-side scheduled cleanup that does not depend on a user opening the app. A user-facing “Clear AI transfer history” action may delete completed/failed metadata sooner without deleting resulting tasks, notes, events, work sessions, or explicitly retained operation proposals. Application logs contain only the transfer ID, provider ID, lifecycle state, duration, byte counts, and bounded error code. Provider request IDs are omitted or irreversibly hashed.
+
+Provider retention, training, and regional-processing behavior can change outside Forward. The disclosure links to the configured provider's official privacy information and states that provider terms apply; Forward must not make hard-coded “never trained” or “zero retention” claims it cannot prove from the active account/configuration.
+
+### 9.10 Failure, cancellation, and provider switching
+
+Every failure is fail-closed and preserves zero-AI operation. Cancelling or dismissing the modal sends nothing. Missing credentials, unsupported models/capabilities, stale sources, digest mismatch, expiry, replay, rate limit, oversized payload, adapter timeout, invalid provider output, and action validation failure return distinct bounded application codes without echoing sensitive content.
+
+A fallback from one cloud provider to another is a new disclosure because provider identity is consent-bound. Provider outages never cause silent context expansion, silent provider substitution, or a local-to-cloud fallback. Failed AI requests do not mark captures, tasks, notes, or events failed and do not block normal workflows.
+
+### 9.11 Database implications (documentation only — no migration in this review)
+
+Phase 9 requires a separately reviewed migration; this architecture review writes no SQL.
+
+| Object | Required change |
+| --- | --- |
+| `ai_preferences` | One owner-scoped row with cloud disabled by default, nullable provider/model selections by role, `cloud_fallback_mode` defaulting to `ask_each_time`, and `permission_mode` defaulting to `ask_before_changing`. Checked values only; no credentials or arbitrary endpoints. |
+| `ai_transfer_requests` | Owner-scoped metadata-only transfer manifest, canonical digest/version, source revision references, counts/sizes, strict status/timestamp checks, five-minute consent expiry, 30-day audit expiry, bounded error code, and nullable owner-checked resulting operation-batch relationship. |
+| `operation_batches` / `operation_steps` | Reuse `source = 'ai'` and proposed/review/commit lifecycle. Add a terminal `rejected` status with only `proposed → rejected` for explicit dismissal, plus only the owner-checked transfer provenance relationship needed to trace a proposal to its successful transfer. Do not store raw model/provider bodies. |
+| RPCs | Authenticated security-invoker prepare metadata, grant consent, atomic dispatch claim, completion/failure, cancel, and history-clear operations. Revoke from `public`/`anon`, grant only to `authenticated`, and derive the actor from `auth.uid()`. Payload reconstruction and provider calls remain in server-only TypeScript, not PL/pgSQL. |
+| Indexes / cleanup | Owner/status/expiry indexes plus scheduled deletion of expired transfer metadata after 30 days. |
+
+All relationships require owner-equality triggers in addition to RLS. Direct client updates cannot grant consent, claim dispatch, attach an operation batch, or rewrite terminal transfer states. A trigger/RPC state machine permits only the reviewed transitions and makes terminal rows immutable except for metadata deletion.
+
+### 9.12 Implementation and verification order
+
+1. Add the reviewed tables, checks, owner triggers, RLS, grants, RPC state transitions, expiry cleanup, and migration contract tests.
+2. Replace the boolean `maySendToCloud` scaffold with a pure data-classification and authorization decision that returns `deny`, `direct_prompt_send`, or `needs_transfer_consent` plus explicit reasons.
+3. Add the versioned canonical manifest/payload builder, request-bound entity handles, minimizers, size limits, digest fixtures, and stale-source tests.
+4. Add server-only fixed-endpoint provider adapters with mocked contract fixtures, timeout/redirect/response-limit behavior, credential redaction, and no browser imports.
+5. Build the accessible mobile-safe disclosure modal with focus containment, 44px actions, provider/model/purpose/data/size copy, **Cancel**, and **Send once**. There is no prechecked persistent consent control.
+6. Add the claim/dispatch/result path, strict response parser hardening, proposed AI operation batches, separate action review, action-specific commits, and safe failure UI.
+7. Keep provider-native tools, arbitrary endpoints, image upload, local companion transport, and `trusted_automation` execution disabled.
+8. Verify no egress before consent; cancellation; expiry; replay/double-click; cross-owner access; provider/model/purpose/source/prompt/digest changes; second-tab races; automatic-low-confidence fallback; provider switching; ambiguous timeouts; oversized payloads; prompt injection; unknown/oversized actions; stale targets; partial-batch refusal; redacted logs; offline/provider outage behavior; and metadata purge.
+
+### 9.13 Local Companion Architecture (transport and security undecided)
+
 - **Product Requirement:** Local Companion support is a confirmed future requirement to leverage local models (Local Qwen, OpenAI-compatible local endpoints, and optional Ollama / LM Studio compatibility) when the user's computer is available.
-- **Zero Cloud Dependence:** Redline is cloud-hosted and MUST continue functioning completely normally when the companion is offline, disconnected, or unavailable.
+- **Zero Cloud Dependence:** Forward is cloud-hosted and continues functioning normally when the companion is offline, disconnected, or unavailable.
 - **Security Invariants:** Secure pairing, key revocation, origin validation, and explicit permission boundaries remain mandatory requirements.
-- **Transport Mechanism Undecided:** The specific transport architecture (e.g. browser loopback, WebSocket, WebRTC, relay server, localhost bridge, browser extension, or companion tunnel) is intentionally UNDECIDED and uncommitted at this stage.
-- **Explicit Review Gate:** *Local Companion transport and security architecture requires Codex architectural review before implementation.*
+- **Transport Mechanism Undecided:** Browser loopback, WebSocket, WebRTC, relay, extension, tunnel, and other mechanisms remain unselected. The existing `LocalCompanionConnection` type is cross-phase scaffolding, not an approved transport decision.
+- **Explicit Review Gate:** Local Companion transport and security architecture still requires a separate Codex review before Phase 10A implementation.
 - **Vision Worker Memory Policy:** On-demand wake, 60–180s idle timeout, and automatic memory unload on system pressure.
-
-### Cloud AI Privacy Gate
-- **Cloud Fallback Modes:** `off`, `ask_each_time` (default), `automatic_on_low_confidence`.
-- **Explicit Privacy Gate:** Private tasks, notes, or uploaded screenshots/images are NEVER transferred to cloud LLMs without explicit, interactive user consent.
 
 ---
 
@@ -464,5 +625,6 @@ Codex review is mandatory before merging changes to:
 2. **Database Migrations & Triggers:** New tables, foreign key constraints, or owner backfill RPCs.
 3. **SSRF & Network Fetch Defenses:** `safe-fetch.ts`, DNS pinning, IP classification, or OAuth redirect handlers.
 4. **Cryptographic Storage & Keys:** AES-256-GCM credential envelopes and token encryption.
-5. **Local Companion Transport & Security Architecture:** Transport protocol, pairing token exchanges, origin verification, and cloud data transfer consent gates.
-6. **Two-Way Synchronization & Recurrence Semantics:** Notion two-way sync loop suppression, Google Calendar writeback, or recurring task data models.
+5. **Cloud AI Transfer Consent & Egress:** Data classification/minimization, payload digest binding, consent state transitions, provider endpoints/credentials, retention, or mutation-gate separation.
+6. **Local Companion Transport & Security Architecture:** Transport protocol, pairing token exchanges, origin verification, and local permission boundaries.
+7. **Two-Way Synchronization & Recurrence Semantics:** Notion two-way sync loop suppression, Google Calendar writeback, or recurring task data models.

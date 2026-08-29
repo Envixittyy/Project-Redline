@@ -129,8 +129,9 @@ graph TD
 ### Phase 9: Cloud AI Provider & Privacy Gates (P6 Core)
 - **9A: Provider Adapters & Typed Action Dispatcher [`PLANNED` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
   - Configurable provider adapters (Anthropic, Gemini, OpenAI) consuming `AiActionProposal` parser and permission gates (`suggest_only`, `ask_before_changing`, `trusted_automation`).
-- **9B: Cloud Privacy Consent Gate [`ARCHITECTURE REVIEW REQUIRED` | Small | Risk: High | Reviewer: Codex]**
+- **9B: Cloud Privacy Consent Gate [`PLANNED` | Architecture gate approved | Medium | Risk: High | Reviewer: Codex]**
   - Mandatory interactive confirmation modal before transmitting private notes, tasks, or images to cloud LLMs.
+  - Approved architecture: a server-prepared, content-digested transfer manifest; one-time owner-, provider-, model-, purpose-, and payload-bound consent; server-only fixed-endpoint provider egress; and a separate review/commit gate for model-proposed mutations. `automatic_on_low_confidence` may offer the consent flow but may never silently transmit private app data. See `docs/FORWARD_ARCHITECTURE.md` section 9. Phase 9 remains unimplemented.
 
 ### Phase 10: Local AI Companion & Vision Ingestion (P6/P7)
 - **10A: Local Companion Transport & Security Architecture [`ARCHITECTURE REVIEW REQUIRED` | Large | Risk: High | Reviewer: Codex]**

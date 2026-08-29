@@ -34,6 +34,10 @@ describe("P3 external-calendar platform contract", () => {
     expect(repository).toContain('.from("external_calendar_events")');
     expect(repository).not.toContain('.from("calendar_events").insert');
     expect(repository).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
-    expect(repository).not.toContain("encrypted_credential");
+    const statusRead = repository.slice(
+      repository.indexOf("export async function listExternalCalendarConnections"),
+      repository.indexOf("export async function saveGoogleCalendarConnection"),
+    );
+    expect(statusRead).not.toContain("encrypted_credential");
   });
 });

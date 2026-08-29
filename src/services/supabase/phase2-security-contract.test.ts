@@ -27,7 +27,7 @@ describe("Phase 2 security contract", () => {
   });
 
   it("encrypts credentials and never stores a plaintext feed field", () => {
-    const credential = file("src/services/integrations/blackboard/credential.ts");
+    const credential = file("src/services/integrations/credential.ts");
     expect(credential).toContain("aes-256-gcm");
     expect(credential).toContain("INTEGRATION_CREDENTIAL_ENCRYPTION_KEY");
     expect(migration).toContain("encrypted_credential text not null");

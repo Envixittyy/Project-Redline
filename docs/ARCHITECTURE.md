@@ -106,6 +106,8 @@ External systems belong behind adapters under `src/services/integrations/<system
 
 Integration adapters should translate provider-specific payloads into explicit internal shapes and preserve source identity. They must not leak SDK objects throughout features. Secrets stay server-side. Client components should not call privileged provider APIs directly.
 
+Shared AES-256-GCM credential envelopes live in `src/services/integrations/credential.ts`; provider folders may re-export them for compatibility but must not depend on one another. Google Calendar begins read-only. Its server-only OAuth route uses a canonical `APP_ORIGIN`, exact callback URI, random state stored only as a SHA-256 hash, encrypted PKCE material, a ten-minute owner-scoped state row consumed by delete-and-return, offline access, and the narrow Calendar read-only scope. Callback messages expose only application-owned result codes. See `docs/GOOGLE_CALENDAR.md`.
+
 Blackboard is limited to calendar-related information unless requirements change. Announcement, grade, messaging, document, and general feed syncing are out of scope.
 
 Phase 2 accepts only a private Blackboard iCalendar URL. The URL is AES-256-GCM encrypted with a server-only deployment key and is never returned by status reads. Retrieval uses HTTPS with all-answer public-address DNS validation, a callback-shape-correct pinned lookup, manual validated redirects, time and size limits, and defensive parsing. `external_records` owns provider identity. Synchronization does not create or update ordinary tasks; it preserves any historical `task_id` link without acting on it and marks disappeared records missing rather than deleting them.

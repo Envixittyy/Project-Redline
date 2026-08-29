@@ -75,6 +75,8 @@ P3 persists provider-neutral account, calendar, and event mirrors without claimi
 
 OAuth callback state, tokens, refresh tokens, and webhooks are security-sensitive. Tokens stay encrypted server-side, callback state is bound to the authenticated session, redirect URIs are exact, refresh is serialized, logs are redacted, and external identity uses persistent provider IDs. Provider SDK objects do not escape adapters.
 
+The first provider boundary is Google Calendar with read-only authorization. One-time state is owner-bound, hashed at rest, expires after ten minutes, and atomically consumed; the PKCE verifier and token envelope are AES-256-GCM encrypted. `APP_ORIGIN` supplies the exact callback origin rather than trusting request headers. Calendar discovery, token refresh, and event synchronization remain subsequent P3 work and must use the account’s declared capabilities.
+
 ## Blackboard
 
 Blackboard is calendar-only and initially one-way. The private feed credential is AES-256-GCM encrypted at rest and never returned to the browser. Safe retrieval requires validated HTTPS, public DNS answers only, DNS pinning, manual revalidated redirects, time/size/content limits, and redacted diagnostics.

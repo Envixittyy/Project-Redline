@@ -94,6 +94,26 @@ export async function listExternalCalendarConnections(): Promise<ExternalCalenda
   }));
 }
 
+export async function saveGoogleCalendarConnection(input: {
+  encryptedCredential: string;
+  expiresAt: string;
+}): Promise<void> {
+  const { client, userId } = await requireAuthenticatedSupabase();
+  const { error } = await client.from("external_calendar_accounts").upsert({
+    user_id: userId,
+    provider: "google",
+    display_name: "Google Calendar",
+    status: "connected",
+    access: "read_only",
+    capabilities: ["list_calendars", "list_events", "incremental_sync"],
+    encrypted_credential: input.encryptedCredential,
+    credential_hint: "OAuth",
+    token_expires_at: input.expiresAt,
+    last_error_code: null,
+  }, { onConflict: "user_id,provider" });
+  if (error) fail("save the Google Calendar connection", error);
+}
+
 /** Read-only mirror projection for the visible half-open Calendar range. */
 export async function listExternalCalendarEventsInRange(
   start: string,

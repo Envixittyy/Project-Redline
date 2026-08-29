@@ -3,6 +3,7 @@ import { Settings2, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { DesktopNavigation, MobileTabBar } from "./app-navigation";
+import { CommandPalette, CommandPaletteTrigger } from "./command-palette";
 import { PwaClient } from "@/features/offline/pwa-client";
 import styles from "./app-shell.module.css";
 
@@ -24,6 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <DesktopNavigation />
+        <CommandPaletteTrigger />
 
         <div className={styles.sidebarFooter}>
           <Link className={styles.appearanceLink} href="/more#appearance">
@@ -35,6 +37,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className={styles.contentFrame}>
+        <div className={styles.mobileTopbar}>
+          <Link className={styles.mobileIdentity} href="/">
+            Forward
+          </Link>
+          <CommandPaletteTrigger compact />
+        </div>
         <main id="main-content" className={styles.main} tabIndex={-1}>
           {children}
         </main>
@@ -42,6 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <MobileTabBar />
       <PwaClient />
+      <CommandPalette />
     </div>
   );
 }

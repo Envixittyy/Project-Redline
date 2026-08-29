@@ -11,7 +11,7 @@ type PageHeaderProps = {
 
 export function PageHeader({ actions, description, eyebrow, title }: PageHeaderProps) {
   return (
-    <header className={styles.header}>
+    <header className={`${styles.header} motion-enter`}>
       <div className={styles.copy}>
         {eyebrow ? <p className={styles.eyebrow}>{eyebrow}</p> : null}
         <h1>{title}</h1>

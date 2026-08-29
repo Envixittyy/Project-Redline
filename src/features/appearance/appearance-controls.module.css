@@ -77,13 +77,6 @@
   scale: 0.97;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .modeButton:active,
-  .paletteButton:active {
-    scale: 1;
-  }
-}
-
 .paletteButton {
   min-height: 3.6rem;
 }
@@ -122,5 +115,12 @@
 @media (min-width: 34rem) {
   .paletteGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modeButton:active,
+  .paletteButton:active {
+    scale: 1;
   }
 }

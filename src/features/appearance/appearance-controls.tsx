@@ -66,20 +66,33 @@ function subscribe(onStoreChange: () => void) {
   }
 
   function handleStorage(event: StorageEvent) {
-    if (event.key !== appearanceStorageKeys.theme && event.key !== appearanceStorageKeys.accent) return;
+    if (
+      event.key !== appearanceStorageKeys.theme &&
+      event.key !== appearanceStorageKeys.accent
+    ) {
+      return;
+    }
 
     let theme: string = defaultThemeMode;
     let accent: string = defaultAccentPalette;
 
     try {
-      theme = window.localStorage.getItem(appearanceStorageKeys.theme) ?? defaultThemeMode;
-      accent = window.localStorage.getItem(appearanceStorageKeys.accent) ?? defaultAccentPalette;
+      theme =
+        window.localStorage.getItem(appearanceStorageKeys.theme) ??
+        defaultThemeMode;
+      accent =
+        window.localStorage.getItem(appearanceStorageKeys.accent) ??
+        defaultAccentPalette;
     } catch {
       // Keep the current document appearance when browser storage is unavailable.
     }
 
-    document.documentElement.dataset.theme = isThemeMode(theme) ? theme : defaultThemeMode;
-    document.documentElement.dataset.accent = isAccentPalette(accent) ? accent : defaultAccentPalette;
+    document.documentElement.dataset.theme = isThemeMode(theme)
+      ? theme
+      : defaultThemeMode;
+    document.documentElement.dataset.accent = isAccentPalette(accent)
+      ? accent
+      : defaultAccentPalette;
     onStoreChange();
   }
 
@@ -93,8 +106,6 @@ function subscribe(onStoreChange: () => void) {
 }
 
 function updateAppearance(change: Partial<AppearanceState>) {
-  // Merge onto the store rather than a rendered snapshot, so a selection made
-  // before React re-renders cannot revert the other control.
   const next: AppearanceState = { ...readSnapshot(), ...change };
   cachedSnapshot = next;
   document.documentElement.dataset.theme = next.theme;
@@ -111,13 +122,17 @@ function updateAppearance(change: Partial<AppearanceState>) {
 }
 
 export function AppearanceControls() {
-  const appearance = useSyncExternalStore(subscribe, readSnapshot, () => serverSnapshot);
+  const appearance = useSyncExternalStore(
+    subscribe,
+    readSnapshot,
+    () => serverSnapshot,
+  );
 
   return (
     <div className={styles.controls}>
       <fieldset className={styles.group}>
         <legend>Mode</legend>
-        <p>Follow your device or choose a consistent appearance.</p>
+        <p>Follow your device, or choose a consistent appearance.</p>
         <div className={styles.modeGrid}>
           {themeModes.map((mode) => {
             const Icon = themeIcons[mode.id];
@@ -126,14 +141,16 @@ export function AppearanceControls() {
               <button
                 type="button"
                 key={mode.id}
-                className={styles.modeButton}
+                className={`${styles.modeButton} motion-interactive`}
                 data-selected={selected || undefined}
                 aria-pressed={selected}
                 onClick={() => updateAppearance({ theme: mode.id })}
               >
                 <Icon size={19} aria-hidden="true" />
                 <span>{mode.label}</span>
-                {selected ? <Check className={styles.check} size={15} aria-hidden="true" /> : null}
+                {selected ? (
+                  <Check className={styles.check} size={15} aria-hidden="true" />
+                ) : null}
               </button>
             );
           })}
@@ -150,16 +167,20 @@ export function AppearanceControls() {
               <button
                 type="button"
                 key={palette.id}
-                className={styles.paletteButton}
+                className={`${styles.paletteButton} motion-interactive`}
                 data-selected={selected || undefined}
                 data-accent={palette.id}
                 aria-pressed={selected}
                 aria-label={`${palette.label} accent palette${selected ? ", selected" : ""}`}
                 onClick={() => updateAppearance({ accent: palette.id })}
               >
-                <span className={styles.swatch} aria-hidden="true"><span /></span>
+                <span className={styles.swatch} aria-hidden="true">
+                  <span />
+                </span>
                 <span>{palette.label}</span>
-                {selected ? <Check className={styles.check} size={15} aria-hidden="true" /> : null}
+                {selected ? (
+                  <Check className={styles.check} size={15} aria-hidden="true" />
+                ) : null}
               </button>
             );
           })}

@@ -1,0 +1,291 @@
+.trigger,
+.compactTrigger,
+.closeButton,
+.command {
+  -webkit-tap-highlight-color: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.trigger {
+  display: flex;
+  width: 100%;
+  min-height: 2.9rem;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-interactive);
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  font-weight: 650;
+  text-align: left;
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    scale var(--motion-fast) var(--motion-ease);
+}
+
+.trigger kbd {
+  margin-left: auto;
+  padding: 0.16rem 0.38rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.4rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+}
+
+.compactTrigger {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.9rem;
+  background: var(--surface-translucent);
+  box-shadow: var(--shadow-card);
+  color: var(--text-secondary);
+  backdrop-filter: blur(var(--blur-surface));
+}
+
+.trigger:active,
+.compactTrigger:active,
+.closeButton:active {
+  scale: 0.97;
+}
+
+.backdrop {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  padding:
+    max(4.5rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  background: var(--scrim);
+  backdrop-filter: blur(12px);
+}
+
+.panel {
+  width: min(100%, 39rem);
+  max-height: min(42rem, calc(100svh - 6rem));
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-elevated);
+}
+
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.15rem 0.9rem;
+}
+
+.heading p,
+.heading h2,
+.empty p,
+.hint {
+  margin: 0;
+}
+
+.heading p {
+  color: var(--accent-text);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.heading h2 {
+  margin-top: 0.25rem;
+  font-size: clamp(1.12rem, 4vw, 1.35rem);
+  letter-spacing: -0.035em;
+}
+
+.closeButton {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.85rem;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+
+.searchField {
+  display: flex;
+  min-height: 3.4rem;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0 1.15rem 0.75rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--input);
+  color: var(--text-tertiary);
+}
+
+.searchField:focus-within {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.searchField input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.searchField input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.searchField kbd {
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 0.66rem;
+}
+
+.results {
+  display: grid;
+  max-height: min(27rem, calc(100svh - 15rem));
+  gap: 0.2rem;
+  overflow-y: auto;
+  padding: 0.35rem 0.65rem 0.7rem;
+}
+
+.command {
+  display: flex;
+  width: 100%;
+  min-height: 4rem;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  text-align: left;
+}
+
+.command[data-active] {
+  border-color: var(--accent-border);
+  background: var(--accent-muted);
+}
+
+.commandIcon {
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.8rem;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+
+.command[data-active] .commandIcon {
+  color: var(--accent-text);
+}
+
+.command > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.16rem;
+}
+
+.command strong {
+  font-size: 0.86rem;
+}
+
+.command small {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  display: grid;
+  min-height: 9rem;
+  place-items: center;
+  align-content: center;
+  gap: 0.6rem;
+  padding: 1.25rem;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.empty p {
+  max-width: 20rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.hint {
+  display: none;
+  gap: 1rem;
+  padding: 0.72rem 1.15rem;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  font-size: 0.66rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .trigger:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .compactTrigger:hover,
+  .closeButton:hover {
+    color: var(--text-primary);
+  }
+
+  .hint {
+    display: flex;
+  }
+}
+
+@media (min-width: 48rem) {
+  .backdrop {
+    padding-top: max(10vh, env(safe-area-inset-top));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger:active,
+  .compactTrigger:active,
+  .closeButton:active {
+    scale: 1;
+  }
+}

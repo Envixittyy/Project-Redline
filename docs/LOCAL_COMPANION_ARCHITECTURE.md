@@ -201,3 +201,4 @@ All model output is treated as completely untrusted:
 | **Model not downloaded / missing** | Returns `model_not_found` | Informs user to pull the model (e.g. `ollama pull qwen2.5:7b`). |
 | **Inference timeout (>60s)** | Aborts local runtime request | Displays "Inference timed out"; preserves all existing state. |
 | **Malformed JSON output** | Returns `malformed_response` | Rejects output safely; user sees parse failure without partial writes. |
+

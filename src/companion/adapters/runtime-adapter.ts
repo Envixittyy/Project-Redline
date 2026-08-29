@@ -66,3 +66,4 @@ export function normalizeLocalError(err: unknown, provider: LocalProviderType): 
     error: message,
   };
 }
+

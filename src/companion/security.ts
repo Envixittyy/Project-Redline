@@ -173,3 +173,4 @@ export function redactSensitiveInfo(text: string): string {
     .replace(/"pairingSecret"\s*:\s*"[^"]+"/gi, '"pairingSecret":"[REDACTED]"')
     .replace(/"token"\s*:\s*"[^"]+"/gi, '"token":"[REDACTED]"');
 }
+

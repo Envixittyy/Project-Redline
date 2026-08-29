@@ -154,3 +154,4 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
     }
   }
 }
+

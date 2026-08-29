@@ -7,6 +7,8 @@ import {
   createGoogleAuthorizationRequest,
   googleCalendarRedirectUri,
   hashOAuthState,
+  parseGoogleTokenCredential,
+  refreshGoogleTokenCredential,
 } from "./google-oauth";
 
 const original = {
@@ -55,5 +57,28 @@ describe("Google Calendar OAuth", () => {
     );
     process.env.APP_ORIGIN = "http://forward.example.com";
     expect(() => applicationOrigin()).toThrow("HTTPS");
+  });
+
+  it("refreshes the access token without replacing the long-lived refresh token", async () => {
+    const credential = {
+      version: 1 as const,
+      accessToken: "old-access",
+      refreshToken: "long-lived-refresh",
+      expiresAt: "2026-08-29T00:00:00.000Z",
+      scope: "https://www.googleapis.com/auth/calendar.readonly",
+      tokenType: "Bearer" as const,
+    };
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      access_token: "new-access",
+      expires_in: 3600,
+      token_type: "Bearer",
+    }), { status: 200 }));
+    const result = await refreshGoogleTokenCredential(credential, request);
+    const stored = parseGoogleTokenCredential(result.encryptedCredential);
+    expect(stored.accessToken).toBe("new-access");
+    expect(stored.refreshToken).toBe("long-lived-refresh");
+    expect(result.encryptedCredential).not.toContain("new-access");
+    const body = request.mock.calls[0]?.[1]?.body as URLSearchParams;
+    expect(body.get("grant_type")).toBe("refresh_token");
   });
 });

@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
+import { syncGoogleCalendarAction } from "@/features/integrations/google-calendar-actions";
 import { calendarProviderCatalog } from "@/services/integrations/calendar/provider-catalog";
 import { isGoogleCalendarOAuthConfigured } from "@/services/integrations/calendar/google-oauth";
 import { listExternalCalendarConnections } from "@/services/external-calendars/external-calendar-repository";
@@ -15,6 +16,8 @@ export const metadata: Metadata = { title: "Calendar connections" };
 export default async function CalendarConnectionsPage({ searchParams }: PageProps<"/integrations/calendars">) {
   const params = await searchParams;
   const googleResult = Array.isArray(params.google) ? params.google[0] : params.google;
+  const googleSync = Array.isArray(params.googleSync) ? params.googleSync[0] : params.googleSync;
+  const googleSyncSummary = parseGoogleSyncSummary(googleSync);
   let connections: Awaited<ReturnType<typeof listExternalCalendarConnections>> = [];
   let failure: string | null = null;
 
@@ -39,13 +42,31 @@ export default async function CalendarConnectionsPage({ searchParams }: PageProp
         {googleResult === "connected" ? (
           <Surface variant="subtle" className={styles.notice} role="status">
             <h2>Google Calendar connected</h2>
-            <p>The credential is encrypted. Calendar discovery and event synchronization are the next server-owned operations.</p>
+            <p>The credential is encrypted. Use Sync now to discover calendars and refresh the source-aware mirror.</p>
           </Surface>
         ) : null}
         {googleResult && googleResult !== "connected" ? (
           <Surface variant="subtle" className={styles.notice} role="alert">
             <h2>Google Calendar was not connected</h2>
             <p>The request was denied, expired, or could not be exchanged. No provider error detail or credential was stored in the browser.</p>
+          </Surface>
+        ) : null}
+        {googleSyncSummary ? (
+          <Surface variant="subtle" className={styles.notice} role="status">
+            <h2>Google Calendar synchronized</h2>
+            <p>{googleSyncSummary}</p>
+          </Surface>
+        ) : null}
+        {googleSync === "busy" ? (
+          <Surface variant="subtle" className={styles.notice} role="status">
+            <h2>Credential refresh is already running</h2>
+            <p>Wait a moment, then synchronize again. The existing calendar mirror was not cleared.</p>
+          </Surface>
+        ) : null}
+        {googleSync === "failed" ? (
+          <Surface variant="subtle" className={styles.notice} role="alert">
+            <h2>Google Calendar sync needs attention</h2>
+            <p>No provider error detail or credential was exposed. Reconnect if the saved authorization has expired.</p>
           </Surface>
         ) : null}
         {failure ? (
@@ -56,7 +77,7 @@ export default async function CalendarConnectionsPage({ searchParams }: PageProp
         ) : null}
         <Surface variant="glass" className={styles.summary}>
           <h2>{connections.filter((connection) => connection.status === "connected").length} connected</h2>
-          <p>OAuth and credential setup is intentionally unavailable until its server callback and secret configuration are complete.</p>
+          <p>Credentials and provider cursors stay encrypted server-side; this page receives status and safe result counts only.</p>
         </Surface>
         <section className={styles.providerGrid} aria-label="External calendar providers">
           {calendarProviderCatalog.map((provider) => {
@@ -89,6 +110,11 @@ export default async function CalendarConnectionsPage({ searchParams }: PageProp
                     <p className={styles.setupHint}>Set APP_ORIGIN and the two GOOGLE_CALENDAR_* server variables to enable OAuth.</p>
                   )
                 ) : null}
+                {provider.id === "google" && connected ? (
+                  <form action={syncGoogleCalendarAction}>
+                    <button className={styles.connectLink} type="submit">Sync now</button>
+                  </form>
+                ) : null}
               </Surface>
             );
           })}
@@ -96,4 +122,11 @@ export default async function CalendarConnectionsPage({ searchParams }: PageProp
       </div>
     </>
   );
+}
+
+function parseGoogleSyncSummary(value: string | undefined): string | null {
+  const match = /^complete:(\d+):(\d+):(\d+):(\d+)$/.exec(value ?? "");
+  if (!match) return null;
+  const [, calendars, events, cancelled, missing] = match;
+  return `${calendars} calendars checked · ${events} events mirrored · ${cancelled} cancellations · ${missing} missing-source records retained.`;
 }

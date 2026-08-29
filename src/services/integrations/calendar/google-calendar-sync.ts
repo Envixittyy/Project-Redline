@@ -11,7 +11,12 @@ import {
   parseGoogleTokenCredential,
   refreshGoogleTokenCredential,
 } from "./google-oauth";
-import type { ExternalCalendarEvent } from "./provider-contract";
+import {
+  hasCalendarCapabilities,
+  requireCalendarCapability,
+  type CalendarProviderCapability,
+  type ExternalCalendarEvent,
+} from "./provider-contract";
 
 const ACCESS_TOKEN_BUFFER_MS = 2 * 60 * 1000;
 const REFRESH_LEASE_MS = 60 * 1000;
@@ -23,6 +28,7 @@ type GoogleAccountRow = {
   id: string;
   encrypted_credential: string;
   token_expires_at: string | null;
+  capabilities: CalendarProviderCapability[];
 };
 
 type RefreshClaimRow = {
@@ -76,7 +82,7 @@ async function googleAccount(
 ): Promise<GoogleAccountRow> {
   const result = await client
     .from("external_calendar_accounts")
-    .select("id,encrypted_credential,token_expires_at")
+    .select("id,encrypted_credential,token_expires_at,capabilities")
     .eq("user_id", userId)
     .eq("provider", "google")
     .eq("status", "connected")
@@ -84,7 +90,11 @@ async function googleAccount(
   if (result.error || !result.data?.encrypted_credential) {
     throw new Error("Connect Google Calendar before synchronizing.");
   }
-  return result.data as GoogleAccountRow;
+  const account = result.data as GoogleAccountRow;
+  if (!hasCalendarCapabilities(account.capabilities, ["list_calendars", "list_events"])) {
+    throw new Error("The Google Calendar connection does not permit event synchronization.");
+  }
+  return account;
 }
 
 async function accessToken(
@@ -301,6 +311,8 @@ export async function runGoogleCalendarSync(): Promise<GoogleCalendarSyncResult>
   const account = await googleAccount(client, userId);
   try {
     const provider = new GoogleCalendarProvider(await accessToken(client, account));
+    requireCalendarCapability(provider, "list_calendars");
+    requireCalendarCapability(provider, "list_events");
     const discovered = await provider.listCalendars();
     const calendars = await upsertCalendars(client, userId, account.id, discovered);
     const timeZone = resolveTimeZone();
@@ -318,7 +330,9 @@ export async function runGoogleCalendarSync(): Promise<GoogleCalendarSyncResult>
         range.start,
         range.end,
         timeZone,
-        calendar.encrypted_sync_token,
+        hasCalendarCapabilities(account.capabilities, ["incremental_sync"])
+          ? calendar.encrypted_sync_token
+          : null,
       );
       total.calendars += 1;
       total.events += result.events;

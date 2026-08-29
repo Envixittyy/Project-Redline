@@ -59,3 +59,11 @@ export function requireCalendarCapability(
     throw new Error(`${provider.id} does not support ${capability}.`);
   }
 }
+
+export function hasCalendarCapabilities(
+  declared: readonly CalendarProviderCapability[],
+  required: readonly CalendarProviderCapability[],
+): boolean {
+  const available = new Set(declared);
+  return required.every((capability) => available.has(capability));
+}

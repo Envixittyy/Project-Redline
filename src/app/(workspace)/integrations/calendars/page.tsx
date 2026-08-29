@@ -6,6 +6,7 @@ import { Surface } from "@/components/ui/surface";
 import { syncGoogleCalendarAction } from "@/features/integrations/google-calendar-actions";
 import { calendarProviderCatalog } from "@/services/integrations/calendar/provider-catalog";
 import { isGoogleCalendarOAuthConfigured } from "@/services/integrations/calendar/google-oauth";
+import { hasCalendarCapabilities } from "@/services/integrations/calendar/provider-contract";
 import { listExternalCalendarConnections } from "@/services/external-calendars/external-calendar-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
 
@@ -83,6 +84,10 @@ export default async function CalendarConnectionsPage({ searchParams }: PageProp
           {calendarProviderCatalog.map((provider) => {
             const connection = byProvider.get(provider.id);
             const connected = connection?.status === "connected";
+            const canSync = connected && hasCalendarCapabilities(
+              connection.capabilities,
+              ["list_calendars", "list_events"],
+            );
             return (
               <Surface key={provider.id} variant="base" className={styles.providerCard}>
                 <div className={styles.providerHeading}>
@@ -110,7 +115,7 @@ export default async function CalendarConnectionsPage({ searchParams }: PageProp
                     <p className={styles.setupHint}>Set APP_ORIGIN and the two GOOGLE_CALENDAR_* server variables to enable OAuth.</p>
                   )
                 ) : null}
-                {provider.id === "google" && connected ? (
+                {provider.id === "google" && canSync ? (
                   <form action={syncGoogleCalendarAction}>
                     <button className={styles.connectLink} type="submit">Sync now</button>
                   </form>

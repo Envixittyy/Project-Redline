@@ -27,4 +27,13 @@ describe("Google Calendar sync security contract", () => {
     expect(action).not.toContain("accessToken");
     expect(action).not.toContain("refreshToken");
   });
+
+  it("gates synchronization on the account and adapter capability contracts", () => {
+    const sync = file("src/services/integrations/calendar/google-calendar-sync.ts");
+    const page = file("src/app/(workspace)/integrations/calendars/page.tsx");
+    expect(sync).toContain("hasCalendarCapabilities(account.capabilities");
+    expect(sync).toContain('requireCalendarCapability(provider, "list_calendars")');
+    expect(sync).toContain('requireCalendarCapability(provider, "list_events")');
+    expect(page).toContain("connection.capabilities");
+  });
 });

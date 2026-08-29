@@ -10,61 +10,64 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Repository instructions
 
+## Required reading before taking action
+
+Before planning, modifying, or creating any files, every agent MUST completely read and obey:
+
+1. `AGENTS.md` (these durable operational rules)
+2. `docs/ROADMAP.md` (authoritative product roadmap, phase boundaries, and model review gates)
+3. `docs/ARCHITECTURE.md` (current repository architecture and persistence contracts)
+4. `docs/FORWARD_ARCHITECTURE.md` (future architecture contracts and authoritative liquid-glass visual direction)
+
+Do not rely on assumptions or training-data defaults. Verify all constraints against the repository.
+
 ## Product rules
 
-- This is primarily a personal, single-user application. Do not introduce multi-tenant or commercial-product complexity without an explicit requirement.
-- Mobile, especially iPhone-sized displays and touch input, is a first-class platform.
-- Do not build unspecified features or implement future phases opportunistically.
+- This is a personal, single-user productivity and school operating system. Do NOT introduce multi-tenant, organizational, team, SaaS, or commercial complexity.
+- Mobile, especially iPhone-sized displays, touch targets (≥44px), and standalone PWA usage, is a first-class platform.
+- Do NOT build unspecified features or implement future phases opportunistically.
 - Prefer the smallest clear architecture that supports the current phase.
-- The working product name may change. Keep architectural concepts product-name agnostic.
+- Forward (internal codename: Project Redline) is developed incrementally. Implement only functionality explicitly assigned to the current task.
 
-Life OS is being developed incrementally. Implement only functionality explicitly included in the current task or phase.
+## Navigation & visual system
 
-## Navigation
+- Planned primary mobile navigation is Home, Tasks, Calendar, School, and More. Desktop uses a persistent glass sidebar.
+- Authoritative visual identity is deep, dimensional blue with liquid-glass surfaces and semantic design tokens (`src/styles/tokens.css`). Do NOT encode permanent hardcoded colors in feature components.
+- Account for safe-area insets (`env(safe-area-inset-bottom)`), responsive layouts, and reduced motion (`data-motion`).
 
-Planned mobile navigation is Home, Tasks, Calendar, School, and More. Desktop may use an appropriate sidebar or larger-screen navigation system. Not every feature needs a primary-navigation item.
-
-## Mobile
-
-Account for touch targets, small screens, safe areas, responsive layouts, future bottom navigation, and future PWA use. Do not simply shrink desktop interfaces.
-
-## Tasks and calendar
+## Tasks and calendar separation
 
 - Tasks and calendar events are separate entities.
-- A task may have a deadline, have a scheduled time, and appear visually on a calendar. Rendering it on a calendar does not turn it into an ordinary calendar event.
-- External calendar events must remain source-aware.
-- Blackboard calendar items must not automatically become standard application tasks.
-- A task may also have a scheduled start/end, project relationship, or area relationship without becoming an ordinary calendar event.
-- Do not automatically convert external calendar events into application tasks.
+- A task may have a deadline, have a scheduled time, or have multiple work sessions (`task_work_sessions`), and appear visually on a calendar. Rendering it on a calendar does NOT turn it into a native calendar event.
+- External calendar events and Blackboard feed items must remain source-aware.
+- Blackboard ingestion must NEVER automatically create standard application tasks. Newly detected school items must go through the Universal Capture proposal flow for user review.
+- External calendar records must not be automatically converted into native tasks or native events.
 
-## Blackboard scope
+## Blackboard & school scope
 
-- Blackboard functionality is planned only for calendar-related information.
-- Do not build announcement, grade, messaging, document, or general feed synchronization unless product requirements explicitly change.
-- Future Blackboard synchronization should initially be one-way: Blackboard → Life OS.
+- Blackboard synchronization is limited to calendar-related information and reviewable task proposals.
+- Do NOT build brittle web scraping, grade, messaging, or document synchronization.
+- Unused `announcements` database table is inert technical debt.
 
-## Football and projects
+## Deferred features (Not removed)
 
-- Football is part of the product but may initially exist as an Area or secondary section; do not deeply hard-code the East Football United external URL in feature UI.
-- Keep project management simple initially. Advanced project-management functionality is deferred.
+The following capabilities are explicitly deferred to later phases in `docs/ROADMAP.md` and must NOT be implemented prematurely:
+- Recurring tasks and routine automation (Phase 11)
+- Dashboard drag-and-drop customization and persistent custom layouts (Phase 12)
+- Note interactive checklists and internal backlinks `[[wikilinks]]` (Phase 12)
+- Football / East Football United secondary area (Phase 13)
 
-## Deferred features
+## Engineering standards
 
-Habits and recurring tasks are later features and must not be implemented prematurely.
-
-## Engineering
-
-- Inspect the existing code and documentation before making architectural changes.
-- Preserve existing behavior unless a requested change requires otherwise.
+- Inspect existing code and documentation before making architectural changes.
+- Preserve existing behavior unless a requested change explicitly requires otherwise.
 - Avoid unrelated modifications, duplicate components, duplicate business logic, giant utility files, and unnecessary dependencies.
 - Prefer root-cause fixes and straightforward code over speculative abstraction.
 - Keep reusable UI in `src/components`; keep feature-specific UI and logic in `src/features`.
 - Isolate external systems behind `src/services/integrations` boundaries.
 - Never expose secrets or commit populated local environment files.
-- Update `docs/ARCHITECTURE.md` when architecture changes materially.
-- Use semantic design tokens. Feature code must not encode a permanent palette or visual theme.
-- Prefer modern App Router conventions and server components by default. Add client components only where interaction or browser APIs require them.
-- Before adding a substantial dependency, confirm it solves a current requirement, prefer maintained libraries, avoid overlap, and document non-obvious additions.
+- Update `docs/ARCHITECTURE.md` when current architecture changes materially.
+- Prefer modern Next.js 16 App Router conventions and Server Components by default. Add client components only where browser APIs or local interactivity require them.
 - Before editing, inspect relevant files and existing patterns. After editing, inspect the diff and remove dead code.
 
 ## Validation
@@ -73,7 +76,7 @@ For meaningful changes, run:
 
 1. `pnpm lint`
 2. `pnpm typecheck`
-3. Relevant tests, when tests exist
+3. Relevant tests, when tests exist (`pnpm test`)
 4. `pnpm build` when production behavior may be affected
 
 Never claim a check passed unless it was actually run.

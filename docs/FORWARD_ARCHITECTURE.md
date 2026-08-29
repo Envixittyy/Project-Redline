@@ -1,121 +1,180 @@
-# Forward architecture
+# Forward Architecture & Design System
 
-Forward is a private, single-user personal command center. Project Redline remains an acceptable internal codename and existing internal identifiers are intentionally stable. The user-facing name is **Forward** and the tagline is **“Be curious, not judgmental.”**
+Forward (internal project codename: Project Redline) is a private, single-user personal command center and academic operating system. The user-facing product name is **Forward** and the guiding philosophy is **“Be curious, not judgmental.”**
 
-The product loop is:
+The fundamental operational loop is:
 
 > Capture fast → organize automatically → show what matters → reduce decisions → keep automation reversible.
 
-This document defines contracts for later phases. It does not authorize implementing those phases ahead of the roadmap.
+This document defines the authoritative architectural contracts, visual design foundations, data boundaries, and security triggers for all future phases. Phase-by-phase implementation sequencing is maintained in `docs/ROADMAP.md`.
 
-## Core boundaries
+---
 
-- App Router pages compose features and default to Server Components.
-- `src/features/<feature>` owns feature-specific UI and pure domain behavior.
-- `src/components` owns reusable, domain-neutral interface primitives.
-- `src/services/<domain>` owns normal persistence; repositories authenticate every call.
-- `src/services/integrations/<provider>` contains external-provider adapters, credentials, and translation boundaries.
-- Model/provider output, browser input, Server Action input, and webhook input are untrusted.
-- Supabase RLS is the data security boundary. Application owner filters are defense in depth.
-- Tasks, work sessions, native events, external events, and Blackboard records remain distinct persistence concepts even when Calendar renders them together.
+## 1. Core Architectural Boundaries
 
-## Design, theme, and motion
+- **Single-User Architecture:** Built exclusively for one person. Do not introduce multi-tenant isolation, organizations, team sharing, SaaS billing, or generic workflow engine abstractions.
+- **Server-First Composition:** Next.js App Router pages default to Server Components. Small client boundaries (`"use client"`) are introduced only where browser interaction, local device state, or Web APIs require them.
+- **Strict Domain Separation:**
+  - `src/components/ui` owns domain-neutral visual and layout primitives.
+  - `src/components/shell` owns application frame, navigation, and global trigger composition.
+  - `src/features/<feature>` owns feature-specific UI, forms, and pure domain logic.
+  - `src/services/<domain>` owns data persistence and repositories. Repositories authenticate every call via `src/services/supabase/request.ts`.
+  - `src/services/integrations/<provider>` contains external-provider adapters, crypto boundaries, and format translation.
+- **Untrusted Input Boundaries:** Model outputs, browser payloads, Server Action inputs, and external webhooks/feeds are untrusted and must be validated before domain consumption.
+- **Security & RLS:** Supabase Row Level Security (RLS) is the security boundary. Application-level user ID filters are defense in depth.
+- **Distinct Persistence Entities:** Tasks, task work sessions, native calendar events, external calendar mirrors, and Blackboard records remain strictly distinct persistence domains even when presented together on unified views.
 
-The locked direction is linear, cool, futuristic glass: blue-black/graphite/slate foundations, cobalt primary, cyan secondary, restrained violet, rare muted gold, and red primarily for error or destruction.
+---
 
-`src/styles/tokens.css` is the canonical semantic visual contract. It defines `background`, `surface`, `surface-raised`, `surface-glass`, `sidebar`, `panel`, `input`, `border`, `border-strong`, three text levels, accent states, focus, status colors, shadows, and glass controls. Compatibility aliases keep the current UI working while Qwen migrates feature CSS. Feature styles must not embed a permanent palette.
+## 2. Visual Identity & Liquid-Glass Design Direction
 
-`src/lib/theme/contract.ts` reserves named presets and preference dimensions. Only mode and accent are currently exposed. Later controls must remain device-local, validate stored values, and apply root attributes before paint through the existing bootstrap. Do not read local storage during server render. Dark Reader-injected attributes are not an application hydration bug unless reproduced with extensions disabled.
+### Visual Atmosphere & Palette
+Forward uses a **deep, dimensional blue visual identity**. The default dark aesthetic is dark, cool, and layered (slightly darker than modern streaming/cinematic interfaces):
+- **Background (Level 0):** Very dark navy / blue-black (`oklch(13.5% 0.025 255)`).
+- **Elevated Background (Level 1):** Dark navy-blue (`oklch(16.5% 0.028 255)`).
+- **Primary Surfaces (Level 2):** Subtle translucent navy (`oklch(19.5% 0.03 255 / 76%)`) with backdrop blur.
+- **Highlights & Accents:** Restrained electric/cobalt blue (`oklch(61% 0.225 255)`) for focus, active indicators, and selection.
+- **Typography:** High-contrast cool white / soft white primary text (`oklch(96% 0.012 255)`), cool desaturated blue-gray secondary text (`oklch(74% 0.025 255)`), and muted tertiary text (`oklch(60% 0.025 255)`).
+- **Semantic Statuses:** Success (emerald green), Warning (warm amber), Info (sky blue), Destructive/Error (crimson red). Destructive red is strictly reserved for errors and irreversible actions to maintain a calming, low-anxiety workspace.
 
-`src/styles/motion.css` is the reference motion primitive. Prefer opacity and transforms; use the spring timing token for polish and avoid layout animation unless an interaction genuinely requires it. `data-motion="reduced" | "off"` and `prefers-reduced-motion` are both honored. Broad dialog, sheet, palette, list, calendar, focus, and Goldfish animation belongs to P1/P9.
+### Liquid-Glass Primitives
+Inspired by Apple's liquid-glass design language, Forward applies layered translucency to create visual hierarchy rather than making all elements uniformly transparent:
+- **Translucent Glass:** Applied to floating navigation bars, modal dialog shells, command palettes, dropdown menus, and interactive overlays.
+- **Solid / Opaque Surfaces:** Applied to content-dense writing surfaces (Markdown editor) and long task lists to guarantee high contrast and eliminate eye strain.
+- **Glass Characteristics:** Layered backdrop blur (`18px – 24px`), subtle surface reflections, thin illuminated upper edge borders (`oklch(90% 0.025 255 / 12%)`), faint inner shadows, and soft ambient drop shadows.
 
-## Universal capture
+### Depth Hierarchy
+The interface is structured into six discrete depth planes:
+- **Level 0 (Ambient Canvas):** Application viewport with subtle radial ambient gradients and soft blurred blue light sources.
+- **Level 1 (Content Surfaces):** Main scrollable layout frames and dashboard backdrops.
+- **Level 2 (Cards & Widgets):** Task rows, calendar containers, note list items, and dashboard cards.
+- **Level 3 (Interactive Floating Controls):** Floating quick-action buttons, active tab indicators, and search triggers.
+- **Level 4 (Popovers & Tooltips):** Dropdown selectors, date pickers, and context menus.
+- **Level 5 (Modals & Command Surfaces):** Command palette (`Ctrl+K`), Universal Capture overlay (`Ctrl+Shift+Space`), task editor modal, and notification drawer.
 
-`src/features/capture/capture-domain.ts` separates immutable raw input from interpretation and committed objects. Supported raw kinds are text, pasted text, image, screenshot, photo, file, and link. The mandatory lifecycle is:
+### Motion System & Microinteractions
+Motion in Forward is smooth, responsive, physically coherent, and spring-like:
+- **Composited Primitives:** Motion uses GPU-composited `transform`, `opacity`, and CSS `filter`. Indiscriminate layout animation (`width`, `height`, `margin`) is prohibited.
+- **Spring Curve:** Uses `--motion-spring` (`linear(0, 0.006, 0.025 2.8%, ... 1)`) for natural settles and `--motion-fast` (`140ms`) for crisp interaction feedback.
+- **Microinteractions:** Button press compression (`scale(0.985)`), subtle card lift on hover, smooth checkbox completion morphing, and surface edge illumination on focus.
+- **Accessibility & Reduced Motion:** `prefers-reduced-motion` and `data-motion="reduced"` clamp durations to instant/minimal transitions (`1ms – 80ms`) with zero spatial displacement.
+
+### Performance & Mobile Accessibility
+- Avoid excessive simultaneous `backdrop-filter` nodes on mobile viewports.
+- Mobile iPhone Safari and standalone PWA support touch targets (minimum 44x44px), bottom safe-area insets (`env(safe-area-inset-bottom)`), and responsive floating bottom navigation.
+
+---
+
+## 3. Universal Capture & Reversible Operations
+
+`src/features/capture/capture-domain.ts` and `src/features/operations/operation-domain.ts` govern capture lifecycle:
 
 ```text
 CAPTURE → INTERPRET → PROPOSE → CONFIRM → COMMIT → UNDO
 ```
 
-Basic text capture creates an Inbox capture without AI. P2 persists raw capture, interpretations, proposals, and operation-batch references in separate owner-scoped tables; inferred fields never overwrite raw evidence. The first shipped interpretation is deliberately deterministic: the first useful text line becomes an editable task proposal. Confirmation atomically creates an ordinary Inbox task plus a server-owned inverse. Undo is idempotent, expires after ten minutes, and refuses to remove a task that changed or gained children after commit.
+1. **Capture:** Raw input is stored immutably in `captures` table (text, pasted text, link, and future image/screenshot uploads).
+2. **Interpret:** Deterministic parser extracts task title, due dates, and priority without requiring AI.
+3. **Propose & Confirm:** User reviews editable proposal card before any database entity is created.
+4. **Commit:** Single database transaction creates the Inbox task and records an operation batch.
+5. **Undo:** Idempotent 10-minute undo window via server-authored inverse actions; refuses deletion if the task was modified or gained subtasks after creation.
 
-## AI actions and permission
+---
 
-`src/services/integrations/ai/action-contract.ts` is the narrow model-output boundary. It accepts only the listed application actions, parses unknown JSON, validates deterministic fields, and returns typed proposals. It has no database client and no SQL escape hatch. Execution code must revalidate entity ownership and domain invariants at the application action/repository boundary.
+## 4. Calendar, Tasks & Multi-Source Scheduling
 
-`src/services/integrations/ai/permission-contract.ts` defines:
+### Multi-Source Projections
+`src/features/calendar/calendar-source-contract.ts` defines five distinct calendar projections:
+1. **Task Deadlines:** Due date / timed deadline markers. Clicking opens the task editor.
+2. **Task Work Sessions:** Dedicated planned work blocks from `task_work_sessions`. A task may own multiple work sessions.
+3. **Forward Native Events:** User-created calendar events (`source = 'life_os'`) with start/end instants.
+4. **External Calendar Mirrors:** Read-only mirrored events from Google Calendar and future CalDAV providers.
+5. **School Timetable Meetings:** Dynamic recurring class occurrences projected at read-time from `course_meetings`.
 
-- `suggest_only`
-- `ask_before_changing` — default
-- `trusted_automation`
+### Tasks are NOT Calendar Events
+A task may carry a deadline, scheduled start/end, and multiple work sessions without becoming a `calendar_events` row. Dragging or rescheduling a task on the calendar updates task/session timestamps; it never creates or mutates calendar event records.
 
-Image and screenshot ingestion always follows Analyze → Proposal → Review → Add All by default. “Trusted” does not bypass validation, RLS, external-provider capabilities, or cloud privacy consent.
+---
 
-`src/features/operations/operation-domain.ts` defines reversible batches. Commit the operation, its steps, and server-owned inverse data atomically. Undo is idempotent by batch ID and replays complete inverses in reverse order. Never trust inverse payloads supplied by an AI model or browser.
+## 5. Deterministic Planning & Scheduling Engine (P8)
 
-## Calendar domains
+`src/features/planning/scheduler-contract.ts` defines the mathematical planning engine:
+- **Inputs:** Fixed calendar commitments, protected time blocks, preferred work windows, task deadlines, estimated durations, priorities, earliest start times, splittability, break buffers, and minimum session lengths.
+- **Engine Rules:** The core scheduler is 100% deterministic, testable, and pure. It operates without database or LLM dependencies, calculating optimal non-overlapping work sessions in available free-time slots.
+- **UX Integration:** Powers "Plan My Day" and "What Should I Do Now?" interfaces. Proposals are presented for one-click user review before persisting to `task_work_sessions`.
 
-`src/features/calendar/calendar-source-contract.ts` names five distinct projections:
+---
 
-1. task deadline
-2. task work session
-3. Forward native event
-4. external fixed event
-5. Blackboard event
+## 6. Focus & Goldfish Mode (P9)
 
-A task owns zero or more persisted work sessions in `task_work_sessions`. A deadline is not a work session, and existing single-schedule task fields remain compatibility-only. Fixed external commitments are not silently moved. Provider records retain provider and external IDs.
+Goldfish Mode is an explicitly activated, reversible presentation filter:
+- **Purpose:** Eliminates cognitive overload and backlog anxiety by isolating today's immediate commitments, hard deadlines, and current/next work session.
+- **Zero Guilt Design:** Hides backlog counters, overdue warnings, and non-essential clutter.
+- **Pure Presentation:** Filters data at the UI layer without altering, postponing, or deleting underlying task/calendar records.
 
-The existing `src/features/calendar/calendar-domain.ts` is the current reference read-model and rescheduling implementation. It keeps task deadlines, a task’s current scheduled interval, native events, and course meetings separate.
+---
 
-## External calendars
+## 7. School & Blackboard Ingestion Flow
 
-`src/services/integrations/calendar/provider-contract.ts` is capability-aware. Google, Microsoft, iCloud where feasible, and generic ICS/CalDAV adapters may support different subsets of listing, mutation, incremental sync, and change watching. The UI must check declared capability and access mode rather than infer parity.
+### Blackboard Data Flow
+To protect data integrity, Blackboard sync **never silently creates native application tasks**:
 
-P3 persists provider-neutral account, calendar, and event mirrors without claiming that any provider is connected. Calendar reads only connected and selected sources, preserves provider identity and revision, and treats every mirrored event as fixed. The connections page reports capabilities stored for a real account; it does not advertise unavailable actions or simulate OAuth.
+```text
+External Blackboard Feed / Item
+        ↓
+Source-Aware `external_records`
+        ↓
+Universal Capture Proposal
+        ↓
+User Review & Confirmation
+        ↓
+Native Redline Task (Created only upon explicit confirmation)
+```
 
-OAuth callback state, tokens, refresh tokens, and webhooks are security-sensitive. Tokens stay encrypted server-side, callback state is bound to the authenticated session, redirect URIs are exact, refresh is serialized, logs are redacted, and external identity uses persistent provider IDs. Provider SDK objects do not escape adapters.
+- **iCal Calendar Feed:** Encrypted AES-256-GCM storage, strict DNS pinning, public IP verification, redirect re-validation, and defensive iCal parsing.
+- **Announcements & Content:** The unused `announcements` table is technical debt. Any future authenticated school content ingestion must not rely on brittle scraping.
 
-The first provider boundary is Google Calendar with read-only authorization. One-time state is owner-bound, hashed at rest, expires after ten minutes, and atomically consumed; the PKCE verifier and token envelope are AES-256-GCM encrypted. `APP_ORIGIN` supplies the exact callback origin rather than trusting request headers. Calendar discovery, token refresh, and event synchronization remain subsequent P3 work and must use the account’s declared capabilities.
+---
 
-## Blackboard
+## 8. Notion Knowledge Integration (P5)
 
-Blackboard is calendar-only and initially one-way. The private feed credential is AES-256-GCM encrypted at rest and never returned to the browser. Safe retrieval requires validated HTTPS, public DNS answers only, DNS pinning, manual revalidated redirects, time/size/content limits, and redacted diagnostics.
+`src/services/integrations/notion/provider-contract.ts` defines the staged integration:
+- **Stage 1 (Outbound Export):** Export Forward Markdown notes to Notion pages with encrypted integration tokens, persisting `remotePageId`, `remoteUrl`, and SHA-256 content fingerprints.
+- **Stage 2 (Update Sync):** Sync local Markdown updates to existing remote Notion pages.
+- **Stage 3 (Selective Two-Way Sync):** Ingest remote Notion page updates with loop suppression and conflict detection. Forward remains the authoritative operational master.
 
-Synchronization writes source-aware `external_records`; it does not create or update ordinary tasks. Existing historical `task_id` links are preserved but not acted upon. The already-applied database migration contains an unused `announcements` table; treat it as technical debt, do not build announcement/grade/message/document synchronization, and remove it only through a separately reviewed additive migration.
+---
 
-## Notion
+## 9. Local AI Companion & Cloud Privacy
 
-Forward is the operational system of record. Notion is an optional knowledge/archive destination, never a required backend. Default direction is Forward → Notion; selective two-way behavior is limited to explicit knowledge/page cases.
+### Local Companion Architecture (Transport & Security Undecided)
+- **Product Requirement:** Local Companion support is a confirmed future requirement to leverage local models (Local Qwen, OpenAI-compatible local endpoints, and optional Ollama / LM Studio compatibility) when the user's computer is available.
+- **Zero Cloud Dependence:** Redline is cloud-hosted and MUST continue functioning completely normally when the companion is offline, disconnected, or unavailable.
+- **Security Invariants:** Secure pairing, key revocation, origin validation, and explicit permission boundaries remain mandatory requirements.
+- **Transport Mechanism Undecided:** The specific transport architecture (e.g. browser loopback, WebSocket, WebRTC, relay server, localhost bridge, browser extension, or companion tunnel) is intentionally UNDECIDED and uncommitted at this stage.
+- **Explicit Review Gate:** *Local Companion transport and security architecture requires Codex architectural review before implementation.*
+- **Vision Worker Memory Policy:** On-demand wake, 60–180s idle timeout, and automatic memory unload on system pressure.
 
-`src/services/integrations/notion/provider-contract.ts` requires persistent local/remote IDs, remote revision tracking, and an origin fingerprint for loop suppression. Never match by title. “Send/Open/Create/Attach Knowledge Page” actions belong to P5.
+### Cloud AI Privacy Gate
+- **Cloud Fallback Modes:** `off`, `ask_each_time` (default), `automatic_on_low_confidence`.
+- **Explicit Privacy Gate:** Private tasks, notes, or uploaded screenshots/images are NEVER transferred to cloud LLMs without explicit, interactive user consent.
 
-## Local and cloud AI
+---
 
-`src/services/integrations/ai/provider-contract.ts` separates provider, model, role, and capabilities. Text, vision, embeddings, tools, and structured output are optional capabilities; no model identity is hard-coded. Core capture, CRUD, Calendar, and planning inputs must remain useful with AI disabled.
+## 10. Notifications Architecture
 
-The local vision role is separate from the text role. A P6/P7 companion should wake a lightweight worker on demand, keep it warm for a configurable 60–180 seconds, and unload it after idle or on memory pressure. Do not load another model when memory pressure exceeds the configured threshold.
+- **In-App Notification Center:** Shell tray displaying unread/read state, timestamped alerts, and safe deep links.
+- **Delivery Channels:** Web Push (VAPID) for desktop browsers and installed standalone iOS PWA.
+- **Deduplication & Safety:** Deterministic dedupe keys (`${type}:${sourceId}:${revision}`), URL sanitization (`safeDeepLink`), and quiet hours suppression (`isQuietHours`).
 
-A hosted deployment cannot reach the user’s `localhost`. The intended minimal path is browser → authenticated user-paired local companion. The companion binds to loopback by default, uses an ephemeral scoped pairing token, validates origin, exposes a narrow capability API, and never accepts arbitrary commands.
+---
 
-Cloud multimodal fallback is optional and provider-configurable. Modes are Off, Ask Each Time (default), and Automatic on Low Confidence. Private images always require explicit confirmation before cloud transfer regardless of mode. Do not assume any provider’s free tier is permanent.
+## 11. Security Review Triggers (Codex Escalation)
 
-## Deterministic planning
-
-`src/features/planning/scheduler-contract.ts` defines fixed commitments, preferred windows, deadlines, duration, priority, earliest start, splitting, minimum session, breaks, buffers, protected time, and stable ordering. AI may suggest priority but does not place sessions directly.
-
-The P8 scheduler must be a pure, versioned, deterministic engine over validated inputs. It returns proposals plus explicit unscheduled reasons. It cannot mutate fixed external commitments, cross protected time, or commit without the operation/permission flow.
-
-## Focus and Goldfish Mode
-
-Goldfish Mode is an explicitly activated, reversible presentation filter. It preserves all data, shows hard deadlines and fixed commitments, limits next actions, hides nonessential clutter, and never uses guilt language. A rare text-only “BELIEVE” easter egg is acceptable; copyrighted show artwork or heavy imitation is not.
-
-## Security review triggers
-
-Codex review is required before merging work that changes:
-
-- auth/session/protected-route behavior or RLS;
-- migrations, ownership triggers, or service-role use;
-- URL fetch, DNS, redirects, webhook or OAuth behavior;
-- encryption, credential storage, redaction, or local-companion pairing;
-- AI schemas, mutation permissions, cloud image transfer, or operation undo;
-- calendar source identity, external mutation, or deterministic scheduler rules.
+Codex review is mandatory before merging changes to:
+1. **Authentication, RLS & Session Boundaries:** Supabase Auth, SSR cookie refresh, or table RLS policies.
+2. **Database Migrations & Triggers:** New tables, foreign key constraints, or owner backfill RPCs.
+3. **SSRF & Network Fetch Defenses:** `safe-fetch.ts`, DNS pinning, IP classification, or OAuth redirect handlers.
+4. **Cryptographic Storage & Keys:** AES-256-GCM credential envelopes and token encryption.
+5. **Local Companion Transport & Security Architecture:** Transport protocol, pairing token exchanges, origin verification, and cloud data transfer consent gates.
+6. **Two-Way Synchronization & Recurrence Semantics:** Notion two-way sync loop suppression, Google Calendar writeback, or recurring task data models.

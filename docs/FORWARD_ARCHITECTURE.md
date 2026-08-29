@@ -264,10 +264,172 @@ Normal synchronization, proposal review, commit, and undo use `requireAuthentica
 
 ## 8. Notion Knowledge Integration (P5)
 
-`src/services/integrations/notion/provider-contract.ts` defines the staged integration:
-- **Stage 1 (Outbound Export):** Export Forward Markdown notes to Notion pages with encrypted integration tokens, persisting `remotePageId`, `remoteUrl`, and SHA-256 content fingerprints.
-- **Stage 2 (Update Sync):** Sync local Markdown updates to existing remote Notion pages.
-- **Stage 3 (Selective Two-Way Sync):** Ingest remote Notion page updates with loop suppression and conflict detection. Forward remains the authoritative operational master.
+### 8.1 Decision and authority model
+
+Phase 8B selects **Redline-authoritative synchronization with per-note selective Notion import**. It is not symmetric ownership and it does not attempt collaborative merge. Every link has one of two directions:
+
+- `forward_to_notion`: Redline title/body changes may be pushed. A remote divergence is shown for review and is never imported or overwritten automatically.
+- `selective_two_way`: the user has opted this note into two-way synchronization. A supported remote-only change may be imported when the Redline note has not changed since the common baseline. Simultaneous changes pause synchronization for explicit resolution.
+
+The native `notes` row remains the operational source of truth and is always editable without Notion. Task/course relationships, attachment ownership, archive state, offline mutations, search, and normal Notes reads never depend on Notion. Disconnecting or losing Notion must not make Notes unavailable.
+
+Only the Redline note title and Markdown body participate. Task/course relationships and attachments remain Redline-only. The Notion page title is initialized from the Redline title at export for discoverability but is Notion-owned display metadata thereafter; the synchronized Redline title is the first heading inside the managed content root. This prevents a non-transactional page-property update from being mistaken for an atomic content update.
+
+### 8.2 Managed remote boundary and transformation contract
+
+Each linked page contains one Forward-managed top-level toggle block. `notion_page_links.remote_root_block_id` identifies the active toggle by persistent block ID. Its label contains an exact versioned Forward link/operation marker; its first child is a `heading_1` carrying the Redline title and its remaining children are the body. Users may edit supported descendants of the active root. Content elsewhere on the Notion page is Notion-only, is excluded from fingerprints, and is never imported, moved, archived, or deleted by Forward.
+
+The versioned canonical projection supports:
+
+| Redline Markdown | Notion representation | Round-trip rule |
+| --- | --- | --- |
+| ATX headings `#` through `###` | `heading_1` through `heading_3` | Exact level; `####` through `######` are unsupported rather than flattened. |
+| Paragraphs | `paragraph` | Plain text and supported inline annotations only. |
+| Bullet lists | `bulleted_list_item` | Ordered child sequence, nesting to three levels. |
+| Numbered lists | `numbered_list_item` | Ordered child sequence, nesting to three levels. |
+| Markdown checklists | `to_do` | Checked state round-trips as literal Markdown; interactive Redline checklist UI remains deferred to Phase 12. |
+| Links | Rich-text link | Only validated `https`, `http`, and `mailto` targets; unsafe or malformed schemes block synchronization. |
+| Emphasis | Bold, italic, and strikethrough annotations | Nested combinations are canonicalized in a fixed annotation order. |
+| Inline/fenced code | Code annotation / `code` block | Fenced code keeps text exactly; unsupported language labels use Notion `plain text` while retaining the Markdown language in the canonical snapshot. |
+| Quotes | `quote` | One Markdown blockquote becomes one quote block; nested non-quote children are unsupported. |
+| Attachments | No synchronized representation | Redline private attachments and Notion file/image/PDF blocks remain provider-local and are not copied or fingerprinted. |
+
+HTML, tables, columns, databases/data sources, synced blocks, embeds, bookmarks, equations, callouts, toggles nested inside the managed root, child pages, media/file blocks, unsupported API block types, list nesting deeper than three levels, and any lossy rich-text construct are outside the round-trip subset. Unsupported local Markdown fails validation before any Notion request. Unsupported content inside the active remote root sets `unsupported_remote_content`, records bounded block IDs/types for explanation, and performs neither import nor push. The user must move it outside the managed root or convert it. This is intentionally fail-closed: arbitrary Notion content is never represented by a fake placeholder and is never silently deleted.
+
+The converter produces a neutral canonical AST with normalized Unicode, `\n` line endings, explicit empty/null fields, ordered children, normalized safe links, and a converter version. SHA-256 is computed over version plus deterministic JSON encoding of that AST. Local Markdown and the equivalent Notion subtree therefore produce comparable semantic fingerprints without relying on provider serialization.
+
+### 8.3 Persistent identity, revisions, and provenance
+
+Stable link identity is the tuple of the existing owner-scoped `notes.id`, `integration_accounts.id`, Notion workspace ID, and Notion page ID. `remote_root_block_id` is the explicit pointer to the currently active content generation and changes only through the verified swap transaction; it is not a second logical page identity. Titles, URLs, search results, and content hashes are never identity. The current `NotionPageLink` type is only a cross-phase sketch; Phase 8 implementation must align it to the approved persisted contract rather than treating it as storage.
+
+The provider revision is an opaque observation value built from the page ID/trash state/page `last_edited_time` plus the active root's recursively ordered block IDs, trash states, and `last_edited_time` values. It is useful for a fast unchanged check and stale-response rejection, but it is not correctness authority: page timestamps may also move when Notion-only content changes. Canonical managed-content fingerprints decide whether synchronized content changed.
+
+For each link persist:
+
+- `base_snapshot`, `base_local_fingerprint`, and `base_remote_fingerprint`: the last common title/body projection and the two canonical fingerprints accepted in one successful synchronization transaction;
+- `last_observed_local_fingerprint` and `last_observed_remote_fingerprint`: what the latest completed comparison actually read;
+- `last_pushed_fingerprint`: the verified remote fingerprint produced by Forward's latest completed write, used as explicit self-write provenance;
+- `last_remote_revision`: the latest fully fetched opaque provider revision;
+- `last_attempt_at`, `last_success_at`, status, and bounded safe error code;
+- active/pending attempt and root IDs for crash recovery.
+
+`base_*` advances only after a complete verified push, a complete atomic import, an unchanged/converged observation, or explicit conflict resolution. A fetch error, unsupported conversion, partial remote write, or stale comparison never advances it.
+
+### 8.4 Exact change and loop-suppression algorithm
+
+Every attempt locks or compare-and-swaps the owner-scoped link, reads the current note, fetches the complete active remote subtree, validates both projections, and computes:
+
+```text
+local_changed  = local_now_fingerprint  != base_local_fingerprint
+remote_changed = remote_now_fingerprint != base_remote_fingerprint
+```
+
+The transition matrix is fixed:
+
+| Local | Remote | Result |
+| --- | --- | --- |
+| unchanged | unchanged | Store the latest safe revision/observation time and remain `synced`. |
+| changed | unchanged | Stage and verify an outbound generation, then advance both baselines. |
+| unchanged | changed | In `selective_two_way`, import atomically; in `forward_to_notion`, set `remote_pending` and require an explicit choice. |
+| changed | changed | If the two current canonical fingerprints are equal, treat them as independently converged and advance the baseline. Otherwise persist a conflict and stop. |
+
+A remote revision change with an unchanged managed fingerprint is metadata/outside-root churn. A remote fingerprint equal to `last_pushed_fingerprint` is Forward's verified write. In both cases Forward updates observation metadata without importing or writing back. After a push, Forward re-reads the new active root and atomically records its actual fingerprint and revision with the unchanged local fingerprint. A later detector therefore sees neither side changed, even though Notion issued a new revision. After an import, the owner-checked transaction updates the note and the two baselines together; any note-update trigger that marks local work pending is overwritten in that same transaction. These are the loop-suppression rules—timestamps or webhook authorship alone are never used.
+
+Changing the converter version invalidates comparison compatibility. Links enter `upgrade_review`; implementation must preview/re-baseline them explicitly and may not interpret a version change as user content.
+
+### 8.5 Conflict persistence and resolution
+
+When both fingerprints differ from their bases and from each other, synchronization creates or refreshes exactly one open `notion_sync_conflicts` row and sets the link to `conflict`. The row stores the last common snapshot, current Redline snapshot, current supported Notion snapshot, all three fingerprints, the remote revision, and timestamps. The ordinary note is not duplicated or overwritten. The future UI presents a three-way diff with exactly two resolution actions:
+
+1. **Keep Redline:** re-fetch and prove the remote fingerprint/revision still matches the conflict, then use the safe outbound generation swap.
+2. **Use Notion:** prove the local fingerprint still matches the conflict, update the note through an owner-checked transaction, and reset both baselines to the imported canonical projection.
+
+The losing snapshot remains in the resolved conflict row for recovery/audit. Resolution records the selected action, resulting fingerprint, resolver, and time. If either side changed after the conflict snapshot, the action fails stale, refreshes the conflict, and asks the user again. Synchronization resumes only after the chosen content is verified and baseline advancement commits; there is no last-write-wins path.
+
+### 8.6 Synchronization triggers
+
+Phase 8B uses bounded pull-on-use plus best-effort outbound debounce:
+
+- Every native note save, including offline replay, commits locally first and durably marks a linked note `local_pending`. Notion failure cannot fail or roll back the note save.
+- After a successful 900 ms Notes autosave, a separate client request may start a five-second quiet-period outbound attempt. Navigating away can cancel that convenience request because the durable link state remains pending.
+- Opening a linked note triggers reconciliation when its last attempt is older than 15 minutes. `Sync now` always performs one explicit per-note attempt.
+- Workspace/application open may process at most 20 stale linked notes or 30 seconds of work, whichever comes first, and records remaining links as pending for a later open/manual run.
+- There is no continuous browser polling, service-worker provider access, scheduled background worker, or cron dependency in Phase 8B.
+
+Notion webhooks are deliberately rejected for the initial implementation. They are aggregated change signals that still require a full authenticated fetch and introduce a public verification, replay, ordering, subscription, and revocation boundary. For one user, bounded pull-on-use gives reliable reconciliation with much less infrastructure. A later webhook phase may only enqueue the same idempotent reconciliation path; it may not mutate notes from the webhook request.
+
+### 8.7 Safe remote writes and idempotency
+
+Notion block replacement is multi-request and non-transactional, so Forward never archives the current active root before a replacement is complete:
+
+1. Create a `sync_runs` row and claim the account's single-active-run lease. Persist a UUID attempt ID on the link before calling Notion. A crashed run may be reclaimed only after its bounded lease expires; the replacement run must first reconcile any pending root marker.
+2. Re-read the note and active root; stop if the expected baselines no longer apply.
+3. Append a new top-level managed toggle whose exact marker contains link ID, converter version, and attempt ID. Append/chunk all converted children within current provider limits.
+4. Read the staged root back and require its canonical fingerprint to equal the intended local fingerprint.
+5. Re-read the old active root. If it changed during staging, keep it active, archive only the staged root when safe, and create a conflict.
+6. In one owner-scoped compare-and-swap transaction, require the same note fingerprint and pending attempt, switch `remote_root_block_id` to the staged root, and advance the verified baselines/revision.
+7. Only then archive the old root. If cleanup fails, the new root remains active and the old complete version remains recoverable; record `cleanup_pending` and retry cleanup idempotently.
+
+This generation swap may briefly show two complete managed roots, but cannot leave the only remote copy half-deleted. The attempt marker lets a retry find and resume an already-created staged root after a lost response. Zero matches permits a retry after bounded observation delay; more than one match is `ambiguous_remote_generation` and requires review. The same mechanism covers update and conflict-resolution retries.
+
+Initial export first reserves a unique link and attempt ID, then creates the page with the exact marker and initial managed root in the create request. If the create response is lost, bounded discovery may inspect pages created by the same connection/parent during that attempt and adopt only one exact link/attempt marker; it never matches by title. No match after the bounded recovery window becomes an error rather than an automatic second page. Database uniqueness on note and remote page, the active account run constraint, pending attempt compare-and-swap, and exact markers make export, update, import, reconnect, resolution, and duplicate execution idempotent.
+
+### 8.8 Deletion, archival, movement, and disconnect
+
+- **Redline archive:** set `local_archived` and pause synchronization. Do not archive or delete Notion content. The user may explicitly unlink or separately confirm archiving the Notion page.
+- **Future hard local delete:** a live link uses `on delete restrict`; the user must unlink/retire the link first. Unlinking preserves both the note and remote page and records `retired_at`.
+- **Notion page/root trashed or deleted:** set `remote_missing`, preserve the note and baseline/conflict history, and offer explicit recreate-or-unlink actions. Never recreate automatically.
+- **Notion page moved:** page ID is stable, so continue after validating the workspace, account access, and active root parent; refresh the stored URL. Loss of access is not treated as deletion.
+- **Notion page duplicated:** the duplicate has a different page ID and is ignored. Forward never adopts it because its copied title/marker/content resembles a link. Relinking requires explicit user confirmation and uniqueness checks.
+- **Managed root moved, duplicated, or marker edited:** fail closed with `remote_structure_changed`; do not adopt a lookalike block or overwrite the page.
+- **Disconnect or revoked access:** preserve link, snapshots, conflicts, and local editing. Mark the account/link `disconnected` or `attention`; reconnect only by the same owner and workspace/account identity. A 401/403 never triggers destructive cleanup or identity replacement.
+
+Remote cascading deletion is never automatic. The only operation that trashes a Notion page is a separately confirmed user action that revalidates the exact stored page/account/root identity immediately before mutation.
+
+### 8.9 Rate limits, failures, and recovery
+
+Use the existing per-account active-run constraint rather than a general job system. The adapter limits itself to two requests per second per Notion account, chunks block requests within current Notion limits, applies a per-request timeout, and stops at the application-open run budget. HTTP 429 must honor `Retry-After`. Network errors, 408, 429, and 5xx use full-jitter exponential backoff with at most five attempts and a 60-second per-delay cap; an explicit `Retry-After` may extend a delay up to five minutes. Validation failures and 400/401/403/404 responses are permanent for that attempt; 401/403 mark attention/revoked and 404 triggers the remote-missing/access check.
+
+Failures update only link/account/run error state with bounded safe codes. They never mutate or erase the local note, advance baselines, clear identity, report Notes as unsaved, or block later ordinary edits. A partial staged root is recovered by pending attempt/marker. A partial import is impossible because note update, provenance, conflict resolution, and baseline advancement are one database transaction.
+
+### 8.10 Authentication and trust boundaries
+
+Notion credentials reuse `integration_accounts.encrypted_credential` and the shared AES-256-GCM envelope in `src/services/integrations/credential.ts`; there is no separate `integration_credentials` table in the current repository. Tokens are selected/decrypted only in server-only provider code and are never returned by status/link reads. All normal link, sync, import, and resolution paths use `requireAuthenticatedSupabase()`, request-scoped cookies, RLS, owner filters, and owner-equality checks. Service-role access is not permitted.
+
+Phase 8A must request only the Notion content capabilities required for the chosen parent/pages. If OAuth is used, state is random, stored only as a SHA-256 hash with encrypted verifier/material, scoped to owner/provider/expiry, and consumed once, following the reusable security lesson—not the data semantics—of Google Calendar. Token/configuration mutations require same-origin/CSRF protection. Integration-token setup has no fake OAuth flow.
+
+Provider responses and Notion content are untrusted. Validate UUID identities, workspace/account association, page/root parentage, pagination bounds, block depth/count/size, Unicode, link schemes, and API version before conversion. Never render remote HTML, follow remote URLs during synchronization, expose signed Redline attachment URLs, or place provider error bodies/tokens in client-visible errors. Pin a tested Notion API version; a version upgrade requires converter fixtures and an explicit compatibility review.
+
+### 8.11 Database implications (documentation only — no migration in this review)
+
+Phase 8B requires a separately reviewed migration. This architecture review writes no SQL.
+
+| Object | Purpose and exact contract |
+| --- | --- |
+| `integration_accounts` | Existing owner-scoped source of truth for the Notion connection and encrypted credential, status, sync state, last success, and safe error fields. Keep the existing `(user_id,provider)` uniqueness and owner/status indexes/RLS. Disconnect preserves the row. Active links restrict ordinary account deletion; an explicit full-user purge deletes conflicts, links, then the account in that order. |
+| `notion_page_links` (new) | Owner-scoped source of truth for one note/page identity and current sync state. Fields: ID, owner, `account_id`, `note_id`, workspace/page/root IDs, remote URL, direction, converter version, base snapshot/fingerprints, last observed local/remote fingerprints, last pushed fingerprint, last remote revision, active/pending attempt/root IDs, status/error, attempt/success timestamps, `retired_at`, and timestamps. FKs: owner cascades only for an explicit full-user purge; account/note are `on delete restrict`. Partial unique `(user_id,note_id) where retired_at is null` and `(account_id,remote_page_id) where retired_at is null`; nonblank/UUID/status/direction/hash checks. Index `(user_id,status,last_attempt_at)`. RLS is owner-only, with database owner-equality checks for account and note. Retired rows retain provenance and no longer participate in sync. |
+| `notion_sync_conflicts` (new) | Owner-scoped source of truth for unresolved divergence: durable, bounded last-common/local/remote title/body snapshots plus fingerprints, remote revision, open/resolved status, resolution/result fingerprint, resolver, and timestamps. FK to link is `on delete restrict` until explicit history purge. Partial unique one open conflict per link; index `(user_id,status,created_at desc)`. Owner-only RLS and link-owner enforcement. Losing content is retained after resolution; only explicit history/full-user purge deletes it. |
+| `sync_runs` | Existing owner-scoped diagnostic/provenance record, not content or link truth. Reuse account FK (`on delete cascade` after links are removed), idempotency uniqueness, counts, status/error, and owner RLS/indexes. Add bounded `lease_expires_at` and an owner/account/status/lease claim rule so a crashed `running` row cannot block forever. A run may cover one explicit link or the bounded application-open batch. Completed runs retain history until explicit retention/full-user purge. No new queue table. |
+| `sync_changes` | Existing owner-scoped audit evidence, not sync-state truth. Add nullable owner-checked `notion_page_link_id on delete set null` and bounded `details jsonb`; extend change types for `pushed`, `imported`, `conflict`, `unsupported`, `relinked`, and `skipped`. Preserve existing run FK cascade, owner RLS, and add `(notion_page_link_id,created_at desc)` for provenance. Do not store tokens, raw provider responses, or attachment URLs. Link retirement preserves audit rows; explicit run/history purge may delete them. |
+| `notes` | Existing owner-scoped canonical content source with current RLS, note/task/course ownership checks, and indexes; add no sync identity columns. Add a lightweight after-update trigger that marks an active link `local_pending`; it performs no network access. The authenticated remote-import/resolution transaction updates the note and resets link baselines atomically, so this trigger cannot create an echo. Active links restrict future hard deletion until explicit retirement; current archive behavior remains non-destructive. Existing task/course/attachment relationships remain untouched. |
+| RPCs | Add authenticated, security-invoker compare-and-swap operations for claim/finish/fail attempt, apply remote import, open/resolve conflict, retire/relink, and cleanup state. Revoke from `public`/`anon`, grant only `authenticated`, derive actor from `auth.uid()`, lock relevant rows, and require expected fingerprints/revisions/attempt IDs. Provider HTTP calls remain outside database transactions. |
+
+Persisted link status values are exactly `linked`, `synced`, `local_pending`, `remote_pending`, `syncing`, `conflict`, `unsupported`, `upgrade_review`, `cleanup_pending`, `remote_missing`, `remote_structure_changed`, `local_archived`, `error`, `disconnected`, `attention`, and `retired`; direction is exactly `forward_to_notion` or `selective_two_way`. Conflict resolution is exactly `keep_redline` or `use_notion`. UI wording may be friendlier, but storage must not invent overlapping states.
+
+### 8.12 Future UI contract and implementation order
+
+The UI derives `not linked` from no active link and must represent: `linked` (baseline not established), `synced`, `local changes pending`, `remote changes pending`, `syncing`, `conflict`, `unsupported content`, `error/cleanup pending`, `remote missing`, `local archived`, and `disconnected/revoked`. Every linked-note surface names the side with unsynchronized changes, shows last successful sync separately from last attempt, and keeps the native note save indicator independent from Notion status.
+
+Implementation order is fixed:
+
+1. Add the reviewed schema/RLS/owner constraints/RPCs and migration contract tests.
+2. Replace the sketch provider contract with server-only typed page/block reads, opaque revisions, trash/access state, request bounds, and staged-root operations.
+3. Implement and fixture-test the versioned Markdown/Notion canonical AST and both fingerprints, including every unsupported case.
+4. Implement pure transition planning for the complete four-state matrix, directions, converged edits, converter upgrades, and remote structure changes.
+5. Implement staged generation export/update/recovery and exact-marker idempotency before enabling local autosave-triggered attempts.
+6. Implement atomic import/conflict persistence/resolution and stale compare-and-swap tests.
+7. Add bounded manual/note-open/application-open triggers and the complete UI state contract.
+8. Verify repeated and concurrent sync, lost create/update responses, partial block writes, rate limiting, unsupported content, archive/delete/move/duplicate/revoke/reconnect, offline note replay, and that Notes works with Notion fully unavailable.
 
 ---
 

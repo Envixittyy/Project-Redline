@@ -49,6 +49,7 @@ function formatTime(instant: string, timeZone: string): string {
 
 function itemTitle(item: CalendarItem): string {
   if (item.kind === "event") return item.event.title;
+  if (item.kind === "external_event") return item.externalEvent.title;
   if (item.kind === "course_meeting") return item.meeting.title;
   return item.task.title;
 }
@@ -59,6 +60,11 @@ function itemMeta(item: CalendarItem, timeZone: string): string {
   if (item.kind === "event") {
     if (item.event.allDay) return "All day";
     return `${formatTime(item.event.start, timeZone)}–${formatTime(item.event.end, timeZone)}`;
+  }
+  if (item.kind === "external_event") {
+    const provider = item.externalEvent.provider === "microsoft" ? "Outlook" : item.externalEvent.provider;
+    if (item.externalEvent.allDay) return `All day · ${provider}`;
+    return `${formatTime(item.externalEvent.startsAt, timeZone)}–${formatTime(item.externalEvent.endsAt, timeZone)} · ${provider}`;
   }
   if (item.kind === "work_session") {
     return `${formatTime(item.workSession.startsAt, timeZone)}–${formatTime(item.workSession.endsAt, timeZone)}`;
@@ -98,12 +104,12 @@ function CalendarItemButton({
       onClick={() => {
         if (item.kind === "event") onOpenEvent(item.event);
         else if (item.kind === "work_session") onOpenWorkSession(item.workSession);
-        else if (item.kind !== "course_meeting") onOpenTask(item.task);
+        else if (item.kind !== "course_meeting" && item.kind !== "external_event") onOpenTask(item.task);
       }}
       title={`${itemTitle(item)} · ${itemMeta(item, timeZone)}`}
     >
       <span className={styles.itemIcon} aria-hidden="true">
-        {item.kind === "course_meeting" ? <BookOpen size={compact ? 10 : 13}/> : item.kind === "event" ? <CircleDot size={compact ? 10 : 13} /> : item.kind === "deadline" ? <CalendarClock size={compact ? 10 : 13} /> : completed ? <Check size={compact ? 10 : 13} /> : <Clock3 size={compact ? 10 : 13} />}
+        {item.kind === "course_meeting" ? <BookOpen size={compact ? 10 : 13}/> : item.kind === "event" || item.kind === "external_event" ? <CircleDot size={compact ? 10 : 13} /> : item.kind === "deadline" ? <CalendarClock size={compact ? 10 : 13} /> : completed ? <Check size={compact ? 10 : 13} /> : <Clock3 size={compact ? 10 : 13} />}
       </span>
       <span className={styles.itemCopy}>
         {!compact ? <span className={styles.itemMeta}>{itemMeta(item, timeZone)}</span> : null}
@@ -184,6 +190,7 @@ export function CalendarWorkspace({
       <div className={styles.legend} aria-label="Calendar item legend">
         <span data-kind="course_meeting"><BookOpen size={12}/> Course meeting</span>
         <span data-kind="event"><CircleDot size={12} /> Event</span>
+        <span data-kind="external_event"><CircleDot size={12} /> External event</span>
         <span data-kind="work_session"><Clock3 size={12} /> Task work session</span>
         <span data-kind="scheduled_task"><Clock3 size={12} /> Scheduled task</span>
         <span data-kind="deadline"><CalendarClock size={12} /> Due-only deadline</span>

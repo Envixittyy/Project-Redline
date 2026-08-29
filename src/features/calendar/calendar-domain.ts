@@ -9,6 +9,7 @@ import {
 } from "@/lib/date/day";
 import type { CalendarEvent } from "@/types/calendar-event";
 import type { CourseMeeting } from "@/types/course-meeting";
+import type { ExternalCalendarProjection } from "@/types/external-calendar";
 import type { Task, TaskPatch } from "@/types/task";
 import type { WorkSession } from "@/types/work-session";
 
@@ -57,6 +58,11 @@ export type NativeCalendarEntry = CalendarEntryBase & {
   event: CalendarEvent;
 };
 
+export type ExternalCalendarEntry = CalendarEntryBase & {
+  kind: "external_calendar_event";
+  externalEvent: ExternalCalendarProjection;
+};
+
 export type CourseMeetingCalendarEntry = CalendarEntryBase & {
   kind: "course_meeting";
   meeting: CourseMeeting;
@@ -68,6 +74,7 @@ export type CalendarEntry =
   | TaskScheduleCalendarEntry
   | TaskWorkSessionCalendarEntry
   | NativeCalendarEntry
+  | ExternalCalendarEntry
   | CourseMeetingCalendarEntry;
 
 export type CalendarFilters = {
@@ -254,6 +261,35 @@ export function calendarEventToEntry(
   };
 }
 
+export function externalCalendarEventToEntry(
+  event: ExternalCalendarProjection,
+  timeZone: string,
+): ExternalCalendarEntry | null {
+  if (
+    event.status === "cancelled"
+    || !isIsoInstant(event.startsAt)
+    || !isIsoInstant(event.endsAt)
+    || Date.parse(event.endsAt) <= Date.parse(event.startsAt)
+  ) {
+    return null;
+  }
+  const start = new Date(event.startsAt).toISOString();
+  return {
+    key: `external-calendar-event:${event.provider}:${event.externalCalendarId}:${event.externalEventId}`,
+    kind: "external_calendar_event",
+    title: event.title,
+    date: todayIn(timeZone, new Date(start)),
+    start,
+    end: new Date(event.endsAt).toISOString(),
+    allDay: event.allDay,
+    courseKey: null,
+    courseLabel: null,
+    courseColor: null,
+    externalEvent: event,
+    issues: [],
+  };
+}
+
 const wallTimePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 function weekdayFor(date: string): number {
@@ -329,6 +365,7 @@ export function matchesCalendarFilters(
   filters: CalendarFilters = defaultCalendarFilters,
 ): boolean {
   if (entry.kind === "calendar_event" && !filters.showCalendarEvents) return false;
+  if (entry.kind === "external_calendar_event" && !filters.showCalendarEvents) return false;
   if (entry.kind === "course_meeting" && !filters.showCourseMeetings) return false;
   if ((entry.kind === "task_deadline" || entry.kind === "task_schedule" || entry.kind === "task_work_session") && !filters.showTasks) {
     return false;

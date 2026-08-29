@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FolderKanban, Inbox, LandPlot, NotebookPen, ShieldCheck, Trophy } from "lucide-react";
+import { CalendarSync, FolderKanban, Inbox, LandPlot, NotebookPen, ShieldCheck, Trophy } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
@@ -23,6 +23,13 @@ export default function MorePage() {
       <PageHeader title="More" description="Appearance and account controls live here; secondary areas will join as their phases begin." />
       <div className={styles.sections}>
         <section className={styles.secondaryGrid} aria-label="Future sections">
+          <Link href="/integrations/calendars" className={styles.sectionLink}>
+            <Surface variant="interactive" className={styles.secondaryCard}>
+              <span className={styles.secondaryIcon} aria-hidden="true"><CalendarSync size={19}/></span>
+              <div><h2>Calendar connections</h2><p>Source-aware external providers and capabilities</p></div>
+              <span className={styles.open}>Open</span>
+            </Surface>
+          </Link>
           <Link href="/inbox" className={styles.sectionLink}>
             <Surface variant="interactive" className={styles.secondaryCard}>
               <span className={styles.secondaryIcon} aria-hidden="true"><Inbox size={19}/></span>

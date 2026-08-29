@@ -32,6 +32,7 @@ src/
     captures/             Immutable capture reads and transactional proposal operations
     calendar-events/      Source-aware calendar-event persistence
     courses/              Course and recurring-meeting persistence
+    external-calendars/   Source-aware external calendar mirrors and status reads
     notes/                Note persistence
     integrations/         Adapters for external systems
     supabase/             Browser, request, proxy, and admin trust boundaries
@@ -57,7 +58,7 @@ School persists owner-scoped courses and recurring weekly meetings. The timetabl
 
 Calendar is a working route as of Phase 1D. Its Month, Week, and Agenda modes are query parameters (`/calendar?view=week&date=2026-08-27`) so view and anchor date remain linkable. The page is a server component that resolves the visible range and reads events and tasks in parallel; `CalendarWorkspace` is the interaction boundary for view controls and editors. The mobile Month grid compresses item copy into semantic marks, Week uses an internally scrollable seven-day surface rather than overflowing the page, and Agenda is a readable narrow-screen list.
 
-P3 adds `task_work_sessions` as the many-per-task home for planned work intervals. Calendar reads sessions by overlap, hydrates their owner-scoped tasks, and projects them alongside deadlines, native events, meetings, and legacy single-task schedule fields. Its editor creates, changes, and deletes only session rows. It never changes the task deadline or creates a `calendar_events` row.
+P3 adds `task_work_sessions` as the many-per-task home for planned work intervals. Calendar reads sessions by overlap, hydrates their owner-scoped tasks, and projects them alongside deadlines, native events, external mirrors, meetings, and legacy single-task schedule fields. Its editor creates, changes, and deletes only session rows. It never changes the task deadline or creates a `calendar_events` row.
 
 Tasks is a working route as of Phase 1C. Its seven views are query parameters (`/tasks?view=today`) rather than nested routes, so Tasks stays a single destination in the primary navigation and secondary features never need to expand the mobile tab bar.
 
@@ -101,13 +102,15 @@ The App Router manifest and `/sw.js` provide the installable shell. IndexedDB st
 
 ## Services and integrations
 
-External systems belong behind adapters under `src/services/integrations/<system>`. Blackboard has a concrete adapter; Calendar, Notion, and AI have narrow cross-phase contracts but no speculative provider implementations. Do not add mock clients before their phases begin.
+External systems belong behind adapters under `src/services/integrations/<system>`. Blackboard has a concrete adapter. Calendar now has provider-neutral persistence and capability metadata, but no provider is represented as connected until its real adapter, server callback, encrypted credential, and external authorization exist. Notion and AI retain narrow cross-phase contracts. Do not add mock clients.
 
 Integration adapters should translate provider-specific payloads into explicit internal shapes and preserve source identity. They must not leak SDK objects throughout features. Secrets stay server-side. Client components should not call privileged provider APIs directly.
 
 Blackboard is limited to calendar-related information unless requirements change. Announcement, grade, messaging, document, and general feed syncing are out of scope.
 
 Phase 2 accepts only a private Blackboard iCalendar URL. The URL is AES-256-GCM encrypted with a server-only deployment key and is never returned by status reads. Retrieval uses HTTPS with all-answer public-address DNS validation, a callback-shape-correct pinned lookup, manual validated redirects, time and size limits, and defensive parsing. `external_records` owns provider identity. Synchronization does not create or update ordinary tasks; it preserves any historical `task_id` link without acting on it and marks disappeared records missing rather than deleting them.
+
+P3 external calendar mirrors use `external_calendar_accounts`, `external_calendars`, and `external_calendar_events`. Provider IDs, calendar IDs, event IDs, revisions, access mode, and declared capabilities remain explicit. Credential and incremental-sync token columns accept only encrypted envelopes; normal status and range reads never select them. Calendar renders connected, selected, non-missing provider events as fixed items with no native-event editor.
 
 Notification events are separate from parsing and have persistent owner-scoped deduplication keys and safe relative deep links. Device subscriptions and delivery rows prepare standards-based Web Push; in-app events remain available when push is unavailable or fails. An already-applied migration contains an unused `announcements` table; it is technical debt, not an active domain. Do not build Blackboard announcement behavior or scraping.
 
@@ -130,6 +133,8 @@ Data access stays server-side by default and exposes narrow operations to featur
 `src/services/calendar-events/calendar-event-repository.ts` is the only module that speaks to `calendar_events`. Range reads use overlap semantics (`starts_at < rangeEnd` and `ends_at > rangeStart`) so multi-day events appear in every occupied local day. Native mutations are constrained to `source = life_os`; future integration adapters must own writes for their provider rows.
 
 `src/services/work-sessions/work-session-repository.ts` owns `task_work_sessions`. Each row has an owner-consistent task foreign key, a strict increasing instant range, a lifecycle status, and a manual-or-planner origin. New planning features should write sessions rather than adding more schedule columns to tasks.
+
+`src/services/external-calendars/external-calendar-repository.ts` is the read boundary for external account status and visible event mirrors. Provider adapters will own synchronization writes after OAuth or credential setup. UI code consumes normalized projections and never receives provider SDK objects, encrypted credentials, or sync tokens.
 
 ## Task schema
 

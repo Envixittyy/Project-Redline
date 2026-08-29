@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CourseMeeting } from "@/types/course-meeting";
+import type { ExternalCalendarProjection } from "@/types/external-calendar";
 import type { Task } from "@/types/task";
 import type { WorkSession } from "@/types/work-session";
 
@@ -8,6 +9,7 @@ import {
   CalendarRescheduleError,
   courseMeetingToCalendarEntries,
   defaultCalendarFilters,
+  externalCalendarEventToEntry,
   filterCalendarEntries,
   isTaskOverdue,
   rescheduleTask,
@@ -139,6 +141,36 @@ describe("task calendar projection", () => {
       MANILA,
     );
     expect(fallback).toMatchObject({ allDay: true, issues: ["invalid_deadline"] });
+  });
+});
+
+describe("external calendar projection", () => {
+  it("keeps a provider event fixed and source-aware", () => {
+    const event: ExternalCalendarProjection = {
+      id: "mirror-1",
+      provider: "google",
+      calendarId: "calendar-1",
+      externalCalendarId: "primary",
+      calendarName: "Personal",
+      access: "read_only",
+      externalEventId: "provider-event-1",
+      revision: "etag-1",
+      title: "Dentist",
+      startsAt: "2026-08-28T01:00:00.000Z",
+      endsAt: "2026-08-28T02:00:00.000Z",
+      allDay: false,
+      status: "confirmed",
+    };
+
+    expect(externalCalendarEventToEntry(event, MANILA)).toMatchObject({
+      kind: "external_calendar_event",
+      title: "Dentist",
+      externalEvent: {
+        provider: "google",
+        externalEventId: "provider-event-1",
+        access: "read_only",
+      },
+    });
   });
 });
 

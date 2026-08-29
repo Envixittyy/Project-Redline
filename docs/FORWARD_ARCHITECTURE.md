@@ -71,6 +71,8 @@ The existing `src/features/calendar/calendar-domain.ts` is the current reference
 
 `src/services/integrations/calendar/provider-contract.ts` is capability-aware. Google, Microsoft, iCloud where feasible, and generic ICS/CalDAV adapters may support different subsets of listing, mutation, incremental sync, and change watching. The UI must check declared capability and access mode rather than infer parity.
 
+P3 persists provider-neutral account, calendar, and event mirrors without claiming that any provider is connected. Calendar reads only connected and selected sources, preserves provider identity and revision, and treats every mirrored event as fixed. The connections page reports capabilities stored for a real account; it does not advertise unavailable actions or simulate OAuth.
+
 OAuth callback state, tokens, refresh tokens, and webhooks are security-sensitive. Tokens stay encrypted server-side, callback state is bound to the authenticated session, redirect URIs are exact, refresh is serialized, logs are redacted, and external identity uses persistent provider IDs. Provider SDK objects do not escape adapters.
 
 ## Blackboard

@@ -9,6 +9,7 @@ import { CalendarWorkspace } from "@/features/calendar/calendar-workspace";
 import { dayRangeIn, resolveTimeZone, todayIn } from "@/lib/date/day";
 import { listCalendarEventsInRange } from "@/services/calendar-events/calendar-event-repository";
 import { listCourseMeetingsForCalendar } from "@/services/courses/course-repository";
+import { listExternalCalendarEventsInRange } from "@/services/external-calendars/external-calendar-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
 import { listTaskLinkOptions, listTasksByIds, listTasksForCalendarRange } from "@/services/tasks/task-repository";
 import { listWorkSessionsInRange } from "@/services/work-sessions/work-session-repository";
@@ -48,8 +49,9 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       | { items: null; taskOptions: []; failure: string };
 
     try {
-      const [events, taskRange, meetings, workSessions, taskOptions] = await Promise.all([
+      const [events, externalEvents, taskRange, meetings, workSessions, taskOptions] = await Promise.all([
         listCalendarEventsInRange(range.start, range.end),
+        listExternalCalendarEventsInRange(range.start, range.end),
         listTasksForCalendarRange(range.start, range.end, fromDate, toDateExclusive),
         listCourseMeetingsForCalendar(),
         listWorkSessionsInRange(range.start, range.end),
@@ -66,6 +68,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
         toDateExclusive,
         workSessions,
         workSessionTasks,
+        externalEvents,
       )
         .filter((item) => item.date >= fromDate && item.date < toDateExclusive);
 

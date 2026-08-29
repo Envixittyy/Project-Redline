@@ -3,6 +3,8 @@ export const aiActionTypes = [
   "create_task",
   "update_task",
   "complete_task",
+  "delete_task",
+  "reschedule_task",
   "list_events",
   "create_event",
   "create_note",
@@ -11,6 +13,8 @@ export const aiActionTypes = [
   "schedule_task",
   "propose_plan",
   "send_to_notion",
+  "propose_course",
+  "associate_course_material",
 ] as const;
 
 export type AiActionType = (typeof aiActionTypes)[number];
@@ -22,17 +26,21 @@ type ProposedActionBase = {
 
 export type ProposedAiAction = ProposedActionBase & (
   | { type: "list_tasks"; query?: string }
-  | { type: "create_task"; title: string; due_at?: string; priority?: string }
-  | { type: "update_task"; task_id: string; title?: string; due_at?: string | null; priority?: string }
+  | { type: "create_task"; title: string; due_at?: string; priority?: string; course_id?: string }
+  | { type: "update_task"; task_id: string; title?: string; due_at?: string | null; priority?: string; course_id?: string | null }
   | { type: "complete_task"; task_id: string }
+  | { type: "delete_task"; task_id: string }
+  | { type: "reschedule_task"; task_id: string; starts_at: string; ends_at: string }
   | { type: "list_events"; starts_at: string; ends_at: string }
   | { type: "create_event"; title: string; starts_at: string; ends_at: string }
-  | { type: "create_note"; title: string; body?: string }
+  | { type: "create_note"; title: string; body?: string; task_id?: string | null; course_id?: string | null }
   | { type: "search_notes"; query: string }
   | { type: "get_free_time"; starts_at: string; ends_at: string; duration_minutes: number }
   | { type: "schedule_task"; task_id: string; starts_at: string; ends_at: string }
   | { type: "propose_plan"; task_ids: readonly string[]; starts_at: string; ends_at: string }
   | { type: "send_to_notion"; entity_type: "note"; entity_id: string }
+  | { type: "propose_course"; code: string; name: string; instructor?: string; location?: string; color?: string }
+  | { type: "associate_course_material"; task_id: string; course_id: string; material_title: string }
 );
 
 export type AiActionProposal = {
@@ -48,10 +56,14 @@ const mutationTypes = new Set<AiActionType>([
   "create_task",
   "update_task",
   "complete_task",
+  "delete_task",
+  "reschedule_task",
   "create_event",
   "create_note",
   "schedule_task",
   "send_to_notion",
+  "propose_course",
+  "associate_course_material",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -133,6 +145,7 @@ function parseAction(value: unknown, index: number, issues: string[]): ProposedA
         title: requiredString(value, "title", actionIssues),
         due_at: optionalInstant(value, "due_at", actionIssues),
         priority: optionalString(value, "priority", actionIssues),
+        course_id: optionalString(value, "course_id", actionIssues),
       };
       break;
     case "update_task": {
@@ -140,6 +153,7 @@ function parseAction(value: unknown, index: number, issues: string[]): ProposedA
       const dueAt = rawDueAt === null ? null : optionalInstant(value, "due_at", actionIssues);
       const title = optionalString(value, "title", actionIssues);
       const priority = optionalString(value, "priority", actionIssues);
+      const courseId = value.course_id === null ? null : optionalString(value, "course_id", actionIssues);
       action = {
         ...base,
         type: "update_task",
@@ -147,8 +161,9 @@ function parseAction(value: unknown, index: number, issues: string[]): ProposedA
         title,
         due_at: dueAt,
         priority,
+        course_id: courseId,
       };
-      if (title === undefined && dueAt === undefined && priority === undefined) {
+      if (title === undefined && dueAt === undefined && priority === undefined && courseId === undefined) {
         actionIssues.push("update_task must include at least one mutable field.");
       }
       break;
@@ -158,6 +173,22 @@ function parseAction(value: unknown, index: number, issues: string[]): ProposedA
         ...base,
         type: "complete_task",
         task_id: requiredString(value, "task_id", actionIssues),
+      };
+      break;
+    case "delete_task":
+      action = {
+        ...base,
+        type: "delete_task",
+        task_id: requiredString(value, "task_id", actionIssues),
+      };
+      break;
+    case "reschedule_task":
+      action = {
+        ...base,
+        type: "reschedule_task",
+        task_id: requiredString(value, "task_id", actionIssues),
+        starts_at: instant(value, "starts_at", actionIssues),
+        ends_at: instant(value, "ends_at", actionIssues),
       };
       break;
     case "list_events":
@@ -183,6 +214,8 @@ function parseAction(value: unknown, index: number, issues: string[]): ProposedA
         type: "create_note",
         title: requiredString(value, "title", actionIssues),
         body: optionalString(value, "body", actionIssues),
+        task_id: optionalString(value, "task_id", actionIssues),
+        course_id: optionalString(value, "course_id", actionIssues),
       };
       break;
     case "search_notes":
@@ -240,10 +273,30 @@ function parseAction(value: unknown, index: number, issues: string[]): ProposedA
       };
       if (value.entity_type !== "note") actionIssues.push("entity_type must be note.");
       break;
+    case "propose_course":
+      action = {
+        ...base,
+        type: "propose_course",
+        code: requiredString(value, "code", actionIssues),
+        name: requiredString(value, "name", actionIssues),
+        instructor: optionalString(value, "instructor", actionIssues),
+        location: optionalString(value, "location", actionIssues),
+        color: optionalString(value, "color", actionIssues),
+      };
+      break;
+    case "associate_course_material":
+      action = {
+        ...base,
+        type: "associate_course_material",
+        task_id: requiredString(value, "task_id", actionIssues),
+        course_id: requiredString(value, "course_id", actionIssues),
+        material_title: requiredString(value, "material_title", actionIssues),
+      };
+      break;
   }
 
-  const startsAt = "starts_at" in action ? Date.parse(action.starts_at) : null;
-  const endsAt = "ends_at" in action ? Date.parse(action.ends_at) : null;
+  const startsAt = "starts_at" in action && action.starts_at ? Date.parse(action.starts_at) : null;
+  const endsAt = "ends_at" in action && action.ends_at ? Date.parse(action.ends_at) : null;
   if (startsAt !== null && endsAt !== null && startsAt >= endsAt) {
     actionIssues.push("ends_at must be after starts_at.");
   }

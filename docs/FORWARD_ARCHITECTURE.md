@@ -599,14 +599,13 @@ All relationships require owner-equality triggers in addition to RLS. Direct cli
 7. Keep provider-native tools, arbitrary endpoints, image upload, local companion transport, and `trusted_automation` execution disabled.
 8. Verify no egress before consent; cancellation; expiry; replay/double-click; cross-owner access; provider/model/purpose/source/prompt/digest changes; second-tab races; automatic-low-confidence fallback; provider switching; ambiguous timeouts; oversized payloads; prompt injection; unknown/oversized actions; stale targets; partial-batch refusal; redacted logs; offline/provider outage behavior; and metadata purge.
 
-### 9.13 Local Companion Architecture (transport and security undecided)
+### 9.13 Local Companion Architecture
 
-- **Product Requirement:** Local Companion support is a confirmed future requirement to leverage local models (Local Qwen, OpenAI-compatible local endpoints, and optional Ollama / LM Studio compatibility) when the user's computer is available.
-- **Zero Cloud Dependence:** Forward is cloud-hosted and continues functioning normally when the companion is offline, disconnected, or unavailable.
-- **Security Invariants:** Secure pairing, key revocation, origin validation, and explicit permission boundaries remain mandatory requirements.
-- **Transport Mechanism Undecided:** Browser loopback, WebSocket, WebRTC, relay, extension, tunnel, and other mechanisms remain unselected. The existing `LocalCompanionConnection` type is cross-phase scaffolding, not an approved transport decision.
-- **Explicit Review Gate:** Local Companion transport and security architecture still requires a separate Codex review before Phase 10A implementation.
-- **Vision Worker Memory Policy:** On-demand wake, 60–180s idle timeout, and automatic memory unload on system pressure.
+- **Product Requirement:** Local Companion support enables local model inference (Ollama, llama.cpp, and generic OpenAI-compatible local endpoints such as LM Studio or LocalAI) when the user's computer is running the companion daemon.
+- **Zero Cloud & Zero AI Dependence:** Forward continues functioning normally when the companion is offline, disconnected, or unavailable. Core task, calendar, school, and note features have zero AI reliance.
+- **Loopback Safety & Security:** Companion daemon runs exclusively on loopback (`127.0.0.1`). Target endpoints are restricted to `127.0.0.1`, `localhost`, and `::1`. Strict origin validation, ephemeral pairing bearer tokens, token revocation, and secret-safe logging are enforced.
+- **Propose → Review → Apply Invariant:** Local models have zero direct database mutation authority. Validated output generates proposed `operation_batches` (`source = 'ai'`, `status = 'proposed'`) requiring user approval before execution via standard domain services.
+- **Authoritative Specification:** Full transport, adapter, capability, and schema contracts are documented in `docs/LOCAL_COMPANION_ARCHITECTURE.md`.
 
 ---
 
@@ -628,3 +627,43 @@ Codex review is mandatory before merging changes to:
 5. **Cloud AI Transfer Consent & Egress:** Data classification/minimization, payload digest binding, consent state transitions, provider endpoints/credentials, retention, or mutation-gate separation.
 6. **Local Companion Transport & Security Architecture:** Transport protocol, pairing token exchanges, origin verification, and local permission boundaries.
 7. **Two-Way Synchronization & Recurrence Semantics:** Notion two-way sync loop suppression, Google Calendar writeback, or recurring task data models.
+
+---
+
+## 12. Academic Automation Architecture (Phases 7C – 7E & 4B)
+
+### 12.1 Blackboard → Course Mapping (Phase 7C)
+- **Frictionless Manual Mapping:** No heuristic or AI guessing for course associations. The user maps a Blackboard source identifier to a canonical Redline course once (`Blackboard source/course → Redline Course → Saved mapping`).
+- **Persistence Contract:** Persisted in `blackboard_course_mappings` referencing `course_id` (foreign key to `courses.id`).
+- **UI & UX:** Displays Redline course code and course name alongside Blackboard source identifiers. Supports unassigned item queue, "Remember this association" toggle, bulk mapping of several items to one course, and mapping editing/removal.
+
+### 12.2 Blackboard → Task Deterministic Automation (Phase 7C)
+- **Deterministic Pipeline:**
+  ```text
+  Stage 1: Blackboard event detected
+          ↓
+  Stage 2: Resolve course through saved manual mapping (or route to Unassigned queue)
+          ↓
+  Stage 3: Create / update deterministic Redline task linked to canonical course_id
+          ↓ (optional)
+  AI Enrichment: Polish wording, generate structured checklist, extract details
+  ```
+- **Deduplication Invariant:** Uses `(account_id, external_uid)`. Repeated sync runs do not create duplicate tasks. Deadline changes update existing linked tasks per documented sync rules without spawning new entities.
+- **Zero-AI Guarantee:** Sync and task creation are 100% deterministic and remain fully operational when local/cloud AI is offline.
+
+### 12.3 AI-Generated Task Checklists (Phase 7C / Capability Layer)
+- **Enrichment Proposals:** Models may propose subtask checklists from unstructured assignment descriptions (e.g. lab report components).
+- **Proposal / Review Boundary:** Generated checklists are returned as structured validated outputs and must be approved by the user before committing to tasks. Direct database mutation by AI is prohibited.
+
+### 12.4 Task ↔ Course Material Relationships (Phase 7D)
+- **Relational Linking:** Explicit `task_course_material_links` (`task_id`, `course_material_id`, metadata) rather than embedding file names in task descriptions.
+- **Course-Scoped Pickers:** When linking materials from a task, the picker defaults strictly to materials belonging to that task's associated `course_id`. Automatic semantic matching is deferred.
+
+### 12.5 AI-Assisted Course Document Import (Phase 7E)
+- **Document Text Parser:** Extracts course code, name, section, instructor, meeting days/times, and room from text-readable documents (PDF, DOCX, CSV, XLSX).
+- **Course Proposal Flow:** Extraction outputs a reviewable **Course Proposal** with explicit `[Create]`, `[Edit]`, and `[Reject]` actions. Approved writes execute solely via standard Redline course services (`createCourse`, `saveMeeting`).
+
+### 12.6 Home Schedule & Next Class Projection (Phase 4B)
+- **Single Source of Truth:** Home schedule is projected dynamically from canonical `course_meetings` and `courses` records. No duplicate schedule tables are created.
+- **Presentation:** Displays **Next Class** (code, name, start/end time, room, "Starts in X minutes") and **Today's Classes** timeline. Modifying meetings under School automatically updates the Home schedule. Zero AI required.
+

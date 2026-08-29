@@ -110,13 +110,25 @@ graph TD
 - **6B: Fullscreen Focus Dashboard Mode [`PLANNED` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
   - Dedicated distraction-free view with optional minimal timer and keyboard navigation.
 
-### Phase 7: Advanced Blackboard Proposal Ingestion
+### Phase 7: Advanced Blackboard Proposal Ingestion & Academic Automation
 - **7A: Blackboard Assignment & Deadline Proposal Engine [`PLANNED` | Architecture gate approved | Medium | Risk: High | Reviewer: Codex]**
   - Detect newly synchronized items in `external_records` and emit structured proposal objects to Universal Capture.
   - Enable one-click user review and conversion into native Redline tasks without automated task pollution.
   - Approved architecture: one stable proposal per stable provider-UID record, semantic-revision refresh/reopen rules, explicit capture commit/undo, and source-aware notification dedupe. UID-less fallback records remain mirrors only. See `docs/FORWARD_ARCHITECTURE.md` section 7. Phase 7A remains unimplemented.
 - **7B: Secure School Change Notifications [`PLANNED` | Small | Risk: Low | Model: Gemini 3.7 Flash]**
   - Trigger in-app and push notifications for newly detected syllabus or deadline changes with direct links to the proposal review view.
+- **7C: Manual Blackboard-to-Course Mapping & Deterministic Task Extraction [`PLANNED` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
+  - Frictionless manual mapping: `Blackboard source/course → Redline Course → Saved mapping`.
+  - Canonical `course_id` association; display course code/name in UI.
+  - Unassigned Blackboard events queue, "Remember this association", bulk course assignment, and mapping management. Zero AI course guessing for v1.
+  - Three-stage Blackboard pipeline: Event detected → Resolve course via manual mapping / Unassigned flow → Deterministic task extraction (`(account_id, external_uid)` deduplication, deadline updates) → Optional AI enrichment (checklists, wording improvements).
+  - Sync remains 100% deterministic and functional when local models are offline.
+- **7D: School Course Materials & Relational Task Links [`PLANNED` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
+  - Explicit task-to-course-material relational links (`task_course_material_links` with `task_id`, `course_material_id`, and metadata).
+  - Manual linking v1 with course-scoped material pickers. Semantic AI matching is deferred.
+- **7E: AI-Assisted Course Document Import [`PLANNED` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
+  - Text-readable document parser (PDF, DOCX, CSV, XLSX) extracting course code, name, section, instructor, meeting days, times, and room.
+  - Generates a reviewable **Course Proposal** (`[Create]`, `[Edit]`, `[Reject]`). Writes execute strictly via normal Redline course creation services.
 
 ### Phase 8: Notion Knowledge Integration (P5)
 - **8A: Notion Authentication & Outbound Note Export [`PLANNED` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
@@ -133,11 +145,14 @@ graph TD
   - Implemented owner-scoped `ai_preferences` and metadata-only `ai_transfer_requests` state machine with 5-minute consent expiration, 30-day audit retention, canonical SHA-256 payload digest binding, interactive disclosure UI (`AiDisclosureModal`), entity handle translation, and Propose → Review → Commit boundary via `operation_batches`.
 
 ### Phase 10: Local AI Companion & Vision Ingestion (P6/P7)
-- **10A: Local Companion Transport & Security Architecture [`ARCHITECTURE REVIEW REQUIRED` | Large | Risk: High | Reviewer: Codex]**
-  - Support for local models (Local Qwen, OpenAI-compatible endpoints, optional Ollama / LM Studio).
-  - Secure pairing, key revocation, origin validation, and explicit permission boundaries.
-  - Zero cloud dependence: Redline must continue functioning normally when the local companion is offline or unavailable.
-  - *Local Companion transport and security architecture requires Codex architectural review before implementation.* The actual transport mechanism (loopback, WebSocket, WebRTC, relay, extension, tunnel, etc.) remains UNDECIDED.
+- **10A: Local Companion Transport & Security Architecture [`IMPLEMENTED` | Large | Risk: High | Model: Gemini 3.7 Flash]**
+  - Private loopback companion daemon (`127.0.0.1`) serving as the controlled localhost security boundary.
+  - Multi-runtime adapters for **Ollama** (`:11434`), **llama.cpp server** (`:8080`), and generic **OpenAI-compatible local endpoints** (`:1234/v1` LM Studio, LocalAI).
+  - Secure pairing handshake with ephemeral bearer tokens, origin validation, loopback-only safety guard, token revocation, and secret-safe logging.
+  - Redline AI Capability Layer: provider-independent capability registry, narrow read capabilities (`tasks.read`, `calendar.read`, `courses.read`, `school.read`, `notes.read`, `courseMaterials.read`), and typed proposal schemas (`tasks.proposeCreate/Update/Complete/Reschedule/Delete`, `calendar.proposeCreate/Update`, `notes.proposeCreate/Update`, `courses.proposeCreate/Update`, `courseMaterials.proposeAssociate`).
+  - Strict **Propose → Review → Apply** mutation invariant: local models have zero direct database mutation authority. Validated actions become reviewable `operation_batches` (`source = 'ai'`, `status = 'proposed'`) requiring user approval before execution via standard domain services.
+  - Zero-AI guarantee: application remains 100% operational when companion or runtime is offline.
+  - See `docs/LOCAL_COMPANION_ARCHITECTURE.md`.
 - **10B: Image & Screenshot Ingestion Pipeline [`PLANNED` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
   - Universal Capture image upload, lightweight local vision worker on-demand lifecycle (60–180s idle unload), and proposal generation.
 
@@ -174,11 +189,11 @@ To maintain architectural integrity and prevent security regressions, implementa
 | **Blackboard Assignment Ingestion** | Before Phase 7A | Must bridge external feed items to Universal Capture proposals without duplicate spam or task pollution. | **Codex** |
 | **Notion Two-Way Sync Semantics** | Before Phase 8B | Prevents echo loops, infinite sync triggers, and concurrent edit data loss. | **Codex** |
 | **Cloud AI Privacy Consent Gate** | Before Phase 9B | Enforces explicit user consent before transmitting private user data/images off-device. | **Codex** |
-| **Local Companion Transport & Security Architecture** | Before Phase 10A | Transport protocol (undecided), pairing handshake, origin validation, and preventing unauthorized endpoint queries. | **Codex** |
+| **Local Companion Transport & Security Architecture** | Phase 10A [`COMPLETE`] | Transport protocol, pairing handshake, origin validation, and loopback safety boundaries. | **Codex** |
 | **Recurring Task & Recurrence Schema** | Before Phase 11A | Data model selection for recurrence instances vs virtual calendar projection. | **Codex / Claude Sonnet** |
 | **Push Notification Background Dispatch** | Before Phase 4D | Background execution architecture (Supabase pg_cron + Edge Functions vs Next.js workers). | **Claude Sonnet / Gemini 3.1 Pro** |
 | **Deterministic Scheduler Engine** | During Phase 5A | Complex pure algorithmic scheduling logic and edge-case validation. | **Claude Sonnet / Gemini 3.1 Pro** |
-| **Standard Feature UI & Repositories** | Phases 4B, 4C, 5B, 6A, 6B, 7B, 8A, 9A, 10B, 11B, 12A–C, 13A–C | Standard Next.js 16 App Router, Server Actions, and React components following existing patterns. | **Gemini 3.7 Flash** |
+| **Standard Feature UI & Repositories** | Phases 4B, 4C, 5B, 6A, 6B, 7B–E, 8A, 9A, 10A–B, 11B, 12A–C, 13A–C | Standard Next.js 16 App Router, Server Actions, and React components following existing patterns. | **Gemini 3.7 Flash** |
 | **Exact Repetitive Code Hygiene** | Phase 4A | Mechanical unminification, formatting, and dead-code deletion. | **Local Qwen** |
 
 ---
@@ -193,6 +208,11 @@ The following features are **DEFERRED** to later phases to maintain focus on cor
 4. **Google Calendar Write-Back:** Deferred; read-only mirror remains authoritative until explicit requirement.
 5. **Football / East Football United Section:** Deferred to Phase 13A.
 6. **Advanced Relational Projects & Areas:** Deferred to Phase 13B.
+7. **AI Blackboard Course Classification:** Deferred; manual mapping with saved associations (`blackboard_course_mappings`) is authoritative for Phase 7C.
+8. **Automatic Semantic Material Matching:** Deferred; manual relational task-to-material linking is authoritative for Phase 7D.
+9. **OCR / Scanned Syllabus & Schedule Import:** Deferred; text-readable format import (PDF, DOCX, CSV, XLSX) is authoritative for Phase 7E.
+10. **Deep Blackboard Private API & Content Scraping:** Deferred; private iCal feed remains authoritative boundary.
+11. **Autonomous Task Modifications / Unreviewed Mutations:** Permanently forbidden; all AI writes require explicit user review and commit.
 
 ---
 
@@ -204,4 +224,5 @@ The following items are permanently **OUT OF SCOPE** unless foundational product
 - Generic Zapier-like third-party workflow automation engines.
 - Blackboard announcement/grade/document web scraping via brittle browser automation.
 - Unconstrained autonomous AI agents mutating database records without user confirmation.
+
 

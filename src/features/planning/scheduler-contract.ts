@@ -89,3 +89,5 @@ export function orderTasksForScheduling(tasks: readonly SchedulableTask[]): Sche
     || left.taskId.localeCompare(right.taskId)
   ));
 }
+
+export { schedule, scheduleWork } from "./scheduler-engine";

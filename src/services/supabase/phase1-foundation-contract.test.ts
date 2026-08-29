@@ -47,7 +47,7 @@ describe("Phase 1 foundation security contract",()=>{
     expect(queue).toContain("indexedDB.open");
     expect(queue).toContain('state:"pending"');
     expect(queue).toContain('"failed"|"conflict"');
-    expect(replay).toContain("clientOperationId:operationId");
+    expect(replay.replace(/\s+/g,"")).toContain("clientOperationId:operationId");
     expect(migration).toContain("tasks_owner_operation_unique");
     expect(migration).toContain("notes_owner_operation_unique");
   });

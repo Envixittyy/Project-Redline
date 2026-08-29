@@ -2,6 +2,8 @@ import type { AiActionProposal } from "./action-contract";
 
 export type AiProviderId = "anthropic" | "gemini" | "openai";
 
+export type LocalProviderType = "ollama" | "llamacpp" | "openai_compatible";
+
 export type AiCapability =
   | "text"
   | "vision"
@@ -34,6 +36,47 @@ export type AiPermissionMode =
   | "ask_before_changing"
   | "trusted_automation";
 
+export type LocalCompanionConfig = {
+  enabled: boolean;
+  companionUrl: string;
+  provider: LocalProviderType;
+  endpoint: string;
+  model: string;
+  pairingToken?: string | null;
+};
+
+export type LocalCompanionStatus = {
+  companionRunning: boolean;
+  paired: boolean;
+  runtimeConnected: boolean;
+  models: Array<{ id: string; name: string; provider: LocalProviderType }>;
+  error?: string;
+};
+
+export type CourseProposal = {
+  code: string;
+  name: string;
+  section?: string | null;
+  instructor?: string | null;
+  location?: string | null;
+  meetings?: Array<{
+    weekdays: number[];
+    startTime: string;
+    endTime: string;
+    location?: string | null;
+  }>;
+};
+
+export type TaskChecklistItem = {
+  title: string;
+  checked: boolean;
+};
+
+export type TaskChecklist = {
+  taskId: string;
+  items: TaskChecklistItem[];
+};
+
 export type AiPreferences = {
   id: string;
   userId: string;
@@ -44,6 +87,13 @@ export type AiPreferences = {
   embeddingModel: string | null;
   cloudFallbackMode: CloudFallbackMode;
   permissionMode: AiPermissionMode;
+  // Local Companion preferences
+  localEnabled?: boolean;
+  localCompanionUrl?: string;
+  localProvider?: LocalProviderType;
+  localEndpoint?: string;
+  localModel?: string;
+  localPairingToken?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -130,7 +180,7 @@ export type AiModelDescriptor = {
 
 export type ValidatedAiProposalResult = {
   transferId: string;
-  provider: AiProviderId;
+  provider: AiProviderId | LocalProviderType;
   model: string;
   proposal: AiActionProposal;
   operationBatchId: string | null;

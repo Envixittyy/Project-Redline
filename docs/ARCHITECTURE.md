@@ -18,6 +18,7 @@ src/
     auth/                 Sign-in/sign-out actions and server session guard
     capture/              Raw-capture state and interpretation lifecycle
     calendar/             Calendar read model, views, and native event editor
+    focus/                Focus / Goldfish presentation read-model and distraction-free view
     notes/                Markdown note editor and private attachment controls
     offline/              PWA registration and truthful synchronization status
     operations/           Reversible operation/batch contract
@@ -177,6 +178,17 @@ The default filter contract shows tasks, Submitted work, native events, course m
 Task dragging uses `rescheduleTask` and the validating `rescheduleTaskAction`. `move_deadline` changes only the deadline and preserves an existing local due clock; `move_schedule` changes only the personal interval and preserves its duration. Neither operation performs an implicit conversion between a deadline and a work block.
 
 Tasks and native events retain optional free-text course labels for compatibility. School also persists owner-scoped `courses` and `course_meetings`; the Calendar expands meetings as read-time occurrences instead of duplicating native-event rows. Archiving is not represented in the task schema, so the calendar does not claim task-archive behavior until that domain exists.
+
+## Phase 6 Focus and Goldfish presentation contract
+
+Focus / Goldfish Mode (`src/features/focus/focus-domain.ts` and `/focus`) is a pure, deterministic read-model and presentation layer answering: "What actually matters right now?" It does not create separate task tables, invent new statuses, mutate task records, or persist timer state.
+
+The focus domain projects existing Tasks, Work Sessions, Native Calendar Events, External Calendar Mirrors, and Course Meetings into a zero-guilt, tri-level hierarchy:
+- **NOW:** The currently active work session, active calendar commitment, imminent commitment (<=15m), or top deterministic actionable task (selected via priority/deadline semantics without AI).
+- **NEXT:** The immediate chronologically upcoming scheduled work session, fixed meeting, or next priority task for today.
+- **TODAY:** A filtered, deduplicated list of hard deadlines, upcoming sessions/commitments, and overdue items presented calmly ("Needs attention") without shame counters or red alerts.
+
+Distant backlog items (undated inbox, someday tasks, future dates) and completed items are excluded from active presentation. Exiting Focus Mode returns seamlessly to the standard workspace without data alterations.
 
 ## Authentication
 

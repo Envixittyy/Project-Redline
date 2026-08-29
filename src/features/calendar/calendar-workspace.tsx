@@ -62,7 +62,12 @@ function itemMeta(item: CalendarItem, timeZone: string): string {
     return `${formatTime(item.event.start, timeZone)}–${formatTime(item.event.end, timeZone)}`;
   }
   if (item.kind === "external_event") {
-    const provider = item.externalEvent.provider === "microsoft" ? "Outlook" : item.externalEvent.provider;
+    const provider =
+      item.externalEvent.provider === "microsoft"
+        ? "Outlook"
+        : item.externalEvent.provider === "blackboard"
+          ? (item.entry.courseLabel ? `Blackboard · ${item.entry.courseLabel}` : "Blackboard")
+          : item.externalEvent.provider;
     if (item.externalEvent.allDay) return `All day · ${provider}`;
     return `${formatTime(item.externalEvent.startsAt, timeZone)}–${formatTime(item.externalEvent.endsAt, timeZone)} · ${provider}`;
   }

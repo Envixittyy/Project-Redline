@@ -343,5 +343,105 @@ describe("course meetings", () => {
       ]);
     });
   });
+
+  describe("Blackboard external event calendar projection", () => {
+    const blackboardProjection: ExternalCalendarProjection = {
+      id: "rec-bb-1",
+      provider: "blackboard",
+      calendarId: "acc-1",
+      externalCalendarId: "CS101",
+      calendarName: "Blackboard",
+      access: "read_only",
+      externalEventId: "item-bb-1",
+      revision: "rev1",
+      title: "Problem Set 1",
+      startsAt: "2026-08-29T14:00:00.000Z",
+      endsAt: "2026-08-29T15:00:00.000Z",
+      allDay: false,
+      status: "confirmed",
+      courseCode: "CS101",
+      courseId: "course-uuid-cs101",
+      courseColor: "#2563eb",
+    };
+
+    it("converts Blackboard external calendar projection to ExternalCalendarEntry with course metadata", () => {
+      const entry = externalCalendarEventToEntry(blackboardProjection, MANILA);
+      expect(entry).not.toBeNull();
+      expect(entry).toMatchObject({
+        key: "external-calendar-event:blackboard:CS101:item-bb-1",
+        kind: "external_calendar_event",
+        title: "Problem Set 1",
+        date: "2026-08-29",
+        courseKey: "course-uuid-cs101",
+        courseLabel: "CS101",
+        courseColor: "#2563eb",
+        allDay: false,
+      });
+    });
+
+    it("projects Blackboard external event into buildCalendarItems as an external_event", () => {
+      const items = buildCalendarItems(
+        [],
+        [],
+        [],
+        MANILA,
+        [],
+        "2026-08-29",
+        "2026-08-30",
+        [],
+        [],
+        [blackboardProjection],
+      );
+
+      expect(items).toHaveLength(1);
+      const [item] = items;
+      expect(item.kind).toBe("external_event");
+      expect(item.date).toBe("2026-08-29");
+      expect(item.key).toBe("external-calendar-event:blackboard:CS101:item-bb-1:2026-08-29");
+      if (item.kind === "external_event") {
+        expect(item.externalEvent.provider).toBe("blackboard");
+        expect(item.entry.courseLabel).toBe("CS101");
+      }
+    });
+
+    it("does not create duplicate CalendarItems upon repeated sync or projection", () => {
+      const items = buildCalendarItems(
+        [],
+        [],
+        [],
+        MANILA,
+        [],
+        "2026-08-29",
+        "2026-08-30",
+        [],
+        [],
+        [blackboardProjection, blackboardProjection], // duplicate in array
+      );
+
+      // Distinct keys in occupied dates
+      const keys = items.map((i) => i.key);
+      expect(new Set(keys).size).toBe(keys.length);
+    });
+
+    it("filters Blackboard events by courseKeys filter", () => {
+      const entry = externalCalendarEventToEntry(blackboardProjection, MANILA)!;
+
+      // Matching course filter
+      expect(
+        filterCalendarEntries([entry], {
+          ...defaultCalendarFilters,
+          courseKeys: ["course-uuid-cs101"],
+        }),
+      ).toHaveLength(1);
+
+      // Non-matching course filter
+      expect(
+        filterCalendarEntries([entry], {
+          ...defaultCalendarFilters,
+          courseKeys: ["other-course"],
+        }),
+      ).toHaveLength(0);
+    });
+  });
 });
 

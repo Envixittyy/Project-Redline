@@ -2,18 +2,26 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
+import { resolveTimeZone } from "@/lib/date/day";
 import {
   notificationDedupeKey,
   planBlackboardProposalNotification,
 } from "@/services/notifications/notification-domain";
 import { createNotificationEvent } from "@/services/notifications/notification-repository";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
+import type { ExternalCalendarProjection } from "@/types/external-calendar";
 
 import { credentialHint, decryptCredential, encryptCredential } from "./credential";
 import { parseBlackboardICalendar, type DuePrecision } from "./ical";
 import { fetchBlackboardCalendar } from "./safe-fetch";
 import { validateFeedUrl } from "./safe-url";
-import { matchBlackboardCourse, planBlackboardSync, type ExistingBlackboardRecord } from "./sync-domain";
+import {
+  blackboardRecordToExternalCalendarProjection,
+  matchBlackboardCourse,
+  planBlackboardSync,
+  type BlackboardRecordForCalendar,
+  type ExistingBlackboardRecord,
+} from "./sync-domain";
 
 type BlackboardAccountRow = {
   id: string;
@@ -565,4 +573,62 @@ async function audit(
     summary: summary.slice(0, 300),
   });
   if (result.error) throw result.error;
+}
+
+export {
+  blackboardRecordToExternalCalendarProjection,
+  type BlackboardRecordForCalendar,
+};
+
+export async function listBlackboardCalendarProjectionsInRange(
+  start: string,
+  end: string,
+  timeZone = resolveTimeZone(),
+): Promise<ExternalCalendarProjection[]> {
+  const { client, userId } = await requireAuthenticatedSupabase();
+
+  const { data, error } = await client
+    .from("external_records")
+    .select("id,account_id,external_uid,task_id,normalized_title,course_code,course_id,source_url,due_at,due_date,due_precision,content_hash,missing_since,courses(id,code,name,color)")
+    .eq("user_id", userId)
+    .eq("provider", "blackboard")
+    .is("missing_since", null)
+    .is("task_id", null)
+    .limit(500);
+
+  if (error) {
+    console.error("[blackboard] Failed to load calendar records:", error);
+    throw error;
+  }
+
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
+
+  const projections: ExternalCalendarProjection[] = [];
+  type CourseItem = { id: string; code: string; name: string; color: string | null };
+  type QueryRow = BlackboardRecordForCalendar & {
+    courses: CourseItem | CourseItem[] | null;
+  };
+
+  for (const row of ((data ?? []) as unknown as QueryRow[])) {
+    const course = Array.isArray(row.courses) ? row.courses[0] ?? null : row.courses;
+    const projection = blackboardRecordToExternalCalendarProjection(
+      {
+        ...row,
+        course,
+      },
+      timeZone,
+    );
+
+    if (!projection) continue;
+
+    const projStartMs = Date.parse(projection.startsAt);
+    const projEndMs = Date.parse(projection.endsAt);
+
+    if (projStartMs < endMs && projEndMs > startMs) {
+      projections.push(projection);
+    }
+  }
+
+  return projections;
 }

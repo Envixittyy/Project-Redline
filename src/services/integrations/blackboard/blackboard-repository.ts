@@ -2,7 +2,11 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import { notificationDedupeKey } from "@/services/notifications/notification-domain";
+import {
+  notificationDedupeKey,
+  planBlackboardProposalNotification,
+} from "@/services/notifications/notification-domain";
+import { createNotificationEvent } from "@/services/notifications/notification-repository";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 
 import { credentialHint, decryptCredential, encryptCredential } from "./credential";
@@ -325,18 +329,34 @@ export async function runBlackboardSync() {
 
         if (reconcileRes.error) throw reconcileRes.error;
 
-        const propId = (reconcileRes.data as Array<{ proposal_id: string }> | null)?.[0]?.proposal_id;
-        const deepLink = propId ? `/inbox?proposal=${propId}` : "/inbox";
+        const propRow = (reconcileRes.data as Array<{ proposal_id: string; proposal_status: string }> | null)?.[0];
+        const propId = propRow?.proposal_id ?? null;
+        const propStatus = propRow?.proposal_status ?? "proposed";
 
-        await notify(
-          client,
-          userId,
-          "blackboard_assignment",
-          notificationDedupeKey("blackboard_assignment", record.data.id, item.proposalRevision),
-          "New Blackboard calendar item",
-          item.title,
-          deepLink,
-        );
+        // Phase 7B: Plan and emit notification for new reviewable proposal
+        const plannedNotification = planBlackboardProposalNotification({
+          externalRecordId: record.data.id,
+          proposalId: propId,
+          proposalStatus: propStatus,
+          proposalRevision: item.proposalRevision,
+          title: item.title,
+          courseCode: item.courseCode,
+          courseId,
+          isFallbackUid: item.isFallbackUid,
+          isCreate: true,
+        });
+
+        if (plannedNotification) {
+          await createNotificationEvent(client, {
+            userId,
+            eventType: plannedNotification.eventType,
+            dedupeKey: plannedNotification.dedupeKey,
+            title: plannedNotification.title,
+            body: plannedNotification.body,
+            deepLink: plannedNotification.deepLink,
+            courseId: plannedNotification.courseId,
+          });
+        }
       }
 
       created += 1;
@@ -396,23 +416,43 @@ export async function runBlackboardSync() {
         });
 
         if (reconcileRes.error) throw reconcileRes.error;
+
+        const propRow = (reconcileRes.data as Array<{ proposal_id: string; proposal_status: string }> | null)?.[0];
+        const propId = propRow?.proposal_id ?? null;
+        const propStatus = propRow?.proposal_status ?? "proposed";
+
+        const deadlineChanged =
+          change.record.dueAt !== change.item.dueAt ||
+          change.record.dueDate !== change.item.dueDate;
+
+        // Phase 7B: Plan and emit notification for updated/reopened/divergent proposal
+        const plannedNotification = planBlackboardProposalNotification({
+          externalRecordId: change.record.id,
+          proposalId: propId,
+          proposalStatus: propStatus,
+          proposalRevision: change.item.proposalRevision,
+          previousProposalRevision: change.record.proposalRevision,
+          title: change.item.title,
+          courseCode: change.item.courseCode,
+          courseId,
+          isFallbackUid: change.item.isFallbackUid,
+          isCreate: false,
+          deadlineChanged,
+        });
+
+        if (plannedNotification) {
+          await createNotificationEvent(client, {
+            userId,
+            eventType: plannedNotification.eventType,
+            dedupeKey: plannedNotification.dedupeKey,
+            title: plannedNotification.title,
+            body: plannedNotification.body,
+            deepLink: plannedNotification.deepLink,
+            courseId: plannedNotification.courseId,
+          });
+        }
       }
 
-      if (change.record.dueAt !== change.item.dueAt || change.record.dueDate !== change.item.dueDate) {
-        await notify(
-          client,
-          userId,
-          "blackboard_deadline_changed",
-          notificationDedupeKey(
-            "blackboard_deadline_changed",
-            change.record.id,
-            change.item.proposalRevision,
-          ),
-          "Blackboard deadline changed",
-          change.item.title,
-          "/inbox",
-        );
-      }
       updated += 1;
     }
 
@@ -487,15 +527,15 @@ export async function runBlackboardSync() {
         .update({ sync_state: "failed", status: "attention", last_error_code: code })
         .eq("id", account.data.id)
         .eq("user_id", userId),
-      notify(
-        client,
+      createNotificationEvent(client, {
         userId,
-        "sync_failure",
-        notificationDedupeKey("sync_failure", account.data.id, run.data.id),
-        "Blackboard sync needs attention",
-        "Open Integrations to review the latest sync.",
-        "/integrations/blackboard",
-      ),
+        eventType: "sync_failure",
+        dedupeKey: notificationDedupeKey("sync_failure", account.data.id, run.data.id),
+        title: "Blackboard sync needs attention",
+        body: "Open Integrations to review the latest sync.",
+        deepLink: "/integrations/blackboard",
+        courseId: null,
+      }),
     ]);
 
     throw error;
@@ -507,28 +547,6 @@ function integrationErrorCode(error: unknown): string {
     return String(error.code);
   }
   return "sync_failed";
-}
-
-async function notify(
-  client: AuthenticatedClient,
-  userId: string,
-  type: string,
-  dedupe: string,
-  title: string,
-  body: string,
-  link: string,
-): Promise<void> {
-  await client.from("notification_events").upsert(
-    {
-      user_id: userId,
-      event_type: type,
-      dedupe_key: dedupe,
-      title,
-      body,
-      deep_link: link,
-    },
-    { onConflict: "user_id,dedupe_key", ignoreDuplicates: true },
-  );
 }
 
 async function audit(

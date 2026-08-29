@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ExternalLink, GraduationCap, RotateCcw, Sparkles, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { Surface } from "@/components/ui/surface";
@@ -23,6 +23,10 @@ export type CaptureInboxViewItem = CaptureInboxItem & {
 
 function CaptureCard({ item }: { item: CaptureInboxViewItem }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetProposalId = searchParams?.get("proposal");
+  const isTargeted = Boolean(item.proposal && item.proposal.id === targetProposalId);
+
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -49,7 +53,12 @@ function CaptureCard({ item }: { item: CaptureInboxViewItem }) {
   }
 
   return (
-    <Surface variant="base" className={`${styles.captureCard} motion-enter`}>
+    <Surface
+      id={item.proposal ? `proposal-${item.proposal.id}` : `capture-${item.id}`}
+      data-targeted={isTargeted ? "true" : undefined}
+      variant={isTargeted ? "elevated" : "base"}
+      className={`${styles.captureCard} motion-enter`}
+    >
       <div className={styles.captureMeta}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
           {isExternal ? (

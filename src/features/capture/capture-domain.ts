@@ -51,13 +51,39 @@ export type CaptureInterpretation = {
   proposalIds: readonly string[];
 };
 
+export type ExternalProposalMetadata = {
+  provider: "blackboard";
+  externalRecordId: string;
+  sourceUid: string;
+  sourceUrl: string | null;
+  courseCode: string | null;
+  courseId: string | null;
+  courseName?: string | null;
+  courseColor?: string | null;
+  dueDate: string | null;
+  dueAt: string | null;
+  duePrecision: "none" | "date" | "instant" | "unresolved";
+  description: string | null;
+  sourceRevision: string | null;
+  reviewedSourceRevision: string | null;
+  isDivergent: boolean;
+  isMissing: boolean;
+};
+
 export type CaptureProposal = {
   id: string;
   captureId: string;
   action: "create_task";
   status: "proposed" | "confirmed" | "committed" | "rejected";
   title: string;
+  description?: string | null;
+  dueDate?: string | null;
+  dueAt?: string | null;
+  duePrecision?: "none" | "date" | "instant" | "unresolved";
+  courseId?: string | null;
+  external?: ExternalProposalMetadata | null;
   createdAt: string;
+  updatedAt?: string;
 };
 
 export type CaptureInboxItem = RawCapture & {

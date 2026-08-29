@@ -2,20 +2,33 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import { notificationDedupeKey } from "@/services/notifications/notification-domain";
+import { resolveTimeZone } from "@/lib/date/day";
+import {
+  notificationDedupeKey,
+  planBlackboardProposalNotification,
+} from "@/services/notifications/notification-domain";
+import { createNotificationEvent } from "@/services/notifications/notification-repository";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
+import type { ExternalCalendarProjection } from "@/types/external-calendar";
 
 import { credentialHint, decryptCredential, encryptCredential } from "./credential";
-import { parseBlackboardICalendar } from "./ical";
+import { parseBlackboardICalendar, type DuePrecision } from "./ical";
 import { fetchBlackboardCalendar } from "./safe-fetch";
 import { validateFeedUrl } from "./safe-url";
-import { planBlackboardSync, type ExistingBlackboardRecord } from "./sync-domain";
+import {
+  blackboardRecordToExternalCalendarProjection,
+  matchBlackboardCourse,
+  planBlackboardSync,
+  type BlackboardRecordForCalendar,
+  type ExistingBlackboardRecord,
+} from "./sync-domain";
 
 type BlackboardAccountRow = {
   id: string;
   status: string;
   credential_hint: string | null;
   sync_state: string;
+  course_mappings: Record<string, string> | null;
   last_success_at: string | null;
   last_error_code: string | null;
 };
@@ -49,9 +62,20 @@ type ExternalRecordRow = {
   id: string;
   external_uid: string;
   content_hash: string;
+  proposal_revision: string | null;
   task_id: string | null;
   due_at: string | null;
+  due_date: string | null;
+  due_precision: DuePrecision;
+  course_id: string | null;
+  normalized_description: string | null;
   missing_since: string | null;
+};
+
+type CourseRow = {
+  id: string;
+  code: string;
+  name: string;
 };
 
 type AuthenticatedClient = Awaited<
@@ -87,7 +111,7 @@ export async function getBlackboardStatus(): Promise<BlackboardStatus> {
   const { client, userId } = await requireAuthenticatedSupabase();
   const account = await client
     .from("integration_accounts")
-    .select("id,status,credential_hint,sync_state,last_success_at,last_error_code")
+    .select("id,status,credential_hint,sync_state,course_mappings,last_success_at,last_error_code")
     .eq("user_id", userId)
     .eq("provider", "blackboard")
     .maybeSingle();
@@ -188,7 +212,7 @@ export async function runBlackboardSync() {
   const { client, userId } = await requireAuthenticatedSupabase();
   const account = await client
     .from("integration_accounts")
-    .select("id,encrypted_credential,sync_state")
+    .select("id,encrypted_credential,sync_state,course_mappings")
     .eq("user_id", userId)
     .eq("provider", "blackboard")
     .single();
@@ -222,30 +246,50 @@ export async function runBlackboardSync() {
       decryptCredential(account.data.encrypted_credential),
     );
     const items = parseBlackboardICalendar(feed);
-    const records = await client
-      .from("external_records")
-      .select("id,external_uid,content_hash,task_id,due_at,missing_since")
-      .eq("user_id", userId)
-      .eq("account_id", account.data.id);
 
-    if (records.error) throw records.error;
+    const [recordsResult, coursesResult] = await Promise.all([
+      client
+        .from("external_records")
+        .select("id,external_uid,content_hash,proposal_revision,task_id,due_at,due_date,due_precision,course_id,normalized_description,missing_since")
+        .eq("user_id", userId)
+        .eq("account_id", account.data.id),
+      client
+        .from("courses")
+        .select("id,code,name")
+        .eq("user_id", userId),
+    ]);
+
+    if (recordsResult.error) throw recordsResult.error;
+    if (coursesResult.error) throw coursesResult.error;
+
+    const existingCourses = (coursesResult.data ?? []) as CourseRow[];
+    const knownMappings = (account.data.course_mappings ?? {}) as Record<string, string>;
 
     const existing: ExistingBlackboardRecord[] = (
-      (records.data ?? []) as ExternalRecordRow[]
+      (recordsResult.data ?? []) as ExternalRecordRow[]
     ).map((row) => ({
       id: row.id,
       externalUid: row.external_uid,
       contentHash: row.content_hash,
+      proposalRevision: row.proposal_revision,
       taskId: row.task_id,
       dueAt: row.due_at,
+      dueDate: row.due_date,
+      duePrecision: row.due_precision,
+      courseId: row.course_id,
+      normalizedDescription: row.normalized_description,
       missingSince: row.missing_since,
     }));
+
     const plan = planBlackboardSync(items, existing);
     let created = 0;
     let updated = 0;
     let missing = 0;
 
     for (const item of plan.creates) {
+      const match = matchBlackboardCourse(item.courseCode, existingCourses, knownMappings);
+      const courseId = match.kind === "matched" ? match.courseId : null;
+
       const record = await client
         .from("external_records")
         .insert({
@@ -254,40 +298,96 @@ export async function runBlackboardSync() {
           provider: "blackboard",
           external_uid: item.uid,
           normalized_title: item.title,
+          normalized_description: item.description,
           course_code: item.courseCode,
+          course_id: courseId,
           source_url: item.sourceUrl,
           source_updated_at: item.sourceUpdatedAt,
           due_at: item.dueAt,
+          due_date: item.dueDate,
+          due_precision: item.duePrecision,
           content_hash: item.contentHash,
+          proposal_revision: item.proposalRevision,
           last_seen_at: new Date().toISOString(),
         })
         .select("id")
         .single();
 
       if (record.error) throw record.error;
+
       await audit(client, userId, run.data.id, record.data.id, "created", item.title);
-      await notify(
-        client,
-        userId,
-        "blackboard_assignment",
-        notificationDedupeKey("blackboard_assignment", record.data.id, item.contentHash),
-        "New Blackboard calendar item",
-        item.title,
-        "/integrations/blackboard",
-      );
+
+      // Phase 7A: If stable UID, reconcile with Universal Capture proposal
+      if (!item.isFallbackUid) {
+        const reconcileRes = await client.rpc("reconcile_blackboard_proposal", {
+          target_external_record_id: record.data.id,
+          proposed_title: item.title,
+          proposed_description: item.description,
+          proposed_due_date: item.dueDate,
+          proposed_due_at: item.dueAt,
+          proposed_due_precision: item.duePrecision,
+          proposed_course_id: courseId,
+          next_proposal_revision: item.proposalRevision,
+          snapshot: {
+            uid: item.uid,
+            sourceUrl: item.sourceUrl,
+            courseCode: item.courseCode,
+          },
+        });
+
+        if (reconcileRes.error) throw reconcileRes.error;
+
+        const propRow = (reconcileRes.data as Array<{ proposal_id: string; proposal_status: string }> | null)?.[0];
+        const propId = propRow?.proposal_id ?? null;
+        const propStatus = propRow?.proposal_status ?? "proposed";
+
+        // Phase 7B: Plan and emit notification for new reviewable proposal
+        const plannedNotification = planBlackboardProposalNotification({
+          externalRecordId: record.data.id,
+          proposalId: propId,
+          proposalStatus: propStatus,
+          proposalRevision: item.proposalRevision,
+          title: item.title,
+          courseCode: item.courseCode,
+          courseId,
+          isFallbackUid: item.isFallbackUid,
+          isCreate: true,
+        });
+
+        if (plannedNotification) {
+          await createNotificationEvent(client, {
+            userId,
+            eventType: plannedNotification.eventType,
+            dedupeKey: plannedNotification.dedupeKey,
+            title: plannedNotification.title,
+            body: plannedNotification.body,
+            deepLink: plannedNotification.deepLink,
+            courseId: plannedNotification.courseId,
+          });
+        }
+      }
+
       created += 1;
     }
 
     for (const change of plan.updates) {
+      const match = matchBlackboardCourse(change.item.courseCode, existingCourses, knownMappings);
+      const courseId = match.kind === "matched" ? match.courseId : null;
+
       const result = await client
         .from("external_records")
         .update({
           normalized_title: change.item.title,
+          normalized_description: change.item.description,
           course_code: change.item.courseCode,
+          course_id: courseId,
           source_url: change.item.sourceUrl,
           source_updated_at: change.item.sourceUpdatedAt,
           due_at: change.item.dueAt,
+          due_date: change.item.dueDate,
+          due_precision: change.item.duePrecision,
           content_hash: change.item.contentHash,
+          proposal_revision: change.item.proposalRevision,
           last_seen_at: new Date().toISOString(),
           missing_since: null,
         })
@@ -295,6 +395,7 @@ export async function runBlackboardSync() {
         .eq("user_id", userId);
 
       if (result.error) throw result.error;
+
       await audit(
         client,
         userId,
@@ -303,21 +404,63 @@ export async function runBlackboardSync() {
         "updated",
         change.item.title,
       );
-      if (change.record.dueAt !== change.item.dueAt) {
-        await notify(
-          client,
-          userId,
-          "blackboard_deadline_changed",
-          notificationDedupeKey(
-            "blackboard_deadline_changed",
-            change.record.id,
-            change.item.contentHash,
-          ),
-          "Blackboard deadline changed",
-          change.item.title,
-          "/integrations/blackboard",
-        );
+
+      // Phase 7A: Reconcile proposal with updated material source fields
+      if (!change.item.isFallbackUid) {
+        const reconcileRes = await client.rpc("reconcile_blackboard_proposal", {
+          target_external_record_id: change.record.id,
+          proposed_title: change.item.title,
+          proposed_description: change.item.description,
+          proposed_due_date: change.item.dueDate,
+          proposed_due_at: change.item.dueAt,
+          proposed_due_precision: change.item.duePrecision,
+          proposed_course_id: courseId,
+          next_proposal_revision: change.item.proposalRevision,
+          snapshot: {
+            uid: change.item.uid,
+            sourceUrl: change.item.sourceUrl,
+            courseCode: change.item.courseCode,
+          },
+        });
+
+        if (reconcileRes.error) throw reconcileRes.error;
+
+        const propRow = (reconcileRes.data as Array<{ proposal_id: string; proposal_status: string }> | null)?.[0];
+        const propId = propRow?.proposal_id ?? null;
+        const propStatus = propRow?.proposal_status ?? "proposed";
+
+        const deadlineChanged =
+          change.record.dueAt !== change.item.dueAt ||
+          change.record.dueDate !== change.item.dueDate;
+
+        // Phase 7B: Plan and emit notification for updated/reopened/divergent proposal
+        const plannedNotification = planBlackboardProposalNotification({
+          externalRecordId: change.record.id,
+          proposalId: propId,
+          proposalStatus: propStatus,
+          proposalRevision: change.item.proposalRevision,
+          previousProposalRevision: change.record.proposalRevision,
+          title: change.item.title,
+          courseCode: change.item.courseCode,
+          courseId,
+          isFallbackUid: change.item.isFallbackUid,
+          isCreate: false,
+          deadlineChanged,
+        });
+
+        if (plannedNotification) {
+          await createNotificationEvent(client, {
+            userId,
+            eventType: plannedNotification.eventType,
+            dedupeKey: plannedNotification.dedupeKey,
+            title: plannedNotification.title,
+            body: plannedNotification.body,
+            deepLink: plannedNotification.deepLink,
+            courseId: plannedNotification.courseId,
+          });
+        }
       }
+
       updated += 1;
     }
 
@@ -392,15 +535,15 @@ export async function runBlackboardSync() {
         .update({ sync_state: "failed", status: "attention", last_error_code: code })
         .eq("id", account.data.id)
         .eq("user_id", userId),
-      notify(
-        client,
+      createNotificationEvent(client, {
         userId,
-        "sync_failure",
-        notificationDedupeKey("sync_failure", account.data.id, run.data.id),
-        "Blackboard sync needs attention",
-        "Open Integrations to review the latest sync.",
-        "/integrations/blackboard",
-      ),
+        eventType: "sync_failure",
+        dedupeKey: notificationDedupeKey("sync_failure", account.data.id, run.data.id),
+        title: "Blackboard sync needs attention",
+        body: "Open Integrations to review the latest sync.",
+        deepLink: "/integrations/blackboard",
+        courseId: null,
+      }),
     ]);
 
     throw error;
@@ -412,28 +555,6 @@ function integrationErrorCode(error: unknown): string {
     return String(error.code);
   }
   return "sync_failed";
-}
-
-async function notify(
-  client: AuthenticatedClient,
-  userId: string,
-  type: string,
-  dedupe: string,
-  title: string,
-  body: string,
-  link: string,
-): Promise<void> {
-  await client.from("notification_events").upsert(
-    {
-      user_id: userId,
-      event_type: type,
-      dedupe_key: dedupe,
-      title,
-      body,
-      deep_link: link,
-    },
-    { onConflict: "user_id,dedupe_key", ignoreDuplicates: true },
-  );
 }
 
 async function audit(
@@ -452,4 +573,62 @@ async function audit(
     summary: summary.slice(0, 300),
   });
   if (result.error) throw result.error;
+}
+
+export {
+  blackboardRecordToExternalCalendarProjection,
+  type BlackboardRecordForCalendar,
+};
+
+export async function listBlackboardCalendarProjectionsInRange(
+  start: string,
+  end: string,
+  timeZone = resolveTimeZone(),
+): Promise<ExternalCalendarProjection[]> {
+  const { client, userId } = await requireAuthenticatedSupabase();
+
+  const { data, error } = await client
+    .from("external_records")
+    .select("id,account_id,external_uid,task_id,normalized_title,course_code,course_id,source_url,due_at,due_date,due_precision,content_hash,missing_since,courses(id,code,name,color)")
+    .eq("user_id", userId)
+    .eq("provider", "blackboard")
+    .is("missing_since", null)
+    .is("task_id", null)
+    .limit(500);
+
+  if (error) {
+    console.error("[blackboard] Failed to load calendar records:", error);
+    throw error;
+  }
+
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
+
+  const projections: ExternalCalendarProjection[] = [];
+  type CourseItem = { id: string; code: string; name: string; color: string | null };
+  type QueryRow = BlackboardRecordForCalendar & {
+    courses: CourseItem | CourseItem[] | null;
+  };
+
+  for (const row of ((data ?? []) as unknown as QueryRow[])) {
+    const course = Array.isArray(row.courses) ? row.courses[0] ?? null : row.courses;
+    const projection = blackboardRecordToExternalCalendarProjection(
+      {
+        ...row,
+        course,
+      },
+      timeZone,
+    );
+
+    if (!projection) continue;
+
+    const projStartMs = Date.parse(projection.startsAt);
+    const projEndMs = Date.parse(projection.endsAt);
+
+    if (projStartMs < endMs && projEndMs > startMs) {
+      projections.push(projection);
+    }
+  }
+
+  return projections;
 }

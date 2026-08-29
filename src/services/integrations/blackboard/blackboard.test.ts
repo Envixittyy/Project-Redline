@@ -8,9 +8,10 @@ import {
   safeNotificationPayload,
 } from "@/services/notifications/notification-domain";
 
-import { parseBlackboardICalendar } from "./ical";
+import { computeProposalRevision, parseBlackboardICalendar } from "./ical";
 import { isPublicAddress, validateFeedUrl } from "./safe-url";
 import {
+  blackboardRecordToExternalCalendarProjection,
   matchBlackboardCourse,
   planBlackboardSync,
   type ExistingBlackboardRecord,
@@ -36,12 +37,92 @@ describe("Blackboard iCalendar", () => {
       title: "[CS101] Essay",
       courseCode: "CS101",
       dueAt: "2030-01-02T09:00:00.000Z",
+      dueDate: "2030-01-02",
+      duePrecision: "instant",
       sourceUrl: "https://learn.example.edu/item/1",
+      isFallbackUid: false,
     });
     expect(item.contentHash).toHaveLength(64);
+    expect(item.proposalRevision).toHaveLength(64);
   });
 
-  it("uses deterministic fallback identity without merging different deadlines", () => {
+  it("parses all-day date interval as date precision without inventing UTC instant", () => {
+    const allDayFeed =
+      "BEGIN:VCALENDAR\r\n" +
+      "BEGIN:VEVENT\r\n" +
+      "UID:item-date-1\r\n" +
+      "SUMMARY:History Project Due\r\n" +
+      "DTSTART;VALUE=DATE:20261120\r\n" +
+      "END:VEVENT\r\n" +
+      "END:VCALENDAR";
+    const [item] = parseBlackboardICalendar(allDayFeed);
+    expect(item.duePrecision).toBe("date");
+    expect(item.dueDate).toBe("2026-11-20");
+    expect(item.dueAt).toBeNull();
+  });
+
+  it("parses valid TZID into accurate UTC instant", () => {
+    const tzidFeed =
+      "BEGIN:VCALENDAR\r\n" +
+      "BEGIN:VEVENT\r\n" +
+      "UID:item-tz-1\r\n" +
+      "SUMMARY:Physics Quiz\r\n" +
+      "DTEND;TZID=America/New_York:20261015T140000\r\n" +
+      "END:VEVENT\r\n" +
+      "END:VCALENDAR";
+    const [item] = parseBlackboardICalendar(tzidFeed);
+    expect(item.duePrecision).toBe("instant");
+    expect(item.dueAt).toBe("2026-10-15T18:00:00.000Z"); // EDT is UTC-4
+    expect(item.dueDate).toBe("2026-10-15");
+  });
+
+  it("flags floating date-times as unresolved precision", () => {
+    const floatingFeed =
+      "BEGIN:VCALENDAR\r\n" +
+      "BEGIN:VEVENT\r\n" +
+      "UID:item-floating-1\r\n" +
+      "SUMMARY:Math Homework\r\n" +
+      "DTSTART:20261015T140000\r\n" +
+      "END:VEVENT\r\n" +
+      "END:VCALENDAR";
+    const [item] = parseBlackboardICalendar(floatingFeed);
+    expect(item.duePrecision).toBe("unresolved");
+    expect(item.dueAt).toBeNull();
+  });
+
+  it("computes canonical proposal revision ignoring provider timestamp and URL churn", () => {
+    const rev1 = computeProposalRevision({
+      title: "  Final Paper  ",
+      description: "Submit PDF",
+      dueDate: "2026-12-01",
+      dueAt: "2026-12-01T23:59:00.000Z",
+      duePrecision: "instant",
+      courseCode: "ENG201",
+    });
+
+    const rev2 = computeProposalRevision({
+      title: "Final Paper",
+      description: "Submit PDF",
+      dueDate: "2026-12-01",
+      dueAt: "2026-12-01T23:59:00.000Z",
+      duePrecision: "instant",
+      courseCode: "ENG201",
+    });
+
+    const revChanged = computeProposalRevision({
+      title: "Final Paper - Revised",
+      description: "Submit PDF",
+      dueDate: "2026-12-01",
+      dueAt: "2026-12-01T23:59:00.000Z",
+      duePrecision: "instant",
+      courseCode: "ENG201",
+    });
+
+    expect(rev1).toBe(rev2);
+    expect(rev1).not.toBe(revChanged);
+  });
+
+  it("uses deterministic fallback identity and marks isFallbackUid", () => {
     const a = parseBlackboardICalendar(
       feed.replace("UID:item-1\r\n", "").replace("DTEND:20300102", "DTEND:20300103"),
     )[0];
@@ -49,6 +130,7 @@ describe("Blackboard iCalendar", () => {
       feed.replace("UID:item-1\r\n", "").replace("DTEND:20300102", "DTEND:20300104"),
     )[0];
     expect(a.uid).toMatch(/^fallback:/);
+    expect(a.isFallbackUid).toBe(true);
     expect(a.uid).not.toBe(b.uid);
   });
 });
@@ -149,5 +231,123 @@ describe("notification rules", () => {
         vapidKey: true,
       }),
     ).toEqual({ available: false, reason: "install_required" });
+  });
+});
+
+describe("Blackboard calendar projection", () => {
+  const MANILA = "Asia/Manila";
+
+  it("projects a timed Blackboard external record into calendar projection with exact instant", () => {
+    const projection = blackboardRecordToExternalCalendarProjection(
+      {
+        id: "rec-1",
+        account_id: "acc-1",
+        external_uid: "item-1",
+        normalized_title: "[CS101] Essay 1",
+        course_code: "CS101",
+        course_id: "course-1",
+        source_url: "https://learn.example.edu/item/1",
+        due_at: "2030-01-02T09:00:00.000Z",
+        due_date: "2030-01-02",
+        due_precision: "instant",
+        content_hash: "hash123",
+        missing_since: null,
+        task_id: null,
+        course: { id: "course-1", code: "CS101", name: "Computer Science", color: "blue" },
+      },
+      MANILA,
+    );
+
+    expect(projection).not.toBeNull();
+    expect(projection).toMatchObject({
+      id: "rec-1",
+      provider: "blackboard",
+      externalEventId: "item-1",
+      title: "[CS101] Essay 1",
+      startsAt: "2030-01-02T09:00:00.000Z",
+      allDay: false,
+      courseCode: "CS101",
+      courseId: "course-1",
+      courseColor: "blue",
+    });
+  });
+
+  it("projects an all-day date-precision Blackboard record into zoned all-day interval", () => {
+    const projection = blackboardRecordToExternalCalendarProjection(
+      {
+        id: "rec-2",
+        external_uid: "item-2",
+        normalized_title: "History Project Due",
+        course_code: "HIST201",
+        due_at: null,
+        due_date: "2026-11-20",
+        due_precision: "date",
+        content_hash: "hash456",
+        missing_since: null,
+        task_id: null,
+      },
+      MANILA,
+    );
+
+    expect(projection).not.toBeNull();
+    expect(projection?.allDay).toBe(true);
+    expect(projection?.courseCode).toBe("HIST201");
+    expect(projection?.startsAt).toBe("2026-11-19T16:00:00.000Z");
+    expect(projection?.endsAt).toBe("2026-11-20T16:00:00.000Z");
+  });
+
+  it("suppresses missing/disappeared records", () => {
+    const projection = blackboardRecordToExternalCalendarProjection(
+      {
+        id: "rec-3",
+        external_uid: "item-3",
+        normalized_title: "Deleted Homework",
+        due_at: "2030-01-02T09:00:00.000Z",
+        due_precision: "instant",
+        content_hash: "hash789",
+        missing_since: "2026-08-28T00:00:00Z",
+        task_id: null,
+      },
+      MANILA,
+    );
+
+    expect(projection).toBeNull();
+  });
+
+  it("suppresses records already accepted into a native task to prevent duplication", () => {
+    const projection = blackboardRecordToExternalCalendarProjection(
+      {
+        id: "rec-4",
+        external_uid: "item-4",
+        normalized_title: "Accepted Task",
+        due_at: "2030-01-02T09:00:00.000Z",
+        due_precision: "instant",
+        content_hash: "hash789",
+        missing_since: null,
+        task_id: "task-uuid-1",
+      },
+      MANILA,
+    );
+
+    expect(projection).toBeNull();
+  });
+
+  it("suppresses records without temporal data", () => {
+    const projection = blackboardRecordToExternalCalendarProjection(
+      {
+        id: "rec-5",
+        external_uid: "item-5",
+        normalized_title: "No Date Assignment",
+        due_at: null,
+        due_date: null,
+        due_precision: "none",
+        content_hash: "hash000",
+        missing_since: null,
+        task_id: null,
+      },
+      MANILA,
+    );
+
+    expect(projection).toBeNull();
   });
 });

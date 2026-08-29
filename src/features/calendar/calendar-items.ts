@@ -65,9 +65,12 @@ export function buildCalendarItems(
     }
   }
 
+  const seenExternalKeys = new Set<string>();
   for (const externalEvent of externalEvents) {
     const entry = externalCalendarEventToEntry(externalEvent, timeZone);
     if (!entry || !matchesCalendarFilters(entry, defaultCalendarFilters)) continue;
+    if (seenExternalKeys.has(entry.key)) continue;
+    seenExternalKeys.add(entry.key);
     for (const date of occupiedDates(entry.start!, entry.end, timeZone)) {
       items.push({
         key: `${entry.key}:${date}`,

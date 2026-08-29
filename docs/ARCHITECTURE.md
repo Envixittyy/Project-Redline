@@ -36,6 +36,7 @@ src/
     integrations/         Adapters for external systems
     supabase/             Browser, request, proxy, and admin trust boundaries
     tasks/                Task persistence
+    work-sessions/        Task-owned planned-work persistence
   styles/                 Global semantic design tokens
   types/                  Types shared across genuine domain boundaries
 supabase/
@@ -55,6 +56,8 @@ The shell also owns two small global client boundaries. `Ctrl/Cmd+K` opens the n
 School persists owner-scoped courses and recurring weekly meetings. The timetable projects meeting occurrences into Calendar through the calendar domain adapter; it never writes duplicated native event rows. Notes is a secondary route linked from More so the five-item mobile navigation remains stable.
 
 Calendar is a working route as of Phase 1D. Its Month, Week, and Agenda modes are query parameters (`/calendar?view=week&date=2026-08-27`) so view and anchor date remain linkable. The page is a server component that resolves the visible range and reads events and tasks in parallel; `CalendarWorkspace` is the interaction boundary for view controls and editors. The mobile Month grid compresses item copy into semantic marks, Week uses an internally scrollable seven-day surface rather than overflowing the page, and Agenda is a readable narrow-screen list.
+
+P3 adds `task_work_sessions` as the many-per-task home for planned work intervals. Calendar reads sessions by overlap, hydrates their owner-scoped tasks, and projects them alongside deadlines, native events, meetings, and legacy single-task schedule fields. Its editor creates, changes, and deletes only session rows. It never changes the task deadline or creates a `calendar_events` row.
 
 Tasks is a working route as of Phase 1C. Its seven views are query parameters (`/tasks?view=today`) rather than nested routes, so Tasks stays a single destination in the primary navigation and secondary features never need to expand the mobile tab bar.
 
@@ -126,11 +129,15 @@ Data access stays server-side by default and exposes narrow operations to featur
 
 `src/services/calendar-events/calendar-event-repository.ts` is the only module that speaks to `calendar_events`. Range reads use overlap semantics (`starts_at < rangeEnd` and `ends_at > rangeStart`) so multi-day events appear in every occupied local day. Native mutations are constrained to `source = life_os`; future integration adapters must own writes for their provider rows.
 
+`src/services/work-sessions/work-session-repository.ts` owns `task_work_sessions`. Each row has an owner-consistent task foreign key, a strict increasing instant range, a lifecycle status, and a manual-or-planner origin. New planning features should write sessions rather than adding more schedule columns to tasks.
+
 ## Task schema
 
 `supabase/migrations` holds the SQL history. The `tasks` table carries owner `user_id`, `title`, `description`, `status`, `priority`, `due_date`, optional `due_at`, `scheduled_start`, `scheduled_end`, `area`, `project`, `course`, and the created, updated, and completed timestamps. `task_status` and `task_priority` are Postgres enums, so an unknown value fails at the database rather than silently persisting. `submitted` is distinct from `completed`: submission means the work was handed in, while completion remains the terminal Done state that owns `completed_at`.
 
 Check constraints keep invalid states unrepresentable: a title cannot be blank, a scheduled end requires a start and cannot precede it, and `completed_at` is set exactly when the status is `completed`. A trigger maintains `updated_at`. Three indexes support the views: `(status, due_date)` for every dated view, `completed_at desc` for Completed, and a partial index on `scheduled_start` that the Phase 1D calendar range query will also use.
+
+`scheduled_start` and `scheduled_end` remain a compatibility signal for existing task rows. P3 does not destructively migrate or invent missing interval ends; all new multi-session planning uses `task_work_sessions`.
 
 `area`, `project`, and `course` are free text in this phase. Promoting them to their own tables is an additive migration: create the table, add a nullable foreign key, backfill from the text column, then drop the text column. Do not build those systems before their phases.
 

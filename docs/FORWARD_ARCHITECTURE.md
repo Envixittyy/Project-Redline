@@ -63,7 +63,7 @@ Image and screenshot ingestion always follows Analyze → Proposal → Review �
 4. external fixed event
 5. Blackboard event
 
-A task can eventually own multiple persisted work sessions. A deadline is not a work session. Fixed external commitments are not silently moved. Provider records retain provider and external IDs.
+A task owns zero or more persisted work sessions in `task_work_sessions`. A deadline is not a work session, and existing single-schedule task fields remain compatibility-only. Fixed external commitments are not silently moved. Provider records retain provider and external IDs.
 
 The existing `src/features/calendar/calendar-domain.ts` is the current reference read-model and rescheduling implementation. It keeps task deadlines, a task’s current scheduled interval, native events, and course meetings separate.
 

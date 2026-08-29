@@ -3,10 +3,11 @@
 .periodControls, .toolbarActions { display: flex; min-width: 0; align-items: center; gap: 0.45rem; }
 .periodControls h2 { min-width: 0; margin: 0 0 0 0.35rem; overflow: hidden; font-size: clamp(1rem, 4.8vw, 1.35rem); letter-spacing: -0.035em; text-overflow: ellipsis; white-space: nowrap; }
 .toolbarActions { justify-content: space-between; }
-.iconLink, .todayLink, .addButton, .viewSwitcher a { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-interactive); color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; text-decoration: none; }
+.iconLink, .todayLink, .addButton, .secondaryAddButton, .viewSwitcher a { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-interactive); color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; text-decoration: none; }
 .iconLink { width: 2.75rem; flex: none; }
 .todayLink { padding-inline: 0.75rem; }
 .addButton { gap: 0.38rem; padding-inline: 0.8rem; border-color: var(--accent-border); background: var(--accent-muted); color: var(--accent-text); cursor: pointer; }
+.secondaryAddButton { gap: 0.38rem; padding-inline: 0.8rem; cursor: pointer; }
 .viewSwitcher { display: grid; min-width: 0; grid-template-columns: repeat(3, 1fr); padding: 0.2rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-subtle); }
 .viewSwitcher a { min-height: 2.35rem; padding-inline: 0.65rem; border: 0; background: transparent; }
 .viewSwitcher a[data-active] { background: var(--surface-elevated); box-shadow: var(--shadow-card); color: var(--text-primary); }
@@ -15,6 +16,7 @@
 .legend span[data-kind="event"] { color: var(--accent-text); }
 .legend span[data-kind="course_meeting"] { color: var(--accent-text); }
 .legend span[data-kind="scheduled_task"] { color: var(--text-primary); }
+.legend span[data-kind="work_session"] { color: var(--accent-text); }
 
 .monthLayout { display: grid; min-width: 0; gap: 0.8rem; }
 .monthFrame, .weekScroller, .agenda { min-width: 0; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-translucent); box-shadow: var(--shadow-card); backdrop-filter: blur(var(--blur-surface)); }
@@ -32,6 +34,7 @@
 
 .item { --calendar-item-accent: var(--accent-text); display: flex; width: 100%; min-width: 0; min-height: 2.75rem; align-items: center; gap: 0.48rem; padding: 0.5rem 0.58rem; border: 1px solid var(--border-subtle); border-left: 0.2rem solid var(--calendar-item-accent); border-radius: var(--radius-sm); background: var(--surface-interactive); color: var(--text-primary); cursor: pointer; text-align: left; }
 .item[data-kind="scheduled_task"] { --calendar-item-accent: var(--text-secondary); background: var(--surface-subtle); }
+.item[data-kind="work_session"] { --calendar-item-accent: var(--accent-text); background: var(--accent-muted); }
 .item[data-kind="course_meeting"] { --calendar-item-accent: var(--accent-text); cursor: default; }
 .item[data-kind="deadline"] { --calendar-item-accent: var(--text-tertiary); border-left-style: dotted; background: transparent; }
 .item[data-completed] { opacity: 0.62; }
@@ -73,7 +76,7 @@
 .emptyAgenda { display: flex; min-height: 14rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.65rem; padding: 1.5rem; color: var(--text-secondary); text-align: center; }
 .emptyAgenda p { max-width: 25rem; margin: 0; font-size: 0.86rem; line-height: 1.5; }
 
-@media (max-width: 29rem) { .addButton span { display: none; } .monthDay { min-height: 4.65rem; padding: 0.18rem; } .monthItems .item:nth-child(n + 3) { display: none; } .monthItems .itemTitle { font-size: 0; } .monthItems .itemTitle::after { content: ""; } .monthItems .item { min-height: 0.78rem; justify-content: center; padding: 0; border-left-width: 0.28rem; } .monthItems .itemIcon { display: none; } .moreCount { display: none; } }
+@media (max-width: 29rem) { .addButton span, .secondaryAddButton span { display: none; } .monthDay { min-height: 4.65rem; padding: 0.18rem; } .monthItems .item:nth-child(n + 3) { display: none; } .monthItems .itemTitle { font-size: 0; } .monthItems .itemTitle::after { content: ""; } .monthItems .item { min-height: 0.78rem; justify-content: center; padding: 0; border-left-width: 0.28rem; } .monthItems .itemIcon { display: none; } .moreCount { display: none; } }
 @media (min-width: 29.01rem) { .mobileMonthDetails { display: none; } }
 @media (min-width: 42rem) { .toolbar { flex-direction: row; align-items: center; justify-content: space-between; } .toolbarActions { flex: none; } .monthDay { min-height: 7.6rem; padding: 0.42rem; } .agendaDay { grid-template-columns: 8rem minmax(0, 1fr); padding: 1rem; } .agendaDay > header button { display: grid; } }
 @media (min-width: 74rem) { .weekGrid { width: 100%; grid-template-columns: repeat(7, minmax(0, 1fr)); } }

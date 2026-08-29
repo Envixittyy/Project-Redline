@@ -10,6 +10,7 @@ import {
 import type { CalendarEvent } from "@/types/calendar-event";
 import type { CourseMeeting } from "@/types/course-meeting";
 import type { Task, TaskPatch } from "@/types/task";
+import type { WorkSession } from "@/types/work-session";
 
 export type CalendarDataIssue =
   | "invalid_deadline"
@@ -44,6 +45,13 @@ export type TaskScheduleCalendarEntry = CalendarEntryBase & {
   overdue: boolean;
 };
 
+export type TaskWorkSessionCalendarEntry = CalendarEntryBase & {
+  kind: "task_work_session";
+  task: Task;
+  workSession: WorkSession;
+  overdue: boolean;
+};
+
 export type NativeCalendarEntry = CalendarEntryBase & {
   kind: "calendar_event";
   event: CalendarEvent;
@@ -58,6 +66,7 @@ export type CourseMeetingCalendarEntry = CalendarEntryBase & {
 export type CalendarEntry =
   | TaskDeadlineCalendarEntry
   | TaskScheduleCalendarEntry
+  | TaskWorkSessionCalendarEntry
   | NativeCalendarEntry
   | CourseMeetingCalendarEntry;
 
@@ -189,6 +198,39 @@ export function taskToCalendarEntries(
   return entries;
 }
 
+export function workSessionToCalendarEntry(
+  workSession: WorkSession,
+  task: Task,
+  timeZone: string,
+  now: Date = new Date(),
+): TaskWorkSessionCalendarEntry | null {
+  if (
+    workSession.taskId !== task.id
+    || workSession.status === "cancelled"
+    || !isIsoInstant(workSession.startsAt)
+    || !isIsoInstant(workSession.endsAt)
+    || Date.parse(workSession.endsAt) <= Date.parse(workSession.startsAt)
+  ) {
+    return null;
+  }
+
+  const start = new Date(workSession.startsAt).toISOString();
+  return {
+    key: `task-work-session:${workSession.id}`,
+    kind: "task_work_session",
+    title: task.title,
+    date: todayIn(timeZone, new Date(start)),
+    start,
+    end: new Date(workSession.endsAt).toISOString(),
+    allDay: false,
+    ...taskCourse(task),
+    task,
+    workSession,
+    overdue: isTaskOverdue(task, now, timeZone),
+    issues: [],
+  };
+}
+
 export function calendarEventToEntry(
   event: CalendarEvent,
   timeZone: string,
@@ -277,7 +319,7 @@ export function courseMeetingToCalendarEntries(
 }
 
 function taskStatusFor(entry: CalendarEntry): Task["status"] | null {
-  return entry.kind === "task_deadline" || entry.kind === "task_schedule"
+  return entry.kind === "task_deadline" || entry.kind === "task_schedule" || entry.kind === "task_work_session"
     ? entry.task.status
     : null;
 }
@@ -288,11 +330,11 @@ export function matchesCalendarFilters(
 ): boolean {
   if (entry.kind === "calendar_event" && !filters.showCalendarEvents) return false;
   if (entry.kind === "course_meeting" && !filters.showCourseMeetings) return false;
-  if ((entry.kind === "task_deadline" || entry.kind === "task_schedule") && !filters.showTasks) {
+  if ((entry.kind === "task_deadline" || entry.kind === "task_schedule" || entry.kind === "task_work_session") && !filters.showTasks) {
     return false;
   }
   if (entry.kind === "task_deadline" && !filters.showDeadlines) return false;
-  if (entry.kind === "task_schedule" && !filters.showScheduled) return false;
+  if ((entry.kind === "task_schedule" || entry.kind === "task_work_session") && !filters.showScheduled) return false;
   if (entry.allDay && !filters.showAllDay) return false;
 
   const status = taskStatusFor(entry);

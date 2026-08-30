@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  assignCourseToBlackboardRecords,
+  deleteBlackboardCourseMapping,
+  saveBlackboardCourseMapping,
+} from "@/services/integrations/blackboard/blackboard-mapping-repository";
+import {
   configureBlackboardFeed,
   runBlackboardSync,
 } from "@/services/integrations/blackboard/blackboard-repository";
@@ -11,6 +16,7 @@ import {
   BlackboardUrlError,
   validateFeedUrl,
 } from "@/services/integrations/blackboard/safe-url";
+import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 
 export type IntegrationActionResult =
   | { ok: true; message: string }
@@ -19,6 +25,9 @@ export type IntegrationActionResult =
 function refresh() {
   revalidatePath("/integrations/blackboard");
   revalidatePath("/tasks");
+  revalidatePath("/school");
+  revalidatePath("/calendar");
+  revalidatePath("/inbox");
   revalidatePath("/");
 }
 
@@ -85,12 +94,118 @@ export async function syncBlackboardAction(): Promise<IntegrationActionResult> {
   try {
     const result = await runBlackboardSync();
     refresh();
+    const unassignedMsg = result.unassigned > 0 ? ` (${result.unassigned} unassigned to review)` : "";
     return {
       ok: true,
-      message: `Sync complete: ${result.created} new, ${result.updated} updated, ${result.missing} missing-source.`,
+      message: `Sync complete: ${result.created} new, ${result.updated} updated, ${result.missing} missing-source${unassignedMsg}.`,
     };
   } catch (error) {
     console.error("[blackboard] sync failed:", safeDiagnostic(error));
     return { ok: false, message: syncFailureMessage(error) };
+  }
+}
+
+export async function saveCourseMappingAction(
+  sourceCourseName: unknown,
+  courseId: unknown,
+): Promise<IntegrationActionResult> {
+  try {
+    if (typeof sourceCourseName !== "string" || !sourceCourseName.trim()) {
+      return { ok: false, message: "A valid source course name is required." };
+    }
+    if (typeof courseId !== "string" || !courseId.trim()) {
+      return { ok: false, message: "A valid Redline course selection is required." };
+    }
+
+    const { client, userId } = await requireAuthenticatedSupabase();
+    const account = await client
+      .from("integration_accounts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("provider", "blackboard")
+      .single();
+
+    if (account.error || !account.data) {
+      return { ok: false, message: "Blackboard integration account not found." };
+    }
+
+    await saveBlackboardCourseMapping(
+      account.data.id,
+      sourceCourseName.trim(),
+      courseId.trim(),
+    );
+
+    refresh();
+    return {
+      ok: true,
+      message: `Saved mapping for "${sourceCourseName.trim()}". Future items will resolve automatically.`,
+    };
+  } catch (error) {
+    console.error("[blackboard] save mapping failed:", error);
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Failed to save course mapping.",
+    };
+  }
+}
+
+export async function deleteCourseMappingAction(
+  mappingId: unknown,
+): Promise<IntegrationActionResult> {
+  try {
+    if (typeof mappingId !== "string" || !mappingId.trim()) {
+      return { ok: false, message: "A valid mapping ID is required." };
+    }
+
+    await deleteBlackboardCourseMapping(mappingId.trim());
+    refresh();
+    return {
+      ok: true,
+      message: "Course mapping removed.",
+    };
+  } catch (error) {
+    console.error("[blackboard] delete mapping failed:", error);
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Failed to remove course mapping.",
+    };
+  }
+}
+
+export async function assignBlackboardRecordsAction(
+  recordIds: unknown,
+  courseId: unknown,
+  rememberMapping = true,
+): Promise<IntegrationActionResult> {
+  try {
+    if (!Array.isArray(recordIds) || recordIds.length === 0) {
+      return { ok: false, message: "Please select at least one item to assign." };
+    }
+    if (typeof courseId !== "string" || !courseId.trim()) {
+      return { ok: false, message: "Please select a target course." };
+    }
+
+    const validRecordIds = recordIds.filter(
+      (id): id is string => typeof id === "string" && Boolean(id.trim()),
+    );
+
+    const result = await assignCourseToBlackboardRecords(
+      validRecordIds,
+      courseId.trim(),
+      Boolean(rememberMapping),
+    );
+
+    refresh();
+    const rememberMsg = rememberMapping ? " and remembered association" : "";
+    return {
+      ok: true,
+      message: `Assigned ${result.assignedCount} item${result.assignedCount === 1 ? "" : "s"} to course${rememberMsg}.`,
+    };
+  } catch (error) {
+    console.error("[blackboard] assign records failed:", error);
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Failed to assign course to items.",
+    };
   }
 }

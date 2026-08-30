@@ -200,7 +200,6 @@
   white-space: nowrap;
 }
 
-
 .note {
   display: flex;
   align-items: center;
@@ -232,4 +231,209 @@
   .note > a {
     margin-left: 2.75rem;
   }
+}
+
+/* Phase 4B: Next Class & Today's Classes */
+.cardActive {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-subtle));
+  box-shadow: 0 0 16px -4px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.courseBadgeDot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nextClassBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+}
+
+.nextClassHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nextClassCode {
+  font-size: 0.95rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.nextClassPill {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+
+.nextClassPill[data-status="in_progress"] {
+  background: var(--accent-muted);
+  color: var(--accent-text);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.nextClassTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.nextClassMetaList {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.nextClassMetaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.nextClassUpcomingBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.nextClassTimeTag {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.nextClassName {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.nextClassMeta {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}
+
+/* Today's Classes List */
+.todayClassesList {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.todayClassItem {
+  display: flex;
+  align-items: stretch;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.75rem;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.todayClassItem[data-status="past"] {
+  opacity: 0.55;
+}
+
+.todayClassItem[data-status="in_progress"] {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-muted) 30%, var(--surface-subtle));
+}
+
+.todayClassColorBar {
+  width: 0.35rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.todayClassContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.todayClassTopRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.todayClassCode {
+  font-size: 0.88rem;
+  font-weight: 750;
+  color: var(--text-primary);
+}
+
+.todayClassTime {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.todayClassName {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todayClassMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+}
+
+.todayClassMeetingTitle {
+  font-weight: 500;
+}
+
+.todayClassLocation {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--text-secondary);
+}
+
+.todayClassStatusTag {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-tertiary);
+}
+
+.todayClassStatusTag[data-status="in_progress"] {
+  color: var(--accent-text);
 }

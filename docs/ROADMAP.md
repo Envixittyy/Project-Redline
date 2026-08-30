@@ -90,9 +90,9 @@ graph TD
   - Project canonical School course meeting data directly to Home without separate timetable storage.
   - Next Class card with active/in-progress precedence, time until start/end, location fallback, and next-day lookup.
   - Today's Classes card projecting today's schedule in chronological order with past/in-progress/upcoming classification.
-- **4C: In-App Notification Center & User Preference UI [`PLANNED` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
+- **4C: In-App Notification Center & User Preference UI [`COMPLETE` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
   - Build an in-app notification drawer/tray in the application shell with unread/read state and safe deep-link navigation.
-  - Create notification settings on `/more` for configuring quiet hours start/end times and per-course / per-type delivery toggles.
+  - Create notification settings on `/more` and `/settings/notifications` for configuring quiet hours start/end times, category delivery toggles, and deliberate Web Push enablement.
 - **4D: Web Push Background Dispatch Engine [`ARCHITECTURE REVIEW REQUIRED` | Medium | Risk: Moderate | Reviewer: Claude Sonnet / Gemini 3.1 Pro]**
   - Implement the background notification dispatch worker (evaluating upcoming deadlines, calendar reminders, and sync failures against user quiet hours and deduplication keys).
 

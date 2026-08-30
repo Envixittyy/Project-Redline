@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Bell,
   CalendarDays,
   CalendarSync,
   Compass,
@@ -129,6 +130,13 @@ const commands: readonly Command[] = [
     href: "/integrations/blackboard",
     icon: ShieldCheck,
     keywords: "school integration feed sync",
+  },
+  {
+    label: "Notification Preferences",
+    description: "Manage in-app categories, quiet hours, and push alerts",
+    href: "/settings/notifications",
+    icon: Bell,
+    keywords: "notifications alerts preferences quiet hours push bell",
   },
 ] as const;
 

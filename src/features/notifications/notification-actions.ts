@@ -1,0 +1,281 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import { requireAuthenticatedSupabase } from "@/services/supabase/request";
+import { authFailureMessage } from "@/services/supabase/errors";
+import {
+  deleteNotificationEvent,
+  getNotificationPreferences,
+  getUnreadNotificationCount,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  markNotificationUnread,
+  updateNotificationPreference,
+  updateQuietHours,
+} from "@/services/notifications/notification-repository";
+import type {
+  NotificationEvent,
+  NotificationPreferencesState,
+} from "@/types/notification";
+
+export type NotificationActionResult<T = void> =
+  | { ok: true; data: T }
+  | { ok: false; message: string };
+
+class InvalidNotificationInput extends Error {}
+
+function requireText(value: unknown, label: string, max = 200): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new InvalidNotificationInput(`${label} is required.`);
+  }
+  if (value.trim().length > max) {
+    throw new InvalidNotificationInput(`${label} is too long (max ${max} characters).`);
+  }
+  return value.trim();
+}
+
+function failure<T = void>(error: unknown): NotificationActionResult<T> {
+  if (error instanceof InvalidNotificationInput) {
+    return { ok: false, message: error.message };
+  }
+  const auth = authFailureMessage(error);
+  if (auth) return { ok: false, message: auth };
+  console.error("[notifications] action failed:", error);
+  return {
+    ok: false,
+    message: error instanceof Error ? error.message : "Notification request failed.",
+  };
+}
+
+function refresh() {
+  revalidatePath("/");
+  revalidatePath("/more");
+  revalidatePath("/settings/notifications");
+  revalidatePath("/tasks");
+  revalidatePath("/calendar");
+  revalidatePath("/school");
+}
+
+export async function getNotificationsAction(
+  limit = 50,
+): Promise<NotificationActionResult<{ notifications: NotificationEvent[]; unreadCount: number }>> {
+  try {
+    const { client, userId } = await requireAuthenticatedSupabase();
+    const [notifications, unreadCount] = await Promise.all([
+      listNotifications(client, userId, { limit }),
+      getUnreadNotificationCount(client, userId),
+    ]);
+
+    return { ok: true, data: { notifications, unreadCount } };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function getUnreadCountAction(): Promise<NotificationActionResult<number>> {
+  try {
+    const { client, userId } = await requireAuthenticatedSupabase();
+    const count = await getUnreadNotificationCount(client, userId);
+    return { ok: true, data: count };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function markNotificationReadAction(
+  eventId: unknown,
+): Promise<NotificationActionResult> {
+  try {
+    const validId = requireText(eventId, "Notification ID", 100);
+    const { client, userId } = await requireAuthenticatedSupabase();
+    await markNotificationRead(client, userId, validId);
+    refresh();
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function markNotificationUnreadAction(
+  eventId: unknown,
+): Promise<NotificationActionResult> {
+  try {
+    const validId = requireText(eventId, "Notification ID", 100);
+    const { client, userId } = await requireAuthenticatedSupabase();
+    await markNotificationUnread(client, userId, validId);
+    refresh();
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function markAllNotificationsReadAction(): Promise<NotificationActionResult> {
+  try {
+    const { client, userId } = await requireAuthenticatedSupabase();
+    await markAllNotificationsRead(client, userId);
+    refresh();
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function deleteNotificationAction(
+  eventId: unknown,
+): Promise<NotificationActionResult> {
+  try {
+    const validId = requireText(eventId, "Notification ID", 100);
+    const { client, userId } = await requireAuthenticatedSupabase();
+    await deleteNotificationEvent(client, userId, validId);
+    refresh();
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function getNotificationPreferencesAction(): Promise<
+  NotificationActionResult<NotificationPreferencesState>
+> {
+  try {
+    const { client, userId } = await requireAuthenticatedSupabase();
+    const preferences = await getNotificationPreferences(client, userId);
+    return { ok: true, data: preferences };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function saveNotificationPreferenceAction(
+  notificationType: unknown,
+  enabled: unknown,
+  courseId?: unknown,
+): Promise<NotificationActionResult> {
+  try {
+    const validType = requireText(notificationType, "Notification Type", 100);
+    if (typeof enabled !== "boolean") {
+      throw new InvalidNotificationInput("Enabled must be a boolean.");
+    }
+    const validCourseId =
+      typeof courseId === "string" && courseId.trim() ? courseId.trim() : null;
+
+    const { client, userId } = await requireAuthenticatedSupabase();
+    await updateNotificationPreference(client, userId, {
+      notificationType: validType,
+      enabled,
+      courseId: validCourseId,
+    });
+
+    refresh();
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function saveQuietHoursAction(
+  quietStart: unknown,
+  quietEnd: unknown,
+  timeZone: unknown,
+  dailyDigest?: unknown,
+): Promise<NotificationActionResult> {
+  try {
+    const startStr =
+      typeof quietStart === "string" && quietStart.trim() ? quietStart.trim() : null;
+    const endStr =
+      typeof quietEnd === "string" && quietEnd.trim() ? quietEnd.trim() : null;
+    const tzStr =
+      typeof timeZone === "string" && timeZone.trim()
+        ? timeZone.trim()
+        : process.env.APP_TIME_ZONE || "Asia/Manila";
+
+    const { client, userId } = await requireAuthenticatedSupabase();
+    await updateQuietHours(client, userId, {
+      quietStart: startStr,
+      quietEnd: endStr,
+      timeZone: tzStr,
+      dailyDigest: typeof dailyDigest === "boolean" ? dailyDigest : false,
+    });
+
+    refresh();
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function registerPushSubscriptionAction(input: {
+  endpoint: unknown;
+  keys: { p256dh: unknown; auth: unknown };
+  expirationTime?: unknown;
+}): Promise<NotificationActionResult> {
+  try {
+    const endpoint = requireText(input?.endpoint, "Push endpoint", 2000);
+    if (!endpoint.startsWith("https://")) {
+      throw new InvalidNotificationInput("Endpoint must be an HTTPS URL.");
+    }
+    const p256dh = requireText(input?.keys?.p256dh, "Push key p256dh", 500);
+    const auth = requireText(input?.keys?.auth, "Push key auth", 500);
+
+    const { client, userId } = await requireAuthenticatedSupabase();
+
+    const device = await client
+      .from("devices")
+      .insert({
+        user_id: userId,
+        name: "Web device",
+        user_agent: "Forward Web Client",
+      })
+      .select("id")
+      .single();
+
+    if (device.error) throw device.error;
+
+    const saved = await client.from("push_subscriptions").upsert(
+      {
+        user_id: userId,
+        device_id: device.data.id,
+        endpoint,
+        p256dh,
+        auth,
+        expires_at:
+          typeof input.expirationTime === "number"
+            ? new Date(input.expirationTime).toISOString()
+            : null,
+        disabled_at: null,
+      },
+      { onConflict: "user_id,endpoint" },
+    );
+
+    if (saved.error) throw saved.error;
+
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function disablePushSubscriptionAction(
+  endpoint: unknown,
+): Promise<NotificationActionResult> {
+  try {
+    const validEndpoint = requireText(endpoint, "Push endpoint", 2000);
+    const { client, userId } = await requireAuthenticatedSupabase();
+
+    const { error } = await client
+      .from("push_subscriptions")
+      .update({ disabled_at: new Date().toISOString() })
+      .eq("endpoint", validEndpoint)
+      .eq("user_id", userId);
+
+    if (error) throw error;
+
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return failure(error);
+  }
+}
+

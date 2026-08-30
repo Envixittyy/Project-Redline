@@ -153,6 +153,7 @@ export type TaskEditInput = {
   area?: string | null;
   project?: string | null;
   course?: string | null;
+  courseId?: string | null;
 };
 
 export async function saveTaskAction(id: unknown, input: TaskEditInput): Promise<ActionResult> {
@@ -197,6 +198,7 @@ export async function saveTaskAction(id: unknown, input: TaskEditInput): Promise
       area: optionalText(input?.area, "The area"),
       project: optionalText(input?.project, "The project"),
       course: optionalText(input?.course, "The course"),
+      courseId: optionalText(input?.courseId, "The course ID"),
     };
 
     if (status) patch.status = status;

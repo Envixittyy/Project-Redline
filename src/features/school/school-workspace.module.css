@@ -1,34 +1,377 @@
-.layout, .courses { display: grid; gap: 1rem; }
-.toolbar { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }
-.toolbar h2, .toolbar p, .course h2, .course p, .course small, .empty h2, .empty p { margin: 0; }
-.kicker { color: var(--text-tertiary); font-size: .72rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
-.toolbar h2 { margin-top: .25rem; font-size: clamp(1.25rem, 4vw, 1.7rem); }
-.toolbar button, .formCard button, .meetingForm button, .course header button { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; gap: .45rem; padding: .55rem .8rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-interactive); color: var(--text-primary); cursor: pointer; font: inherit; font-weight: 700; }
-.error, .empty, .formCard, .course { padding: 1rem; }
-.empty { text-align: center; }
-.empty svg { color: var(--accent-text); }
-.empty p { margin: .5rem auto 0; max-width: 34rem; color: var(--text-secondary); line-height: 1.5; }
-.formGrid { display: grid; gap: .75rem; }
-.formGrid label, .meetingForm > label { display: grid; gap: .35rem; color: var(--text-secondary); font-size: .78rem; font-weight: 700; }
-.formGrid input, .meetingForm input { min-height: 2.75rem; padding: .6rem .7rem; border: 1px solid var(--border-subtle); border-radius: .75rem; background: var(--surface); color: var(--text-primary); }
-.formCard button, .meetingForm > button { margin-top: .85rem; background: var(--accent); color: var(--accent-foreground); }
-.course { border-top: 3px solid var(--course-color); }
-.course header { display: flex; align-items: center; gap: .8rem; }
-.course header > div { min-width: 0; }
-.course header button { margin-left: auto; }
-.swatch { width: .8rem; height: 2.8rem; flex: none; border-radius: 999px; background: var(--course-color); }
-.course header p { color: var(--accent-text); font-size: .72rem; font-weight: 800; letter-spacing: .08em; }
-.course header h2 { font-size: 1.05rem; }
-.course header small { display: block; margin-top: .18rem; color: var(--text-tertiary); }
-.meetingForm { display: grid; gap: .75rem; margin-top: 1rem; padding: 1rem; border-radius: var(--radius-md); background: var(--surface-subtle); }
-.meetingForm fieldset { display: flex; flex-wrap: wrap; gap: .55rem; border: 0; padding: 0; }
-.meetingForm legend { margin-bottom: .4rem; color: var(--text-secondary); font-size: .78rem; font-weight: 700; }
-.meetingForm fieldset label { display: flex; min-height: 2.5rem; align-items: center; gap: .3rem; padding: .4rem .55rem; border: 1px solid var(--border-subtle); border-radius: .7rem; }
-.meetings { display: grid; gap: .55rem; margin: 1rem 0 0; padding: 0; list-style: none; }
-.meetings li { display: flex; align-items: center; gap: .75rem; padding: .75rem; border-radius: .8rem; background: var(--surface-subtle); }
-.meetings li > div { display: grid; gap: .15rem; }
-.meetings span { display: flex; align-items: center; gap: .25rem; color: var(--text-tertiary); font-size: .74rem; }
-.meetings button, .archive { margin-left: auto; border: 0; background: transparent; color: var(--text-tertiary); cursor: pointer; }
-.archive { margin-top: 1rem; font-size: .75rem; text-decoration: underline; }
-@media (min-width: 42rem) { .formGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .courses { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 30rem) { .toolbar { align-items: stretch; flex-direction: column; } .course header { align-items: flex-start; flex-wrap: wrap; } .course header button { margin-left: 0; } }
+.layout,
+.courses {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.toolbar h2,
+.toolbar p,
+.course h2,
+.course p,
+.course small,
+.empty h2,
+.empty p {
+  margin: 0;
+}
+
+.kicker {
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.toolbar h2 {
+  margin-top: 0.25rem;
+  font-size: clamp(1.25rem, 4vw, 1.7rem);
+}
+
+.toolbar button,
+.formCard button,
+.meetingForm button,
+.materialForm button,
+.course header button,
+.sectionHeader button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-interactive);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.8125rem;
+}
+
+.error,
+.empty,
+.formCard,
+.course {
+  padding: 1.25rem;
+}
+
+.empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+}
+
+.empty svg {
+  color: var(--accent-text);
+  margin-bottom: 0.5rem;
+}
+
+.empty p {
+  margin: 0.5rem auto 0;
+  max-width: 34rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.formGrid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.formGrid label,
+.meetingForm > label,
+.materialForm > label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.formGrid input,
+.formGrid select,
+.meetingForm input,
+.materialForm input,
+.materialForm select,
+.materialForm textarea {
+  min-height: 2.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.materialForm textarea {
+  min-height: 4rem;
+  resize: vertical;
+}
+
+.formCard button,
+.meetingForm > button,
+.materialForm > button {
+  margin-top: 0.85rem;
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.course {
+  border-top: 3px solid var(--course-color);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.course header {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.course header > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.courseHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.swatch {
+  width: 0.75rem;
+  height: 2.8rem;
+  flex: none;
+  border-radius: 999px;
+  background: var(--course-color);
+}
+
+.course header p {
+  color: var(--accent-text);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.course header h2 {
+  font-size: 1.0625rem;
+  color: var(--text-primary);
+}
+
+.course header small {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}
+
+.subSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.75rem;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sectionTitle {
+  font-size: 0.75rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+
+.sectionHeader button {
+  min-height: 2rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.meetingForm,
+.materialForm {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.meetingForm fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  border: 0;
+  padding: 0;
+}
+
+.meetingForm legend {
+  margin-bottom: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.meetingForm fieldset label {
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.meetings,
+.materials {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meetings li,
+.materials li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.meetings li > div,
+.materials li > div {
+  display: grid;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.meetings strong,
+.materials strong {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meetings span,
+.materials span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}
+
+.materialTypeBadge {
+  display: inline-flex;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-xs, 0.25rem);
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.materialLink {
+  color: var(--accent-text);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.materialLink:hover {
+  text-decoration: underline;
+}
+
+.materialDescription {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  margin-top: 0.15rem;
+}
+
+.deleteButton {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deleteButton:hover {
+  color: var(--destructive-text, #f87171);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.archive {
+  margin-top: auto;
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.archive:hover {
+  color: var(--text-secondary);
+}
+
+@media (min-width: 48rem) {
+  .formGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 32rem) {
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .course header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .courseHeaderActions {
+    margin-left: 0;
+    width: 100%;
+  }
+}

@@ -124,9 +124,11 @@ graph TD
   - Unassigned Blackboard events queue, "Remember this association", bulk course assignment, and mapping management. Zero AI course guessing for v1.
   - Three-stage Blackboard pipeline: Event detected → Resolve course via manual mapping / Unassigned flow → Deterministic task extraction (`(account_id, external_uid)` deduplication, deadline updates) → Optional AI enrichment (checklists, wording improvements).
   - Sync remains 100% deterministic and functional when local models are offline.
-- **7D: School Course Materials & Relational Task Links [`PLANNED` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
-  - Explicit task-to-course-material relational links (`task_course_material_links` with `task_id`, `course_material_id`, and metadata).
-  - Manual linking v1 with course-scoped material pickers. Semantic AI matching is deferred.
+- **7D: School Course Materials & Relational Task Links [`COMPLETE` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
+  - Canonical Course Materials model (`course_materials`) with owner scoping, course relationship, and typed categories (`document`, `link`, `lecture`, `reading`, `assignment_reference`, `syllabus`, `other`).
+  - Explicit task-to-course-material relational links (`task_course_material_links`) with database ownership triggers and cross-course integrity checks.
+  - Automatic cleanup of incompatible course material links upon task course reassignment.
+  - School workspace Course Materials manager and Task Editor course-scoped material picker. Manual linking v1; AI semantic matching is deferred.
 - **7E: AI-Assisted Course Document Import [`PLANNED` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
   - Text-readable document parser (PDF, DOCX, CSV, XLSX) extracting course code, name, section, instructor, meeting days, times, and room.
   - Generates a reviewable **Course Proposal** (`[Create]`, `[Edit]`, `[Reject]`). Writes execute strictly via normal Redline course creation services.

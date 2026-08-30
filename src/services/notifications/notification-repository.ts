@@ -7,11 +7,17 @@ import {
   safeNotificationPayload,
   type NotificationType,
 } from "./notification-domain";
+import type {
+  CreateNotificationEventInput,
+  NotificationEvent,
+  NotificationPreferencesState,
+} from "@/types/notification";
 
 export type AuthenticatedClient = SupabaseClient;
 
 type NotificationPreferenceRow = {
   id: string;
+  user_id: string;
   course_id: string | null;
   notification_type: string;
   enabled: boolean;
@@ -21,20 +27,23 @@ type NotificationPreferenceRow = {
   daily_digest: boolean;
 };
 
+type NotificationEventRow = {
+  id: string;
+  user_id: string;
+  event_type: string;
+  dedupe_key: string;
+  title: string;
+  body: string;
+  deep_link: string;
+  course_id: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
 type PushSubscriptionRow = {
   id: string;
   expires_at: string | null;
   disabled_at: string | null;
-};
-
-export type CreateNotificationEventInput = {
-  userId: string;
-  eventType: NotificationType | string;
-  dedupeKey: string;
-  title: string;
-  body: string;
-  deepLink: string;
-  courseId?: string | null;
 };
 
 export type CreateNotificationEventResult = {
@@ -43,6 +52,60 @@ export type CreateNotificationEventResult = {
   suppressedReason?: "disabled_by_preference" | "duplicate" | null;
   inQuietHours?: boolean;
 };
+
+function mapNotificationEvent(row: NotificationEventRow): NotificationEvent {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    eventType: row.event_type as NotificationType,
+    dedupeKey: row.dedupe_key,
+    title: row.title,
+    body: row.body,
+    deepLink: row.deep_link,
+    courseId: row.course_id,
+    readAt: row.read_at,
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * Checks whether an event type matches a preference row type.
+ */
+function preferenceMatchesType(prefType: string, eventType: string): boolean {
+  if (prefType === "all" || prefType === eventType) return true;
+  if (
+    (prefType === "tasks" || prefType === "task_reminders") &&
+    (eventType.startsWith("task_") || eventType === "due_reminder")
+  ) {
+    return true;
+  }
+  if (
+    (prefType === "calendar" || prefType === "calendar_reminders") &&
+    eventType.startsWith("calendar_")
+  ) {
+    return true;
+  }
+  if (
+    (prefType === "school" || prefType === "school_class_reminders") &&
+    eventType.startsWith("school_")
+  ) {
+    return true;
+  }
+  if (
+    (prefType === "blackboard" || prefType === "blackboard_new_items") &&
+    eventType === "blackboard_assignment"
+  ) {
+    return true;
+  }
+  if (
+    (prefType === "blackboard" || prefType === "blackboard_deadline_changes") &&
+    (eventType === "blackboard_deadline_changed" ||
+      eventType === "blackboard_proposal_divergence")
+  ) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Creates an in-app notification event and sets up delivery records (in_app and web_push).
@@ -58,7 +121,7 @@ export async function createNotificationEvent(
   // 1. Check preferences
   let preferenceQuery = client
     .from("notification_preferences")
-    .select("id,course_id,notification_type,enabled,quiet_start,quiet_end,time_zone,daily_digest")
+    .select("id,user_id,course_id,notification_type,enabled,quiet_start,quiet_end,time_zone,daily_digest")
     .eq("user_id", input.userId);
 
   if (input.courseId) {
@@ -81,14 +144,14 @@ export async function createNotificationEvent(
     ? prefRows.find(
         (p) =>
           p.course_id === input.courseId &&
-          (p.notification_type === input.eventType || p.notification_type === "all"),
+          preferenceMatchesType(p.notification_type, input.eventType),
       )
     : undefined;
 
   const globalPref = prefRows.find(
     (p) =>
       p.course_id === null &&
-      (p.notification_type === input.eventType || p.notification_type === "all"),
+      preferenceMatchesType(p.notification_type, input.eventType),
   );
 
   const activePref = coursePref ?? globalPref;
@@ -98,12 +161,17 @@ export async function createNotificationEvent(
   }
 
   // 2. Check quiet hours
-  const timeZone = activePref?.time_zone || process.env.APP_TIME_ZONE || "Asia/Manila";
+  const timeZone =
+    prefRows.find((p) => p.time_zone)?.time_zone ||
+    process.env.APP_TIME_ZONE ||
+    "Asia/Manila";
+
+  const quietPref = prefRows.find((p) => p.quiet_start && p.quiet_end) ?? activePref;
   const inQuiet = isQuietHours(
     new Date(),
     timeZone,
-    activePref?.quiet_start ?? null,
-    activePref?.quiet_end ?? null,
+    quietPref?.quiet_start ?? null,
+    quietPref?.quiet_end ?? null,
   );
 
   // 3. Sanitize payload
@@ -199,28 +267,75 @@ export async function createNotificationEvent(
   };
 }
 
+/**
+ * Lists notifications for a user, ordered by creation date descending.
+ */
+export async function listNotifications(
+  client: AuthenticatedClient,
+  userId: string,
+  options?: { limit?: number; unreadOnly?: boolean },
+): Promise<NotificationEvent[]> {
+  const limit = options?.limit ?? 50;
+  let query = client
+    .from("notification_events")
+    .select("id,user_id,event_type,dedupe_key,title,body,deep_link,course_id,read_at,created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (options?.unreadOnly) {
+    query = query.is("read_at", null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("[notifications] listNotifications failed:", error);
+    throw error;
+  }
+
+  return ((data ?? []) as NotificationEventRow[]).map(mapNotificationEvent);
+}
+
+/**
+ * Gets exact unread notification count for a user.
+ */
+export async function getUnreadNotificationCount(
+  client: AuthenticatedClient,
+  userId: string,
+): Promise<number> {
+  const { count, error } = await client
+    .from("notification_events")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .is("read_at", null);
+
+  if (error) {
+    console.error("[notifications] getUnreadNotificationCount failed:", error);
+    throw error;
+  }
+
+  return count ?? 0;
+}
+
+/**
+ * Backward-compatible unread list helper.
+ */
 export async function listUnreadNotifications(
   client: AuthenticatedClient,
   userId: string,
   limit = 20,
 ) {
-  const { data, error } = await client
-    .from("notification_events")
-    .select("id,event_type,title,body,deep_link,course_id,created_at")
-    .eq("user_id", userId)
-    .is("read_at", null)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-  return data ?? [];
+  return listNotifications(client, userId, { limit, unreadOnly: true });
 }
 
+/**
+ * Marks a single notification as read.
+ */
 export async function markNotificationRead(
   client: AuthenticatedClient,
   userId: string,
   eventId: string,
-) {
+): Promise<void> {
   const { error } = await client
     .from("notification_events")
     .update({ read_at: new Date().toISOString() })
@@ -228,4 +343,157 @@ export async function markNotificationRead(
     .eq("user_id", userId);
 
   if (error) throw error;
+}
+
+/**
+ * Marks a single notification as unread.
+ */
+export async function markNotificationUnread(
+  client: AuthenticatedClient,
+  userId: string,
+  eventId: string,
+): Promise<void> {
+  const { error } = await client
+    .from("notification_events")
+    .update({ read_at: null })
+    .eq("id", eventId)
+    .eq("user_id", userId);
+
+  if (error) throw error;
+}
+
+/**
+ * Marks all unread notifications as read for a user.
+ */
+export async function markAllNotificationsRead(
+  client: AuthenticatedClient,
+  userId: string,
+): Promise<void> {
+  const { error } = await client
+    .from("notification_events")
+    .update({ read_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .is("read_at", null);
+
+  if (error) throw error;
+}
+
+/**
+ * Deletes a notification event.
+ */
+export async function deleteNotificationEvent(
+  client: AuthenticatedClient,
+  userId: string,
+  eventId: string,
+): Promise<void> {
+  const { error } = await client
+    .from("notification_events")
+    .delete()
+    .eq("id", eventId)
+    .eq("user_id", userId);
+
+  if (error) throw error;
+}
+
+/**
+ * Reads user notification preferences into structured state.
+ */
+export async function getNotificationPreferences(
+  client: AuthenticatedClient,
+  userId: string,
+): Promise<NotificationPreferencesState> {
+  const { data, error } = await client
+    .from("notification_preferences")
+    .select("id,course_id,notification_type,enabled,quiet_start,quiet_end,time_zone,daily_digest")
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("[notifications] getNotificationPreferences failed:", error);
+    throw error;
+  }
+
+  const rows = (data ?? []) as NotificationPreferenceRow[];
+  const globalRows = rows.filter((r) => r.course_id === null);
+
+  const getGlobalEnabled = (type: string, fallback = true): boolean => {
+    const row = globalRows.find((r) => r.notification_type === type);
+    return row ? row.enabled : fallback;
+  };
+
+  const quietRow = globalRows.find((r) => r.quiet_start !== null || r.quiet_end !== null);
+  const tzRow = globalRows.find((r) => r.time_zone);
+
+  return {
+    taskReminders: getGlobalEnabled("task_reminders", true),
+    calendarReminders: getGlobalEnabled("calendar_reminders", true),
+    schoolClassReminders: getGlobalEnabled("school_class_reminders", true),
+    blackboardNewItems: getGlobalEnabled("blackboard_new_items", true),
+    blackboardDeadlineChanges: getGlobalEnabled("blackboard_deadline_changes", true),
+    quietHoursStart: quietRow?.quiet_start ?? null,
+    quietHoursEnd: quietRow?.quiet_end ?? null,
+    timeZone: tzRow?.time_zone ?? process.env.APP_TIME_ZONE ?? "Asia/Manila",
+    dailyDigest: globalRows.some((r) => r.daily_digest),
+  };
+}
+
+/**
+ * Updates or creates a notification category preference.
+ */
+export async function updateNotificationPreference(
+  client: AuthenticatedClient,
+  userId: string,
+  input: {
+    notificationType: string;
+    enabled: boolean;
+    courseId?: string | null;
+  },
+): Promise<void> {
+  const { error } = await client.from("notification_preferences").upsert(
+    {
+      user_id: userId,
+      course_id: input.courseId ?? null,
+      notification_type: input.notificationType,
+      enabled: input.enabled,
+    },
+    { onConflict: "user_id,course_id,notification_type" },
+  );
+
+  if (error) {
+    console.error("[notifications] updateNotificationPreference failed:", error);
+    throw error;
+  }
+}
+
+/**
+ * Updates quiet hours and timezone preferences.
+ */
+export async function updateQuietHours(
+  client: AuthenticatedClient,
+  userId: string,
+  input: {
+    quietStart: string | null;
+    quietEnd: string | null;
+    timeZone?: string;
+    dailyDigest?: boolean;
+  },
+): Promise<void> {
+  const timeZone = input.timeZone ?? process.env.APP_TIME_ZONE ?? "Asia/Manila";
+  const { error } = await client.from("notification_preferences").upsert(
+    {
+      user_id: userId,
+      course_id: null,
+      notification_type: "all",
+      enabled: true,
+      quiet_start: input.quietStart,
+      quiet_end: input.quietEnd,
+      time_zone: timeZone,
+      daily_digest: input.dailyDigest ?? false,
+    },
+    { onConflict: "user_id,course_id,notification_type" },
+  );
+
+  if (error) {
+    console.error("[notifications] updateQuietHours failed:", error);
+    throw error;
+  }
 }

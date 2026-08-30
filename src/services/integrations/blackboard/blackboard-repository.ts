@@ -11,6 +11,12 @@ import { createNotificationEvent } from "@/services/notifications/notification-r
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type { ExternalCalendarProjection } from "@/types/external-calendar";
 
+import {
+  listBlackboardCourseMappings,
+  listUnassignedBlackboardRecords,
+  type BlackboardCourseMapping,
+  type UnassignedBlackboardRecord,
+} from "./blackboard-mapping-repository";
 import { credentialHint, decryptCredential, encryptCredential } from "./credential";
 import { parseBlackboardICalendar, type DuePrecision } from "./ical";
 import { fetchBlackboardCalendar } from "./safe-fetch";
@@ -76,6 +82,7 @@ type CourseRow = {
   id: string;
   code: string;
   name: string;
+  color: string | null;
 };
 
 type AuthenticatedClient = Awaited<
@@ -84,6 +91,7 @@ type AuthenticatedClient = Awaited<
 
 export type BlackboardStatus = {
   connected: boolean;
+  accountId: string | null;
   credentialHint: string | null;
   syncState: string;
   lastSuccessAt: string | null;
@@ -105,6 +113,9 @@ export type BlackboardStatus = {
     deepLink: string;
     createdAt: string;
   }>;
+  mappings: BlackboardCourseMapping[];
+  unassigned: UnassignedBlackboardRecord[];
+  courses: CourseRow[];
 };
 
 export async function getBlackboardStatus(): Promise<BlackboardStatus> {
@@ -120,6 +131,7 @@ export async function getBlackboardStatus(): Promise<BlackboardStatus> {
   if (!account.data) {
     return {
       connected: false,
+      accountId: null,
       credentialHint: null,
       syncState: "idle",
       lastSuccessAt: null,
@@ -127,11 +139,14 @@ export async function getBlackboardStatus(): Promise<BlackboardStatus> {
       runs: [],
       changes: [],
       notifications: [],
+      mappings: [],
+      unassigned: [],
+      courses: [],
     };
   }
 
   const accountRow = account.data as BlackboardAccountRow;
-  const [runs, changes, notifications] = await Promise.all([
+  const [runs, changes, notifications, mappings, unassigned, coursesResult] = await Promise.all([
     client
       .from("sync_runs")
       .select("id,status,started_at,created_count,updated_count,missing_count,error_code")
@@ -153,14 +168,22 @@ export async function getBlackboardStatus(): Promise<BlackboardStatus> {
       .is("read_at", null)
       .order("created_at", { ascending: false })
       .limit(20),
+    listBlackboardCourseMappings(accountRow.id),
+    listUnassignedBlackboardRecords(accountRow.id),
+    client
+      .from("courses")
+      .select("id,code,name,color")
+      .eq("user_id", userId)
+      .order("code", { ascending: true }),
   ]);
 
-  if (runs.error || changes.error || notifications.error) {
-    throw runs.error ?? changes.error ?? notifications.error;
+  if (runs.error || changes.error || notifications.error || coursesResult.error) {
+    throw runs.error ?? changes.error ?? notifications.error ?? coursesResult.error;
   }
 
   return {
     connected: accountRow.status !== "disconnected",
+    accountId: accountRow.id,
     credentialHint: accountRow.credential_hint,
     syncState: accountRow.sync_state,
     lastSuccessAt: accountRow.last_success_at,
@@ -187,6 +210,9 @@ export async function getBlackboardStatus(): Promise<BlackboardStatus> {
       deepLink: row.deep_link,
       createdAt: row.created_at,
     })),
+    mappings,
+    unassigned,
+    courses: (coursesResult.data ?? []) as CourseRow[],
   };
 }
 
@@ -247,7 +273,7 @@ export async function runBlackboardSync() {
     );
     const items = parseBlackboardICalendar(feed);
 
-    const [recordsResult, coursesResult] = await Promise.all([
+    const [recordsResult, coursesResult, mappingsResult] = await Promise.all([
       client
         .from("external_records")
         .select("id,external_uid,content_hash,proposal_revision,task_id,due_at,due_date,due_precision,course_id,normalized_description,missing_since")
@@ -255,15 +281,30 @@ export async function runBlackboardSync() {
         .eq("account_id", account.data.id),
       client
         .from("courses")
-        .select("id,code,name")
+        .select("id,code,name,color")
         .eq("user_id", userId),
+      client
+        .from("blackboard_course_mappings")
+        .select("source_course_name,course_id")
+        .eq("user_id", userId)
+        .eq("account_id", account.data.id),
     ]);
 
     if (recordsResult.error) throw recordsResult.error;
     if (coursesResult.error) throw coursesResult.error;
+    if (mappingsResult.error) throw mappingsResult.error;
 
     const existingCourses = (coursesResult.data ?? []) as CourseRow[];
-    const knownMappings = (account.data.course_mappings ?? {}) as Record<string, string>;
+
+    // Build known mappings strictly from saved blackboard_course_mappings
+    const knownMappings: Record<string, string> = {
+      ...(account.data.course_mappings ?? {}),
+    };
+    for (const mapping of (mappingsResult.data ?? [])) {
+      if (mapping.source_course_name && mapping.course_id) {
+        knownMappings[mapping.source_course_name] = mapping.course_id;
+      }
+    }
 
     const existing: ExistingBlackboardRecord[] = (
       (recordsResult.data ?? []) as ExternalRecordRow[]
@@ -285,10 +326,14 @@ export async function runBlackboardSync() {
     let created = 0;
     let updated = 0;
     let missing = 0;
+    let unassigned = 0;
 
     for (const item of plan.creates) {
       const match = matchBlackboardCourse(item.courseCode, existingCourses, knownMappings);
       const courseId = match.kind === "matched" ? match.courseId : null;
+      if (!courseId) {
+        unassigned += 1;
+      }
 
       const record = await client
         .from("external_records")
@@ -317,7 +362,7 @@ export async function runBlackboardSync() {
 
       await audit(client, userId, run.data.id, record.data.id, "created", item.title);
 
-      // Phase 7A: If stable UID, reconcile with Universal Capture proposal
+      // Phase 7A / 7C: If stable UID, reconcile with Universal Capture proposal
       if (!item.isFallbackUid) {
         const reconcileRes = await client.rpc("reconcile_blackboard_proposal", {
           target_external_record_id: record.data.id,
@@ -341,7 +386,7 @@ export async function runBlackboardSync() {
         const propId = propRow?.proposal_id ?? null;
         const propStatus = propRow?.proposal_status ?? "proposed";
 
-        // Phase 7B: Plan and emit notification for new reviewable proposal
+        // Plan and emit notification for new reviewable proposal
         const plannedNotification = planBlackboardProposalNotification({
           externalRecordId: record.data.id,
           proposalId: propId,
@@ -372,7 +417,10 @@ export async function runBlackboardSync() {
 
     for (const change of plan.updates) {
       const match = matchBlackboardCourse(change.item.courseCode, existingCourses, knownMappings);
-      const courseId = match.kind === "matched" ? match.courseId : null;
+      const courseId = match.kind === "matched" ? match.courseId : change.record.courseId;
+      if (!courseId) {
+        unassigned += 1;
+      }
 
       const result = await client
         .from("external_records")
@@ -405,7 +453,7 @@ export async function runBlackboardSync() {
         change.item.title,
       );
 
-      // Phase 7A: Reconcile proposal with updated material source fields
+      // Reconcile proposal with updated material source fields
       if (!change.item.isFallbackUid) {
         const reconcileRes = await client.rpc("reconcile_blackboard_proposal", {
           target_external_record_id: change.record.id,
@@ -433,7 +481,7 @@ export async function runBlackboardSync() {
           change.record.dueAt !== change.item.dueAt ||
           change.record.dueDate !== change.item.dueDate;
 
-        // Phase 7B: Plan and emit notification for updated/reopened/divergent proposal
+        // Plan and emit notification for updated/reopened/divergent proposal
         const plannedNotification = planBlackboardProposalNotification({
           externalRecordId: change.record.id,
           proposalId: propId,
@@ -519,7 +567,7 @@ export async function runBlackboardSync() {
       .eq("user_id", userId);
     if (completeAccount.error) throw completeAccount.error;
 
-    return { created, updated, missing };
+    return { created, updated, missing, unassigned };
   } catch (error) {
     const code = integrationErrorCode(error);
     const completedAt = new Date().toISOString();

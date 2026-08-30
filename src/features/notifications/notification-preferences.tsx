@@ -17,6 +17,7 @@ import {
   registerPushSubscriptionAction,
   saveNotificationPreferenceAction,
   saveQuietHoursAction,
+  sendTestNotificationAction,
 } from "./notification-actions";
 import styles from "./notification-preferences.module.css";
 
@@ -53,6 +54,8 @@ export function NotificationPreferences() {
     return "disabled";
   });
   const [pushLoading, setPushLoading] = useState(false);
+  const [testPushLoading, setTestPushLoading] = useState(false);
+  const [testPushMessage, setTestPushMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -178,6 +181,24 @@ export function NotificationPreferences() {
       console.error("[push] Disable push error:", err);
     } finally {
       setPushLoading(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setTestPushLoading(true);
+    setTestPushMessage(null);
+    try {
+      const res = await sendTestNotificationAction();
+      if (res.ok) {
+        setTestPushMessage(res.data.message);
+      } else {
+        setTestPushMessage(res.message);
+      }
+    } catch (err) {
+      console.error("[push] Test notification error:", err);
+      setTestPushMessage("Failed to send test notification.");
+    } finally {
+      setTestPushLoading(false);
     }
   };
 
@@ -440,16 +461,26 @@ export function NotificationPreferences() {
             </div>
           </div>
 
-          <div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             {pushStatus === "active" ? (
-              <button
-                type="button"
-                className={styles.pushActionBtn}
-                onClick={handleDisablePush}
-                disabled={pushLoading}
-              >
-                {pushLoading ? "Updating…" : "Disable Push"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className={styles.pushActionBtn}
+                  onClick={handleSendTestPush}
+                  disabled={testPushLoading || pushLoading}
+                >
+                  {testPushLoading ? "Sending…" : "Send Test Notification"}
+                </button>
+                <button
+                  type="button"
+                  className={styles.pushActionBtn}
+                  onClick={handleDisablePush}
+                  disabled={pushLoading || testPushLoading}
+                >
+                  {pushLoading ? "Updating…" : "Disable Push"}
+                </button>
+              </>
             ) : pushStatus === "disabled" ? (
               <button
                 type="button"
@@ -462,6 +493,12 @@ export function NotificationPreferences() {
             ) : null}
           </div>
         </div>
+
+        {testPushMessage ? (
+          <p className={styles.savedToast} role="status">
+            {testPushMessage}
+          </p>
+        ) : null}
 
         {pushStatus === "blocked" ? (
           <p className={styles.pushNotice}>

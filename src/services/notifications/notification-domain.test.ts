@@ -5,6 +5,7 @@ import {
   getNotificationDomain,
   getNotificationDomainLabel,
   groupNotificationsByDate,
+  isNotificationDeliveryStale,
   isQuietHours,
   notificationDedupeKey,
   planCalendarEventNotification,
@@ -341,6 +342,85 @@ describe("Notification Domain & Planning Engine (Phase 4C)", () => {
       const key2 = notificationDedupeKey("task_due_soon", "task-99", "2026-08-30");
       expect(key1).toBe(key2);
       expect(key1).toBe("task_due_soon:task-99:2026-08-30");
+    });
+  });
+
+  describe("Push Delivery Staleness & Expiration Policy (Phase 4D)", () => {
+    it("identifies school class reminders as stale 15m after class starts", () => {
+      const event = {
+        eventType: "school_class_soon",
+        dedupeKey: "school_class_soon:course-1:meeting-1:2026-08-30T10:00:00Z",
+        createdAt: "2026-08-30T09:45:00Z",
+      };
+
+      // 10 minutes before class -> fresh
+      expect(
+        isNotificationDeliveryStale(event, new Date("2026-08-30T09:50:00Z")),
+      ).toBe(false);
+
+      // 5 minutes after class started -> still fresh
+      expect(
+        isNotificationDeliveryStale(event, new Date("2026-08-30T10:05:00Z")),
+      ).toBe(false);
+
+      // 20 minutes after class started -> stale!
+      expect(
+        isNotificationDeliveryStale(event, new Date("2026-08-30T10:20:00Z")),
+      ).toBe(true);
+    });
+
+    it("identifies calendar event reminders as stale 15m after event starts", () => {
+      const event = {
+        eventType: "calendar_event_soon",
+        dedupeKey: "calendar_event_soon:evt-1:2026-08-30T14:00:00Z",
+        createdAt: "2026-08-30T13:40:00Z",
+      };
+
+      // During start window -> fresh
+      expect(
+        isNotificationDeliveryStale(event, new Date("2026-08-30T14:10:00Z")),
+      ).toBe(false);
+
+      // 30m after event start -> stale
+      expect(
+        isNotificationDeliveryStale(event, new Date("2026-08-30T14:30:00Z")),
+      ).toBe(true);
+    });
+
+    it("identifies task due notifications as stale after 24 hours", () => {
+      const event = {
+        eventType: "task_due_soon",
+        dedupeKey: "task_due_soon:task-1:2026-08-30",
+        createdAt: "2026-08-30T00:00:00Z",
+      };
+
+      // 12 hours old -> fresh
+      expect(
+        isNotificationDeliveryStale(event, new Date("2026-08-30T12:00:00Z")),
+      ).toBe(false);
+
+      // 26 hours old -> stale
+      expect(
+        isNotificationDeliveryStale(event, new Date("2026-08-31T02:00:00Z")),
+      ).toBe(true);
+    });
+
+    it("identifies blackboard proposal notifications as stale after 7 days", () => {
+      const event = {
+        eventType: "blackboard_assignment",
+        dedupeKey: "blackboard_assignment:item-1:rev-1",
+        createdAt: "2026-08-20T00:00:00Z",
+      };
+
+      // 3 days old -> fresh
+      expect(
+        isNotificationDeliveryStale(event, new Date("2026-08-23T00:00:00Z")),
+      ).toBe(false);
+
+      // 8 days old -> stale
+      expect(
+        isNotificationDeliveryStale(event, new Date("2026-08-28T01:00:00Z")),
+      ).toBe(true);
     });
   });
 });

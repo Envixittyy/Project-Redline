@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import { authFailureMessage } from "@/services/supabase/errors";
 import {
+  createNotificationEvent,
   deleteNotificationEvent,
   getNotificationPreferences,
   getUnreadNotificationCount,
@@ -279,3 +280,91 @@ export async function disablePushSubscriptionAction(
   }
 }
 
+/**
+ * Generates an immediate test notification and dispatches Web Push for active user devices.
+ */
+export async function sendTestNotificationAction(): Promise<
+  NotificationActionResult<{ delivered: boolean; message: string }>
+> {
+  try {
+    const { client, userId } = await requireAuthenticatedSupabase();
+    const testKey = `test_notification:${Date.now()}`;
+
+    const eventResult = await createNotificationEvent(client, {
+      userId,
+      eventType: "due_reminder",
+      dedupeKey: testKey,
+      title: "Test Notification",
+      body: "Web Push is configured and working on this device.",
+      deepLink: "/settings/notifications",
+    });
+
+    if (!eventResult.created && eventResult.suppressedReason) {
+      return {
+        ok: true,
+        data: {
+          delivered: false,
+          message: `Test notification suppressed: ${eventResult.suppressedReason}`,
+        },
+      };
+    }
+
+    // Run dispatcher to immediately send the pending push delivery
+    const { evaluateAndDispatchNotifications } = await import(
+      "@/services/notifications/notification-dispatcher"
+    );
+    const summary = await evaluateAndDispatchNotifications(client, userId);
+    refresh();
+
+    if (summary.pushesSent > 0) {
+      return {
+        ok: true,
+        data: {
+          delivered: true,
+          message: "Test push notification sent successfully.",
+        },
+      };
+    }
+
+    if (summary.pushesDeferred > 0) {
+      return {
+        ok: true,
+        data: {
+          delivered: false,
+          message:
+            "Test notification created in-app, but push was deferred because Quiet Hours are currently active.",
+        },
+      };
+    }
+
+    return {
+      ok: true,
+      data: {
+        delivered: false,
+        message:
+          "Test notification created in-app. No active push subscriptions found on server.",
+      },
+    };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * Manually executes notification evaluation and push dispatch.
+ */
+export async function runNotificationDispatchAction(): Promise<
+  NotificationActionResult<Record<string, unknown>>
+> {
+  try {
+    const { client, userId } = await requireAuthenticatedSupabase();
+    const { evaluateAndDispatchNotifications } = await import(
+      "@/services/notifications/notification-dispatcher"
+    );
+    const summary = await evaluateAndDispatchNotifications(client, userId);
+    refresh();
+    return { ok: true, data: summary as unknown as Record<string, unknown> };
+  } catch (error) {
+    return failure(error);
+  }
+}

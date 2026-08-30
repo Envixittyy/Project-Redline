@@ -504,3 +504,72 @@ export function groupNotificationsByDate(
 
   return result;
 }
+
+/**
+ * Evaluates whether a push notification delivery is stale/expired.
+ * Used when quiet hours end, or when dispatching pending deliveries,
+ * to prevent disturbing the user for events whose useful moment has passed.
+ */
+export function isNotificationDeliveryStale(
+  event: {
+    eventType: string;
+    dedupeKey: string;
+    createdAt: string;
+  },
+  currentInstant: Date = new Date(),
+): boolean {
+  const nowMs = currentInstant.getTime();
+  const createdMs = Date.parse(event.createdAt);
+  const ageMs = Number.isNaN(createdMs) ? 0 : nowMs - createdMs;
+
+  // 1. School class reminders: stale 15 minutes after the class start time
+  if (event.eventType === "school_class_soon") {
+    const parts = event.dedupeKey.split(":");
+    // dedupeKey: school_class_soon:<courseId>:<meetingId>:<occurrenceInstant>
+    const occurrenceInstant = parts.slice(3).join(":");
+    if (occurrenceInstant) {
+      const occurrenceMs = Date.parse(occurrenceInstant);
+      if (!Number.isNaN(occurrenceMs)) {
+        return nowMs > occurrenceMs + 15 * 60_000;
+      }
+    }
+    return ageMs > 2 * 3600_000;
+  }
+
+  // 2. Calendar event reminders: stale 15 minutes after event starts
+  if (event.eventType === "calendar_event_soon") {
+    const parts = event.dedupeKey.split(":");
+    // dedupeKey: calendar_event_soon:<eventId>:<startInstant>
+    const startInstant = parts.slice(2).join(":");
+    if (startInstant) {
+      const startMs = Date.parse(startInstant);
+      if (!Number.isNaN(startMs)) {
+        return nowMs > startMs + 15 * 60_000;
+      }
+    }
+    return ageMs > 2 * 3600_000;
+  }
+
+  // 3. Task due soon / reminders: stale after 24 hours
+  if (event.eventType === "task_due_soon" || event.eventType === "due_reminder") {
+    return ageMs > 24 * 3600_000;
+  }
+
+  // 4. Task overdue: stale after 48 hours
+  if (event.eventType === "task_overdue") {
+    return ageMs > 48 * 3600_000;
+  }
+
+  // 5. Blackboard proposals: stale after 7 days
+  if (event.eventType.startsWith("blackboard_")) {
+    return ageMs > 7 * 24 * 3600_000;
+  }
+
+  // 6. System sync failures: stale after 24 hours
+  if (event.eventType === "sync_failure") {
+    return ageMs > 24 * 3600_000;
+  }
+
+  // Default fallback: 24 hours
+  return ageMs > 24 * 3600_000;
+}

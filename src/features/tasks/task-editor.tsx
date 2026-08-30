@@ -1,12 +1,32 @@
 "use client";
 
-import { CalendarOff, Check, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import {
+  CalendarOff,
+  Check,
+  ExternalLink,
+  Plus,
+  RotateCcw,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { fromZonedInputValue, toZonedInputValue } from "@/lib/date/day";
+import type { CourseMaterial, TaskCourseMaterialLink } from "@/types/course-material";
 import { taskPriorities, taskStatuses, type Task } from "@/types/task";
 
-import { createSubtaskAction, deleteTaskAction, saveTaskAction, setTaskCompletionAction } from "./task-actions";
+import {
+  createSubtaskAction,
+  deleteTaskAction,
+  saveTaskAction,
+  setTaskCompletionAction,
+} from "./task-actions";
+import {
+  getCourseMaterialsForPickerAction,
+  getTaskMaterialsAction,
+  linkTaskMaterialsAction,
+  unlinkTaskMaterialAction,
+} from "./task-material-actions";
 import styles from "./task-editor.module.css";
 
 /** Completion has its own control, so it is not offered as an editable status. */
@@ -25,6 +45,13 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
   const [subtaskTitle, setSubtaskTitle] = useState("");
   const [pending, startTransition] = useTransition();
 
+  // Task Materials
+  const [materials, setMaterials] = useState<TaskCourseMaterialLink[]>([]);
+  const [showMaterialPicker, setShowMaterialPicker] = useState(false);
+  const [availableMaterials, setAvailableMaterials] = useState<CourseMaterial[]>([]);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
+
   const completed = task.status === "completed";
 
   const [fields, setFields] = useState({
@@ -39,18 +66,28 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
     area: task.area ?? "",
     project: task.project ?? "",
     course: task.course ?? "",
+    courseId: task.courseId ?? "",
   });
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
-  }, []);
+
+    // Load linked materials for this task
+    async function loadMaterials() {
+      const res = await getTaskMaterialsAction(task.id);
+      if (res.ok) {
+        setMaterials(res.materials);
+      }
+    }
+    loadMaterials();
+  }, [task.id]);
 
   function update<K extends keyof typeof fields>(key: K, value: (typeof fields)[K]) {
     setFields((current) => ({ ...current, [key]: value }));
   }
 
-  function run(action: () => Promise<{ ok: true } | { ok: false; message: string }>) {
+  function run(action: () => Promise<{ ok: true; message?: string } | { ok: false; message: string }>) {
     startTransition(async () => {
       const result = await action();
       if (result.ok) {
@@ -58,6 +95,56 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
         onClose();
       } else {
         setError(result.message);
+      }
+    });
+  }
+
+  async function handleOpenMaterialPicker() {
+    const targetCourseId = fields.courseId || task.courseId;
+    if (!targetCourseId) return;
+
+    setLoadingMaterials(true);
+    const res = await getCourseMaterialsForPickerAction(targetCourseId);
+    setLoadingMaterials(false);
+
+    if (res.ok) {
+      // Filter out already linked materials
+      const existingIds = new Set(materials.map((m) => m.courseMaterialId));
+      setAvailableMaterials(res.materials.filter((m) => !existingIds.has(m.id)));
+      setSelectedMaterialIds([]);
+      setShowMaterialPicker(true);
+    } else {
+      setError(res.message);
+    }
+  }
+
+  async function handleAddSelectedMaterials() {
+    if (selectedMaterialIds.length === 0) {
+      setShowMaterialPicker(false);
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await linkTaskMaterialsAction(task.id, selectedMaterialIds);
+      if (res.ok) {
+        setShowMaterialPicker(false);
+        const updated = await getTaskMaterialsAction(task.id);
+        if (updated.ok) setMaterials(updated.materials);
+      } else {
+        setError(res.message);
+      }
+    });
+  }
+
+  async function handleUnlinkMaterial(courseMaterialId: string) {
+    startTransition(async () => {
+      const res = await unlinkTaskMaterialAction(task.id, courseMaterialId);
+      if (res.ok) {
+        setMaterials((current) =>
+          current.filter((m) => m.courseMaterialId !== courseMaterialId),
+        );
+      } else {
+        setError(res.message);
       }
     });
   }
@@ -91,6 +178,9 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
       }),
     );
   }
+
+  const hasCourse = Boolean(fields.courseId || fields.course || task.courseId || task.course);
+  const effectiveCourseCode = fields.course || (materials[0]?.material.course?.code ?? "");
 
   return (
     <dialog
@@ -269,13 +359,151 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
             </label>
           </div>
 
+          {/* Related Course Materials Section */}
+          {hasCourse ? (
+            <div className={styles.materialsSection}>
+              <div className={styles.materialsHeader}>
+                <span>Related Materials ({materials.length})</span>
+                {(fields.courseId || task.courseId) ? (
+                  <button
+                    type="button"
+                    className={styles.subtleButton}
+                    style={{ minHeight: "2rem", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
+                    onClick={handleOpenMaterialPicker}
+                    disabled={pending || loadingMaterials}
+                  >
+                    <Plus size={14} aria-hidden="true" /> Add material
+                  </button>
+                ) : null}
+              </div>
+
+              {materials.length > 0 ? (
+                <ul className={styles.materialsList}>
+                  {materials.map((item) => (
+                    <li key={item.id} className={styles.materialItem}>
+                      <div className={styles.materialInfo}>
+                        <span className={styles.materialBadge}>{item.material.type}</span>
+                        <strong className={styles.materialTitle}>{item.material.title}</strong>
+                        {item.material.url ? (
+                          <a
+                            href={item.material.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.materialLinkIcon}
+                            title="Open resource"
+                          >
+                            <ExternalLink size={13} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.unlinkButton}
+                        aria-label={`Unlink ${item.material.title}`}
+                        disabled={pending}
+                        onClick={() => handleUnlinkMaterial(item.courseMaterialId)}
+                      >
+                        <X size={14} aria-hidden="true" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className={styles.hint}>
+                  No course materials attached to this task yet.
+                </p>
+              )}
+
+              {/* Course-Scoped Material Picker */}
+              {showMaterialPicker ? (
+                <div className={styles.pickerBox}>
+                  <div className={styles.pickerTitle}>
+                    Add material from {effectiveCourseCode || "associated course"}:
+                  </div>
+
+                  {availableMaterials.length > 0 ? (
+                    <div className={styles.pickerList}>
+                      {availableMaterials.map((mat) => {
+                        const checked = selectedMaterialIds.includes(mat.id);
+                        return (
+                          <label key={mat.id} className={styles.pickerOption}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedMaterialIds((ids) => [...ids, mat.id]);
+                                } else {
+                                  setSelectedMaterialIds((ids) =>
+                                    ids.filter((id) => id !== mat.id),
+                                  );
+                                }
+                              }}
+                            />
+                            <span className={styles.materialBadge}>{mat.type}</span>
+                            <span style={{ fontWeight: 600 }}>{mat.title}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className={styles.hint}>
+                      All materials for this course are already linked, or no materials exist in School.
+                    </p>
+                  )}
+
+                  <div className={styles.pickerActions}>
+                    <button
+                      type="button"
+                      className={styles.subtleButton}
+                      style={{ minHeight: "2.2rem" }}
+                      onClick={() => setShowMaterialPicker(false)}
+                    >
+                      Cancel
+                    </button>
+                    {availableMaterials.length > 0 ? (
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        style={{ minHeight: "2.2rem" }}
+                        disabled={pending || selectedMaterialIds.length === 0}
+                        onClick={handleAddSelectedMaterials}
+                      >
+                        Add Selected ({selectedMaterialIds.length})
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className={styles.pair}>
             <label className={styles.field}>
               <span>Add subtask</span>
-              <input className={styles.control} value={subtaskTitle} maxLength={200} placeholder="A smaller next step" onChange={(event)=>setSubtaskTitle(event.target.value)}/>
+              <input
+                className={styles.control}
+                value={subtaskTitle}
+                maxLength={200}
+                placeholder="A smaller next step"
+                onChange={(event) => setSubtaskTitle(event.target.value)}
+              />
             </label>
-            <button type="button" className={styles.secondaryButton} disabled={pending||!subtaskTitle.trim()} onClick={()=>startTransition(async()=>{const result=await createSubtaskAction(task.id,subtaskTitle);if(result.ok){setSubtaskTitle("");setError(null);}else setError(result.message);})}>
-              <Plus size={16}/> Add subtask
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              disabled={pending || !subtaskTitle.trim()}
+              onClick={() =>
+                startTransition(async () => {
+                  const result = await createSubtaskAction(task.id, subtaskTitle);
+                  if (result.ok) {
+                    setSubtaskTitle("");
+                    setError(null);
+                  } else setError(result.message);
+                })
+              }
+            >
+              <Plus size={16} /> Add subtask
             </button>
           </div>
 

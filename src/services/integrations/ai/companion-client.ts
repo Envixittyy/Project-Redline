@@ -1,20 +1,13 @@
-import {
-  parseAiActionProposal,
-  type AiActionProposal,
-} from "./action-contract";
-import type {
-  AiContextEnvelope,
-  LocalCompanionConfig,
-  LocalCompanionStatus,
-  LocalProviderType,
-} from "./types";
+"use client";
 
-export class LocalCompanionClientError extends Error {
-  constructor(message: string, public readonly code?: string) {
-    super(message);
-    this.name = "LocalCompanionClientError";
-  }
-}
+import { readBoundedResponseText } from "@/companion/adapters/runtime-adapter";
+import {
+  isModelId,
+  validateCompanionUrl,
+  validateLoopbackUrl,
+} from "@/companion/network-policy";
+import type { LocalInferenceRequest } from "@/companion/types";
+import type { LocalCompanionConfig, LocalCompanionStatus } from "./types";
 
 export type CompanionHealthResponse = {
   ok: boolean;
@@ -22,314 +15,210 @@ export type CompanionHealthResponse = {
   version: string;
   error?: string;
 };
-
 export type CompanionPairResult = {
   ok: boolean;
   token?: string;
   expiresAt?: string;
   error?: string;
 };
+export class LocalCompanionClientError extends Error {}
 
-/**
- * Checks if the Local Companion daemon is running and reachable on loopback.
- */
+async function request(
+  base: string,
+  path: string,
+  init: RequestInit,
+  timeout: number,
+): Promise<Record<string, unknown>> {
+  // A hosted server's localhost is never the user's PC.
+  if (typeof window === "undefined")
+    throw new LocalCompanionClientError(
+      "Companion transport requires a browser on the companion PC.",
+    );
+  const url = new URL(path, validateCompanionUrl(base));
+  const options: RequestInit & { targetAddressSpace: "loopback" } = {
+    ...init,
+    mode: "cors",
+    credentials: "omit",
+    cache: "no-store",
+    redirect: "error",
+    targetAddressSpace: "loopback",
+    signal: init.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(timeout)])
+      : AbortSignal.timeout(timeout),
+  };
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new LocalCompanionClientError(
+      response.status === 401
+        ? "Pairing expired or revoked. Restart and re-pair."
+        : "Companion request failed.",
+    );
+  }
+  const parsed: unknown = JSON.parse(
+    await readBoundedResponseText(response, 96 * 1024),
+  );
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    throw new LocalCompanionClientError("Invalid companion response.");
+  return parsed as Record<string, unknown>;
+}
+function post(body: unknown, token?: string): RequestInit {
+  return {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  };
+}
 export async function checkCompanionHealth(
   companionUrl = "http://127.0.0.1:41400",
 ): Promise<CompanionHealthResponse> {
   try {
-    const url = new URL("/health", companionUrl).toString();
-    const res = await fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(3000),
-    });
-
-    if (!res.ok) {
-      return {
-        ok: false,
-        companion: "unknown",
-        version: "unknown",
-        error: `Companion returned HTTP ${res.status}: ${res.statusText}`,
-      };
-    }
-
-    const data = (await res.json()) as { companion?: string; version?: string };
-    return {
-      ok: true,
-      companion: data.companion || "running",
-      version: data.version || "1.0.0",
-    };
-  } catch (err) {
+    // Leave time for the initial browser local-network permission prompt.
+    const result = await request(
+      companionUrl,
+      "/health",
+      { method: "GET" },
+      30000,
+    );
+    if (result.ok !== true || result.version !== "2.0.0") throw new Error();
+    return { ok: true, companion: "running", version: "2.0.0" };
+  } catch {
     return {
       ok: false,
       companion: "disconnected",
       version: "unknown",
-      error: err instanceof Error ? err.message : "Companion daemon is not running.",
+      error:
+        "Companion unavailable. Use this PC, start the companion, and allow local network access in your browser.",
     };
   }
 }
-
-/**
- * Performs pairing handshake with the Local Companion daemon.
- */
 export async function pairCompanion(
-  companionUrl = "http://127.0.0.1:41400",
+  companionUrl: string,
   pairingSecret: string,
-  clientOrigin = "http://localhost:3000",
 ): Promise<CompanionPairResult> {
   try {
-    const url = new URL("/pair", companionUrl).toString();
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        pairingSecret,
-        clientOrigin,
-      }),
-      signal: AbortSignal.timeout(5000),
-    });
-
-    const data = (await res.json()) as {
-      ok: boolean;
-      token?: string;
-      expiresAt?: string;
-      error?: string;
-    };
-
-    if (!res.ok || !data.ok) {
-      return {
-        ok: false,
-        error: data.error || `Pairing failed with status ${res.status}`,
-      };
-    }
-
-    return {
-      ok: true,
-      token: data.token,
-      expiresAt: data.expiresAt,
-    };
-  } catch (err) {
+    const result = await request(
+      companionUrl,
+      "/pair",
+      post({ pairingSecret }),
+      30000,
+    );
+    if (
+      result.ok !== true ||
+      typeof result.token !== "string" ||
+      !/^fwd_comp_[a-f0-9]{64}$/.test(result.token) ||
+      typeof result.expiresAt !== "string" ||
+      !Number.isFinite(Date.parse(result.expiresAt))
+    )
+      throw new Error();
+    return { ok: true, token: result.token, expiresAt: result.expiresAt };
+  } catch {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Could not connect to companion daemon.",
+      error:
+        "Pairing failed. Check the origin configuration and restart for a fresh five-minute code.",
     };
   }
 }
-
-/**
- * Revokes the active pairing token with the Local Companion daemon.
- */
 export async function unpairCompanion(
-  companionUrl = "http://127.0.0.1:41400",
+  companionUrl: string,
   token: string,
 ): Promise<{ ok: boolean; message: string }> {
   try {
-    const url = new URL("/unpair", companionUrl).toString();
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (!res.ok) {
-      return { ok: false, message: `Unpair returned HTTP ${res.status}` };
-    }
-
-    return { ok: true, message: "Unpaired successfully." };
-  } catch (err) {
+    await request(companionUrl, "/unpair", post({}, token), 5000);
+    return { ok: true, message: "Companion access revoked." };
+  } catch {
     return {
       ok: false,
-      message: err instanceof Error ? err.message : "Failed to unpair companion.",
+      message:
+        "Could not revoke access. Stop the companion to revoke immediately; the token also expires after 15 minutes.",
     };
   }
 }
-
-/**
- * Retrieves the status of the local runtime (Ollama, llama.cpp, etc.) via the companion daemon.
- */
 export async function getCompanionStatus(
   config: LocalCompanionConfig,
 ): Promise<LocalCompanionStatus> {
-  const companionUrl = config.companionUrl || "http://127.0.0.1:41400";
-  const health = await checkCompanionHealth(companionUrl);
-  if (!health.ok) {
+  try {
+    const endpoint = validateLoopbackUrl(config.endpoint).toString();
+    if (!config.pairingToken) throw new Error();
+    const result = await request(
+      config.companionUrl,
+      "/v1/status",
+      post({ provider: config.provider, endpoint }, config.pairingToken),
+      16000,
+    );
+    const models = Array.isArray(result.models)
+      ? result.models
+          .filter(
+            (
+              m,
+            ): m is {
+              id: string;
+              name: string;
+              provider: LocalCompanionConfig["provider"];
+            } =>
+              !!m &&
+              typeof m === "object" &&
+              isModelId(m.id) &&
+              typeof m.name === "string" &&
+              m.name.length <= 200 &&
+              m.provider === config.provider,
+          )
+          .slice(0, 100)
+      : [];
+    return {
+      companionRunning: true,
+      paired: true,
+      runtimeConnected: result.runtimeConnected === true,
+      models,
+      ...(result.runtimeConnected !== true
+        ? { error: "Configured runtime unavailable." }
+        : {}),
+    };
+  } catch {
     return {
       companionRunning: false,
       paired: false,
       runtimeConnected: false,
       models: [],
-      error: health.error,
-    };
-  }
-
-  if (!config.pairingToken) {
-    return {
-      companionRunning: true,
-      paired: false,
-      runtimeConnected: false,
-      models: [],
-      error: "Companion is running but not paired. Enter pairing secret to connect.",
-    };
-  }
-
-  try {
-    const url = new URL("/v1/status", companionUrl).toString();
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.pairingToken}`,
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        provider: config.provider,
-        endpoint: config.endpoint,
-      }),
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (res.status === 401) {
-      return {
-        companionRunning: true,
-        paired: false,
-        runtimeConnected: false,
-        models: [],
-        error: "Pairing token expired or invalid. Please re-pair.",
-      };
-    }
-
-    const data = (await res.json()) as {
-      ok: boolean;
-      paired: boolean;
-      runtimeConnected: boolean;
-      models?: Array<{ id: string; name: string; provider: LocalProviderType }>;
-      error?: string;
-    };
-
-    return {
-      companionRunning: true,
-      paired: data.paired ?? true,
-      runtimeConnected: data.runtimeConnected ?? false,
-      models: data.models || [],
-      error: data.error,
-    };
-  } catch (err) {
-    return {
-      companionRunning: true,
-      paired: true,
-      runtimeConnected: false,
-      models: [],
-      error: err instanceof Error ? err.message : "Failed to query runtime status.",
+      error:
+        "Companion unavailable or pairing expired. Check status and re-pair.",
     };
   }
 }
-
-/**
- * Dispatches an inference request to the Local AI Companion and parses the result into an AiActionProposal.
- */
-export async function executeLocalInference(
+/** Model output remains untrusted staging data. Only server finalization can create proposals. */
+export async function inferLocalContent(
   config: LocalCompanionConfig,
-  prompt: string,
-  _envelope?: AiContextEnvelope,
-): Promise<AiActionProposal> {
-  const companionUrl = config.companionUrl || "http://127.0.0.1:41400";
-
-  if (!config.pairingToken) {
-    throw new LocalCompanionClientError(
-      "Local companion is not paired. Please pair the companion in settings before using local AI.",
-      "not_paired",
-    );
-  }
-
-  const inferUrl = new URL("/v1/infer", companionUrl).toString();
-  let res: Response;
-  try {
-    res = await fetch(inferUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.pairingToken}`,
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        provider: config.provider,
-        endpoint: config.endpoint,
-        request: {
-          model: config.model,
-          prompt,
-          systemPrompt:
-            "You are Forward AI. Return your action proposal exclusively as valid JSON adhering to schema_version 1. Do not wrap in markdown or prose.",
-          formatJson: true,
-          temperature: 0.2,
+  inference: LocalInferenceRequest,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!config.pairingToken || !config.enabled || !isModelId(config.model))
+    throw new LocalCompanionClientError("Local AI is not configured.");
+  const endpoint = validateLoopbackUrl(config.endpoint).toString();
+  const result = await request(
+    config.companionUrl,
+    "/v1/infer",
+    {
+      ...post(
+        {
+          provider: config.provider,
+          endpoint,
+          request: { ...inference, model: config.model },
         },
-      }),
-      signal: AbortSignal.timeout(60000),
-    });
-  } catch (err) {
-    throw new LocalCompanionClientError(
-      `Could not connect to Local Companion: ${err instanceof Error ? err.message : String(err)}`,
-      "companion_unreachable",
-    );
-  }
-
-  if (res.status === 401) {
-    throw new LocalCompanionClientError(
-      "Companion pairing token has expired or is invalid. Please re-pair.",
-      "pairing_invalid",
-    );
-  }
-
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
-    throw new LocalCompanionClientError(
-      `Local inference failed (HTTP ${res.status}): ${errBody || res.statusText}`,
-      "inference_error",
-    );
-  }
-
-  const jsonRes = (await res.json()) as {
-    ok: boolean;
-    content?: string;
-    error?: string;
-  };
-
-  if (!jsonRes.ok || !jsonRes.content) {
-    throw new LocalCompanionClientError(
-      jsonRes.error || "Local runtime returned an empty or error response.",
-      "runtime_error",
-    );
-  }
-
-  // Parse structured JSON
-  let parsed: unknown;
-  try {
-    const cleaned = jsonRes.content
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/, "")
-      .replace(/\s*```$/, "")
-      .trim();
-    parsed = JSON.parse(cleaned);
-  } catch {
-    throw new LocalCompanionClientError(
-      "Local model response could not be parsed as JSON.",
-      "malformed_json",
-    );
-  }
-
-  const validated = parseAiActionProposal(parsed);
-  if (!validated.ok) {
-    throw new LocalCompanionClientError(
-      `Local model output violated application schema: ${validated.issues.join("; ")}`,
-      "schema_violation",
-    );
-  }
-
-  return validated.value;
+        config.pairingToken,
+      ),
+      signal,
+    },
+    65000,
+  );
+  if (
+    result.ok !== true ||
+    typeof result.content !== "string" ||
+    result.content.length > 32768
+  )
+    throw new LocalCompanionClientError("Invalid runtime output.");
+  return result.content;
 }
-

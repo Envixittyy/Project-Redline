@@ -1,4 +1,4 @@
-import { validateLoopbackUrl } from "../security";
+import { validateLoopbackUrl, isModelId } from "../network-policy";
 import type {
   LocalInferenceRequest,
   LocalInferenceResponse,
@@ -9,6 +9,7 @@ import type {
 import {
   LocalAdapterError,
   normalizeLocalError,
+  readBoundedJson,
   type LocalRuntimeAdapter,
 } from "./runtime-adapter";
 
@@ -17,7 +18,7 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
 
   getCapabilities(): LocalRuntimeCapabilities {
     return {
-      streaming: true,
+      streaming: false,
       jsonFormat: true,
       modelDiscovery: true,
       abortSignal: true,
@@ -28,9 +29,18 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
     const parsed = validateLoopbackUrl(endpoint);
     // If the endpoint already ends with /v1, don't duplicate it
     const trimmedPath = parsed.pathname.replace(/\/$/, "");
+    if (trimmedPath !== "" && trimmedPath !== "/v1") {
+      throw new LocalAdapterError(
+        "OpenAI-compatible endpoints may use only the root or /v1 base path.",
+        "invalid_endpoint_path",
+      );
+    }
     const subPath = path.startsWith("/") ? path : `/${path}`;
     if (trimmedPath.endsWith("/v1") && subPath.startsWith("/v1/")) {
-      return new URL(`${trimmedPath}${subPath.slice(3)}`, parsed.origin).toString();
+      return new URL(
+        `${trimmedPath}${subPath.slice(3)}`,
+        parsed.origin,
+      ).toString();
     }
     return new URL(`${trimmedPath}${subPath}`, parsed.origin).toString();
   }
@@ -42,24 +52,36 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
         method: "GET",
         headers: { Accept: "application/json" },
         signal: AbortSignal.timeout(5000),
+        redirect: "error",
       });
 
       if (!res.ok) {
+        await res.body?.cancel();
         return {
           ok: false,
           provider: this.id,
           endpoint,
           models: [],
-          error: `OpenAI-compatible server returned HTTP ${res.status}: ${res.statusText}`,
+          error: "Local runtime request failed.",
         };
       }
 
-      const data = (await res.json()) as { data?: Array<{ id: string; name?: string }> };
-      const models: LocalModelDescriptor[] = (data.data || []).map((m) => ({
-        id: m.id,
-        name: m.name || m.id,
-        provider: this.id,
-      }));
+      const data = await readBoundedJson<{
+        data?: Array<{ id: string; name?: string }>;
+      }>(res);
+      if (!Array.isArray(data.data))
+        throw new LocalAdapterError(
+          "Invalid model list.",
+          "malformed_response",
+        );
+      const models: LocalModelDescriptor[] = data.data
+        .slice(0, 100)
+        .filter((m) => m && isModelId(m.id))
+        .map((m) => ({
+          id: m.id,
+          name: m.id,
+          provider: this.id,
+        }));
 
       return {
         ok: true,
@@ -82,7 +104,10 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
   async listModels(endpoint: string): Promise<LocalModelDescriptor[]> {
     const health = await this.checkHealth(endpoint);
     if (!health.ok) {
-      throw new LocalAdapterError(health.error || "Failed to list OpenAI-compatible models.", "discovery_failed");
+      throw new LocalAdapterError(
+        health.error || "Failed to list OpenAI-compatible models.",
+        "discovery_failed",
+      );
     }
     return health.models;
   }
@@ -105,6 +130,7 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
         model: request.model,
         messages,
         temperature: request.temperature ?? 0.2,
+        stream: false,
       };
 
       if (request.maxTokens) {
@@ -119,24 +145,46 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: signal || AbortSignal.timeout(60000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(60000)])
+          : AbortSignal.timeout(60000),
+        redirect: "error",
       });
 
       if (!res.ok) {
-        const errorText = await res.text().catch(() => "");
+        await res.body?.cancel();
+        if (res.status === 404) {
+          throw new LocalAdapterError(
+            "Local runtime request failed.",
+            "model_not_found",
+          );
+        }
         throw new LocalAdapterError(
-          `Local endpoint returned HTTP ${res.status}: ${errorText || res.statusText}`,
+          "Local runtime request failed.",
           "inference_failed",
         );
       }
 
-      const data = (await res.json()) as {
+      const data = await readBoundedJson<{
         choices?: Array<{ message?: { content?: string } }>;
-        usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
-      };
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+        };
+      }>(res);
 
       const choice = data.choices?.[0];
-      const content = choice?.message?.content || "";
+      const content = choice?.message?.content;
+      if (
+        typeof content !== "string" ||
+        !content.trim() ||
+        content.length > 32768
+      )
+        throw new LocalAdapterError(
+          "Invalid model content.",
+          "malformed_response",
+        );
 
       return {
         ok: true,
@@ -154,4 +202,3 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
     }
   }
 }
-

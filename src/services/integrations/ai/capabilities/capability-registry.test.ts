@@ -46,7 +46,7 @@ describe("Redline AI Capability Registry & Security Invariants", () => {
     const deleteAction: ProposedAiAction = { type: "delete_task", task_id: "t1", confidence: 0.9 };
     expect(isMutatingAiAction(deleteAction)).toBe(true);
 
-    const evalResult = evaluateCapability(mutateAction);
+    const evalResult = evaluateCapability(mutateAction, new Set(["tasks.proposeCreate"]));
     expect(evalResult.allowed).toBe(true);
     if (evalResult.allowed) {
       expect(evalResult.isMutation).toBe(true);

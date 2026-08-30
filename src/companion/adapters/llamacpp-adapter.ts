@@ -1,4 +1,4 @@
-import { validateLoopbackUrl } from "../security";
+import { validateLoopbackUrl, isModelId } from "../network-policy";
 import type {
   LocalInferenceRequest,
   LocalInferenceResponse,
@@ -9,6 +9,7 @@ import type {
 import {
   LocalAdapterError,
   normalizeLocalError,
+  readBoundedJson,
   type LocalRuntimeAdapter,
 } from "./runtime-adapter";
 
@@ -17,7 +18,7 @@ export class LlamaCppAdapter implements LocalRuntimeAdapter {
 
   getCapabilities(): LocalRuntimeCapabilities {
     return {
-      streaming: true,
+      streaming: false,
       jsonFormat: true,
       modelDiscovery: true,
       abortSignal: true,
@@ -27,55 +28,65 @@ export class LlamaCppAdapter implements LocalRuntimeAdapter {
   async checkHealth(endpoint: string): Promise<RuntimeHealthResult> {
     try {
       const url = validateLoopbackUrl(endpoint);
-      const healthUrl = new URL("/health", url).toString();
-      const res = await fetch(healthUrl, {
+      if (url.pathname !== "/")
+        throw new LocalAdapterError(
+          "Invalid runtime path.",
+          "invalid_endpoint",
+        );
+      const signal = AbortSignal.timeout(5000);
+      const health = await fetch(new URL("/health", url), {
         method: "GET",
         headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(5000),
-      }).catch(async () => {
-        // Fallback to /v1/models if /health is not implemented
-        const modelsUrl = new URL("/v1/models", url).toString();
-        return fetch(modelsUrl, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          signal: AbortSignal.timeout(5000),
-        });
+        signal,
+        redirect: "error",
       });
-
-      if (!res.ok) {
-        return {
-          ok: false,
-          provider: this.id,
-          endpoint,
-          models: [],
-          error: `llama.cpp server returned HTTP ${res.status}: ${res.statusText}`,
-        };
+      if (!health.ok && health.status !== 404) {
+        await health.body?.cancel();
+        throw new LocalAdapterError("Runtime unavailable.", "discovery_failed");
       }
-
-      // Try discovering loaded models from /v1/models
-      let models: LocalModelDescriptor[] = [];
-      try {
-        const modelsUrl = new URL("/v1/models", url).toString();
-        const modelsRes = await fetch(modelsUrl, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          signal: AbortSignal.timeout(5000),
-        });
-        if (modelsRes.ok) {
-          const data = (await modelsRes.json()) as { data?: Array<{ id: string; name?: string }> };
-          models = (data.data || []).map((m) => ({
+      if (health.ok) {
+        const status = await readBoundedJson<{ status?: string }>(health);
+        if (status.status !== "ok")
+          throw new LocalAdapterError(
+            "Runtime unavailable.",
+            "discovery_failed",
+          );
+      } else await health.body?.cancel();
+      const response = await fetch(new URL("/v1/models", url), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal,
+        redirect: "error",
+      });
+      let models: LocalModelDescriptor[];
+      if (response.status === 404 && health.ok) {
+        // Only an explicit unsupported discovery route permits the loaded-model fallback.
+        await response.body?.cancel();
+        models = [{ id: "default", name: "Loaded Model", provider: this.id }];
+      } else {
+        if (!response.ok) {
+          await response.body?.cancel();
+          throw new LocalAdapterError(
+            "Runtime unavailable.",
+            "discovery_failed",
+          );
+        }
+        const data = await readBoundedJson<{ data?: Array<{ id: string }> }>(
+          response,
+        );
+        if (!Array.isArray(data.data))
+          throw new LocalAdapterError(
+            "Invalid model list.",
+            "malformed_response",
+          );
+        models = data.data
+          .slice(0, 100)
+          .filter((m) => m && isModelId(m.id))
+          .map((m) => ({
             id: m.id,
-            name: m.name || m.id,
+            name: m.id,
             provider: this.id,
           }));
-        }
-      } catch {
-        // llama.cpp server may host a single active loaded model without /v1/models
-        models = [{ id: "default", name: "Loaded Model", provider: this.id }];
-      }
-
-      if (models.length === 0) {
-        models = [{ id: "default", name: "Loaded Model", provider: this.id }];
       }
 
       return {
@@ -99,7 +110,10 @@ export class LlamaCppAdapter implements LocalRuntimeAdapter {
   async listModels(endpoint: string): Promise<LocalModelDescriptor[]> {
     const health = await this.checkHealth(endpoint);
     if (!health.ok) {
-      throw new LocalAdapterError(health.error || "Failed to query llama.cpp server.", "discovery_failed");
+      throw new LocalAdapterError(
+        health.error || "Failed to query llama.cpp server.",
+        "discovery_failed",
+      );
     }
     return health.models;
   }
@@ -111,6 +125,11 @@ export class LlamaCppAdapter implements LocalRuntimeAdapter {
   ): Promise<LocalInferenceResponse> {
     try {
       const url = validateLoopbackUrl(endpoint);
+      if (url.pathname !== "/")
+        throw new LocalAdapterError(
+          "Invalid runtime path.",
+          "invalid_endpoint",
+        );
       const chatUrl = new URL("/v1/chat/completions", url).toString();
 
       const messages = [];
@@ -123,34 +142,60 @@ export class LlamaCppAdapter implements LocalRuntimeAdapter {
         model: request.model || "default",
         messages,
         temperature: request.temperature ?? 0.2,
+        stream: false,
       };
 
       if (request.formatJson) {
         payload.response_format = { type: "json_object" };
+      }
+      if (request.maxTokens !== undefined) {
+        payload.max_tokens = request.maxTokens;
       }
 
       const res = await fetch(chatUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: signal || AbortSignal.timeout(60000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(60000)])
+          : AbortSignal.timeout(60000),
+        redirect: "error",
       });
 
       if (!res.ok) {
-        const errorText = await res.text().catch(() => "");
+        await res.body?.cancel();
+        if (res.status === 404) {
+          throw new LocalAdapterError(
+            "Local runtime request failed.",
+            "model_not_found",
+          );
+        }
         throw new LocalAdapterError(
-          `llama.cpp returned HTTP ${res.status}: ${errorText || res.statusText}`,
+          "Local runtime request failed.",
           "inference_failed",
         );
       }
 
-      const data = (await res.json()) as {
+      const data = await readBoundedJson<{
         choices?: Array<{ message?: { content?: string } }>;
-        usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
-      };
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+        };
+      }>(res);
 
       const choice = data.choices?.[0];
-      const content = choice?.message?.content || "";
+      const content = choice?.message?.content;
+      if (
+        typeof content !== "string" ||
+        !content.trim() ||
+        content.length > 32768
+      )
+        throw new LocalAdapterError(
+          "Invalid model content.",
+          "malformed_response",
+        );
 
       return {
         ok: true,
@@ -168,4 +213,3 @@ export class LlamaCppAdapter implements LocalRuntimeAdapter {
     }
   }
 }
-

@@ -488,3 +488,19 @@ export async function deleteTask(id: string): Promise<void> {
   if (error) fail("delete the task", error);
   if (!data) throw new TaskRepositoryError("That task no longer exists.");
 }
+
+/** Canonical fields and checklist revision for one selected owner task. */
+export async function readTaskChecklistContext(id: string) {
+  const { client } = await requireAuthenticatedSupabase();
+  const { data, error } = await client.rpc("ai_read_task_context", { p_task_id: id });
+  if (error || !data) throw new TaskRepositoryError("The task is unavailable or too large for AI context.");
+  return data as import("@/services/integrations/ai/trust-contract").ChecklistContext;
+}
+
+/** Task additions and AI audit share one DB transaction. Proof stays server-only. */
+export async function applyReviewedTaskChecklist(proof: { p_message: string; p_mac: string }) {
+  const { client } = await requireAuthenticatedSupabase();
+  const { data, error } = await client.rpc("apply_ai_task_checklist", proof);
+  if (error || !data) throw new TaskRepositoryError("Checklist could not be applied. Refresh the proposal and check its task and AI permissions.");
+  return data as { ok: boolean; code?: string; alreadyApplied?: boolean; count?: number };
+}

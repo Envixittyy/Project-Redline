@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "backfill:owner": "node scripts/backfill-owner.mjs",
+    "companion": "tsx scripts/run-companion.mjs",
+    "companion:smoke": "tsx scripts/smoke-companion.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
@@ -22,6 +24,7 @@
     "web-push": "3.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -31,6 +34,7 @@
     "eslint-config-next": "16.3.3",
     "supabase": "^2.116.0",
     "tailwindcss": "^4",
+    "tsx": "4.23.12",
     "typescript": "^5",
     "vitest": "^4.1.11"
   },

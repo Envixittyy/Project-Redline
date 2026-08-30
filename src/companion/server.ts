@@ -6,15 +6,15 @@ import type { LocalRuntimeAdapter } from "./adapters/runtime-adapter";
 import {
   CompanionTokenManager,
   DEFAULT_ALLOWED_ORIGINS,
-  isLoopbackHost,
-  redactSensitiveInfo,
+  validateConfiguredOrigin,
   validateOrigin,
 } from "./security";
-import type {
-  CompanionInferencePayload,
-  CompanionPairRequest,
-  LocalProviderType,
-} from "./types";
+import {
+  DEFAULT_RUNTIME_ENDPOINTS,
+  isModelId,
+  validateLoopbackUrl,
+} from "./network-policy";
+import type { LocalInferenceRequest, LocalProviderType } from "./types";
 
 export type CompanionServerOptions = {
   port?: number;
@@ -22,293 +22,380 @@ export type CompanionServerOptions = {
   pairingSecret?: string;
   allowedOrigins?: string[];
   tokenTtlMs?: number;
+  pairingTtlMs?: number;
   silent?: boolean;
+  runtimeEndpoints?: Partial<Record<LocalProviderType, string>>;
 };
+const MAX_BODY = 96 * 1024;
+const routes = new Map([
+  ["/health", "GET"],
+  ["/pair", "POST"],
+  ["/unpair", "POST"],
+  ["/v1/status", "POST"],
+  ["/v1/infer", "POST"],
+]);
+
+function record(value: unknown, keys: string[]): Record<string, unknown> {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.keys(value).some((key) => !keys.includes(key))
+  )
+    throw new Error("invalid_request");
+  return value as Record<string, unknown>;
+}
+function inference(value: unknown): LocalInferenceRequest {
+  const v = record(value, [
+    "model",
+    "prompt",
+    "systemPrompt",
+    "temperature",
+    "maxTokens",
+    "formatJson",
+  ]);
+  if (
+    !isModelId(v.model) ||
+    typeof v.prompt !== "string" ||
+    !v.prompt.trim() ||
+    Buffer.byteLength(v.prompt) > 64 * 1024 ||
+    (v.systemPrompt !== undefined &&
+      (typeof v.systemPrompt !== "string" ||
+        Buffer.byteLength(v.systemPrompt) > 8192)) ||
+    (v.temperature !== undefined &&
+      (typeof v.temperature !== "number" ||
+        !Number.isFinite(v.temperature) ||
+        v.temperature < 0 ||
+        v.temperature > 2)) ||
+    (v.maxTokens !== undefined &&
+      (!Number.isInteger(v.maxTokens) ||
+        Number(v.maxTokens) < 1 ||
+        Number(v.maxTokens) > 4096)) ||
+    (v.formatJson !== undefined && v.formatJson !== true)
+  )
+    throw new Error("invalid_request");
+  return {
+    model: v.model,
+    prompt: v.prompt,
+    systemPrompt: v.systemPrompt as string | undefined,
+    temperature: Number(v.temperature ?? 0.2),
+    maxTokens: Number(v.maxTokens ?? 2048),
+    formatJson: true,
+  };
+}
 
 export class CompanionServer {
-  readonly version = "1.0.0";
+  readonly version = "2.0.0";
   readonly host: string;
   readonly port: number;
   readonly tokenManager: CompanionTokenManager;
   readonly allowedOrigins: string[];
-  readonly adapters: Record<LocalProviderType, LocalRuntimeAdapter>;
+  readonly adapters: Record<LocalProviderType, LocalRuntimeAdapter> = {
+    ollama: new OllamaAdapter(),
+    llamacpp: new LlamaCppAdapter(),
+    openai_compatible: new OpenAiCompatibleAdapter(),
+  };
+  private readonly endpoints: Record<LocalProviderType, string>;
   private server: http.Server | null = null;
-  private silent: boolean;
-
+  private busy = false;
+  private pairAttempts: number[] = [];
   constructor(options: CompanionServerOptions = {}) {
-    this.host = options.host || "127.0.0.1";
-    this.port = options.port !== undefined ? options.port : 41400;
-    this.silent = options.silent ?? false;
-    this.allowedOrigins = options.allowedOrigins || DEFAULT_ALLOWED_ORIGINS;
-    this.tokenManager = new CompanionTokenManager(options.pairingSecret, options.tokenTtlMs);
-
-    this.adapters = {
-      ollama: new OllamaAdapter(),
-      llamacpp: new LlamaCppAdapter(),
-      openai_compatible: new OpenAiCompatibleAdapter(),
+    this.host = options.host ?? "127.0.0.1";
+    this.port = options.port ?? 41400;
+    this.allowedOrigins = options.allowedOrigins ?? DEFAULT_ALLOWED_ORIGINS;
+    if (
+      !this.allowedOrigins.length ||
+      this.allowedOrigins.some((o) => !validateConfiguredOrigin(o))
+    )
+      throw new Error("Invalid allowed origins.");
+    this.tokenManager = new CompanionTokenManager(
+      options.pairingSecret,
+      options.tokenTtlMs,
+      options.pairingTtlMs,
+    );
+    this.endpoints = {
+      ...DEFAULT_RUNTIME_ENDPOINTS,
+      ...options.runtimeEndpoints,
     };
-  }
-
-  private log(message: string): void {
-    if (!this.silent) {
-      console.log(`[local-companion] ${redactSensitiveInfo(message)}`);
+    for (const provider of Object.keys(this.endpoints) as LocalProviderType[]) {
+      const url = validateLoopbackUrl(this.endpoints[provider]);
+      if (provider !== "openai_compatible" && url.pathname !== "/")
+        throw new Error("Invalid runtime path.");
+      if (url.port === String(this.port))
+        throw new Error("Runtime cannot target the companion.");
+      this.endpoints[provider] = url.toString();
     }
   }
-
-  private parseJsonBody<T>(req: http.IncomingMessage): Promise<T> {
-    return new Promise((resolve, reject) => {
-      let data = "";
-      req.on("data", (chunk) => {
-        data += chunk;
-        if (data.length > 5 * 1024 * 1024) {
-          // 5MB safety limit
-          reject(new Error("Payload too large."));
-        }
-      });
-      req.on("end", () => {
-        try {
-          resolve(data ? (JSON.parse(data) as T) : ({} as T));
-        } catch {
-          reject(new Error("Invalid JSON body."));
-        }
-      });
-      req.on("error", (err) => reject(err));
-    });
-  }
-
-  private sendJson(
+  private send(
     res: http.ServerResponse,
-    statusCode: number,
+    status: number,
     body: unknown,
     origin?: string,
-  ): void {
-    const headers: Record<string, string> = {
+  ) {
+    res.writeHead(status, {
       "Content-Type": "application/json",
-      "Cache-Control": "no-store, max-age=0",
-    };
-
-    if (origin && validateOrigin(origin, this.allowedOrigins)) {
-      headers["Access-Control-Allow-Origin"] = origin;
-      headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
-      headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
-      headers["Access-Control-Allow-Credentials"] = "true";
-    }
-
-    res.writeHead(statusCode, headers);
+      "Cache-Control": "no-store",
+      Vary: "Origin",
+      ...(origin ? { "Access-Control-Allow-Origin": origin } : {}),
+    });
     res.end(JSON.stringify(body));
   }
-
-  private extractBearerToken(req: http.IncomingMessage): string | undefined {
-    const auth = req.headers.authorization;
-    if (!auth || !auth.startsWith("Bearer ")) return undefined;
-    return auth.slice(7).trim();
+  private async body(req: http.IncomingMessage): Promise<unknown> {
+    if (req.headers["content-type"]?.split(";")[0] !== "application/json")
+      throw new Error("invalid_request");
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > MAX_BODY) throw new Error("request_too_large");
+      chunks.push(Buffer.from(chunk));
+    }
+    try {
+      return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    } catch {
+      throw new Error("invalid_request");
+    }
   }
-
-  handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse): Promise<void> => {
-    const origin = req.headers.origin as string | undefined;
-    const remoteIp = req.socket.remoteAddress || "";
-    const isLocalConnection =
-      isLoopbackHost(remoteIp) || remoteIp.includes("127.0.0.1") || remoteIp.includes("::1");
-    const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
-
-    // Handle CORS preflight
+  private runtime(value: Record<string, unknown>) {
+    if (
+      typeof value.provider !== "string" ||
+      !Object.hasOwn(this.endpoints, value.provider)
+    )
+      throw new Error("invalid_provider");
+    const provider = value.provider as LocalProviderType;
+    // Endpoint is an assertion of the local configuration, never routing authority.
+    if (
+      value.endpoint !== undefined &&
+      (typeof value.endpoint !== "string" ||
+        validateLoopbackUrl(value.endpoint).toString() !==
+          this.endpoints[provider])
+    )
+      throw new Error("runtime_not_configured");
+    return {
+      provider,
+      endpoint: this.endpoints[provider],
+      adapter: this.adapters[provider],
+    };
+  }
+  handleRequest = async (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> => {
+    const origin = req.headers.origin;
+    const host = req.headers.host;
+    const address = req.socket.localPort;
+    if (
+      req.socket.remoteAddress !== "127.0.0.1" ||
+      host !== `127.0.0.1:${address}`
+    ) {
+      this.send(res, 403, { ok: false, error: "invalid_host" });
+      return;
+    }
+    const route = req.url ?? "";
+    const method = routes.get(route);
+    // The only originless operation is non-sensitive loopback health for CLI smoke checks.
+    if (
+      !validateOrigin(origin, this.allowedOrigins) &&
+      !(route === "/health" && req.method === "GET" && !origin)
+    ) {
+      this.send(res, 403, { ok: false, error: "invalid_origin" });
+      return;
+    }
+    if (!method) {
+      this.send(res, 404, { ok: false, error: "unsupported_route" }, origin);
+      return;
+    }
     if (req.method === "OPTIONS") {
-      if (origin && validateOrigin(origin, this.allowedOrigins)) {
-        res.writeHead(204, {
-          "Access-Control-Allow-Origin": origin,
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-          "Access-Control-Allow-Credentials": "true",
-          "Access-Control-Max-Age": "86400",
-        });
-        res.end();
+      const requestedHeaders = (
+        req.headers["access-control-request-headers"] ?? ""
+      )
+        .toString()
+        .toLowerCase()
+        .split(",")
+        .map((h) => h.trim())
+        .filter(Boolean);
+      if (
+        req.headers["access-control-request-method"] !== method ||
+        requestedHeaders.some(
+          (h) => !["authorization", "content-type"].includes(h),
+        )
+      ) {
+        this.send(res, 403, { ok: false, error: "invalid_preflight" }, origin);
         return;
       }
-      res.writeHead(403, { "Content-Type": "text/plain" });
-      res.end("Origin not allowed");
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": origin!,
+        Vary: "Origin",
+        "Access-Control-Allow-Methods": method,
+        "Access-Control-Allow-Headers": "Authorization, Content-Type",
+        "Access-Control-Max-Age": "60",
+        ...(req.headers["access-control-request-private-network"] === "true"
+          ? { "Access-Control-Allow-Private-Network": "true" }
+          : {}),
+      });
+      res.end();
       return;
     }
-
-    // Origin validation:
-    // If an Origin header is explicitly sent (e.g. browser fetch), it must be in allowedOrigins.
-    if (origin && !validateOrigin(origin, this.allowedOrigins)) {
-      this.sendJson(res, 403, { ok: false, error: "Origin not allowed." }, origin);
+    if (req.method !== method) {
+      this.send(res, 405, { ok: false, error: "unsupported_method" }, origin);
       return;
     }
-
-    // If no Origin header is sent (e.g. server-side fetch from Next.js server actions or node),
-    // require that the TCP socket connection is from a local loopback IP.
-    if (!origin && !isLocalConnection) {
-      this.sendJson(res, 403, { ok: false, error: "Non-local connection forbidden." });
-      return;
-    }
-
-    // 1. GET /health
-    if (req.method === "GET" && url.pathname === "/health") {
-      this.sendJson(
+    if (route === "/health") {
+      this.send(
         res,
         200,
-        {
-          ok: true,
-          companion: "running",
-          version: this.version,
-        },
+        { ok: true, companion: "running", version: this.version },
         origin,
       );
       return;
     }
-
-    // 2. POST /pair
-    if (req.method === "POST" && url.pathname === "/pair") {
-      try {
-        const body = await this.parseJsonBody<CompanionPairRequest>(req);
-        const pairResult = this.tokenManager.pair(body.pairingSecret, origin || body.clientOrigin || "unknown");
-        if (!pairResult.ok) {
-          this.sendJson(res, 401, { ok: false, error: pairResult.error }, origin);
-          return;
-        }
-
-        this.log(`Client paired successfully from origin "${origin || body.clientOrigin}"`);
-        this.sendJson(res, 200, pairResult, origin);
-      } catch (err) {
-        this.sendJson(res, 400, { ok: false, error: (err as Error).message }, origin);
-      }
+    const token = req.headers.authorization?.match(
+      /^Bearer (fwd_comp_[a-f0-9]{64})$/,
+    )?.[1];
+    if (route !== "/pair" && !this.tokenManager.verify(token, origin)) {
+      this.send(res, 401, { ok: false, error: "pairing_invalid" }, origin);
       return;
     }
-
-    // 3. POST /unpair (Authenticated)
-    if (req.method === "POST" && url.pathname === "/unpair") {
-      const token = this.extractBearerToken(req);
-      if (!this.tokenManager.verify(token)) {
-        this.sendJson(res, 401, { ok: false, error: "Unauthorized or expired token." }, origin);
+    try {
+      if (route === "/pair") {
+        this.pairAttempts = this.pairAttempts.filter(
+          (t) => t > Date.now() - 60_000,
+        );
+        if (this.pairAttempts.length >= 10) {
+          this.send(
+            res,
+            429,
+            { ok: false, error: "pairing_rate_limit" },
+            origin,
+          );
+          return;
+        }
+        this.pairAttempts.push(Date.now());
+        const body = record(await this.body(req), ["pairingSecret"]);
+        const result = this.tokenManager.pair(body.pairingSecret, origin!);
+        this.send(res, result.ok ? 200 : 401, result, origin);
         return;
       }
-
-      this.tokenManager.revoke(token);
-      this.log("Token revoked (unpaired).");
-      this.sendJson(res, 200, { ok: true, message: "Unpaired successfully." }, origin);
-      return;
-    }
-
-    // All endpoints below require authentication
-    const token = this.extractBearerToken(req);
-    if (!this.tokenManager.verify(token)) {
-      this.sendJson(res, 401, { ok: false, error: "Unauthorized. Valid bearer pairing token required." }, origin);
-      return;
-    }
-
-    // 4. POST /v1/status or GET /v1/status
-    if ((req.method === "POST" || req.method === "GET") && url.pathname === "/v1/status") {
+      if (route === "/unpair") {
+        this.tokenManager.revoke(token);
+        this.send(res, 200, { ok: true }, origin);
+        return;
+      }
+      const body = record(
+        await this.body(req),
+        route === "/v1/infer"
+          ? ["provider", "endpoint", "request"]
+          : ["provider", "endpoint"],
+      );
+      const { adapter, provider, endpoint } = this.runtime(body);
+      if (this.busy) {
+        this.send(res, 429, { ok: false, error: "companion_busy" }, origin);
+        return;
+      }
+      this.busy = true;
       try {
-        let provider: LocalProviderType = "ollama";
-        let endpoint = "http://127.0.0.1:11434";
-
-        if (req.method === "POST") {
-          const body = await this.parseJsonBody<{ provider?: LocalProviderType; endpoint?: string }>(req);
-          if (body.provider) provider = body.provider;
-          if (body.endpoint) endpoint = body.endpoint;
+        if (route === "/v1/status") {
+          const result = await adapter.checkHealth(endpoint);
+          if (!this.tokenManager.verify(token, origin))
+            this.send(
+              res,
+              401,
+              { ok: false, error: "pairing_invalid" },
+              origin,
+            );
+          else
+            this.send(
+              res,
+              200,
+              {
+                ...result,
+                version: this.version,
+                paired: true,
+                runtimeConnected: result.ok,
+              },
+              origin,
+            );
         } else {
-          const qProvider = url.searchParams.get("provider");
-          const qEndpoint = url.searchParams.get("endpoint");
-          if (qProvider && (qProvider === "ollama" || qProvider === "llamacpp" || qProvider === "openai_compatible")) {
-            provider = qProvider;
+          const controller = new AbortController();
+          const abort = () => {
+            if (!res.writableEnded) controller.abort();
+          };
+          res.on("close", abort);
+          try {
+            const result = await adapter.infer(
+              endpoint,
+              inference(body.request),
+              controller.signal,
+            );
+            // Re-pair/unpair during inference prevents delivery to the revoked session.
+            if (!this.tokenManager.verify(token, origin))
+              this.send(
+                res,
+                401,
+                { ok: false, error: "pairing_invalid" },
+                origin,
+              );
+            else
+              this.send(
+                res,
+                result.ok ? 200 : 502,
+                { ...result, provider },
+                origin,
+              );
+          } finally {
+            res.off("close", abort);
           }
-          if (qEndpoint) endpoint = qEndpoint;
         }
-
-        const adapter = this.adapters[provider];
-        if (!adapter) {
-          this.sendJson(res, 400, { ok: false, error: `Unsupported provider "${provider}".` }, origin);
-          return;
-        }
-
-        const health = await adapter.checkHealth(endpoint);
-        this.sendJson(
+      } finally {
+        this.busy = false;
+      }
+    } catch {
+      if (!res.destroyed)
+        this.send(
           res,
-          200,
-          {
-            ok: health.ok,
-            version: this.version,
-            paired: true,
-            provider,
-            endpoint,
-            runtimeConnected: health.ok,
-            models: health.models,
-            error: health.error,
-          },
+          400,
+          { ok: false, error: "invalid_request_or_runtime" },
           origin,
         );
-      } catch (err) {
-        this.sendJson(res, 500, { ok: false, error: (err as Error).message }, origin);
-      }
-      return;
     }
-
-    // 5. POST /v1/infer
-    if (req.method === "POST" && url.pathname === "/v1/infer") {
-      try {
-        const body = await this.parseJsonBody<CompanionInferencePayload>(req);
-        if (!body.provider || !body.endpoint || !body.request) {
-          this.sendJson(res, 400, { ok: false, error: "Missing provider, endpoint, or request." }, origin);
-          return;
-        }
-
-        const adapter = this.adapters[body.provider];
-        if (!adapter) {
-          this.sendJson(res, 400, { ok: false, error: `Unsupported provider "${body.provider}".` }, origin);
-          return;
-        }
-
-        this.log(`Executing inference on ${body.provider} (${body.endpoint}) for model "${body.request.model}"`);
-        const result = await adapter.infer(body.endpoint, body.request);
-        this.sendJson(res, result.ok ? 200 : 502, result, origin);
-      } catch (err) {
-        this.sendJson(res, 500, { ok: false, error: (err as Error).message }, origin);
-      }
-      return;
-    }
-
-    // 404 Not Found
-    this.sendJson(res, 404, { ok: false, error: `Endpoint not found: ${req.method} ${url.pathname}` }, origin);
   };
-
-  start(port?: number, host?: string): Promise<{ port: number; host: string; pairingSecret: string }> {
-    const listenPort = port !== undefined ? port : this.port;
-    const listenHost = host || this.host;
-
-    if (!isLoopbackHost(listenHost)) {
-      throw new Error(`Companion must bind to a loopback address. "${listenHost}" is forbidden.`);
-    }
-
+  start(
+    port = this.port,
+    host = this.host,
+  ): Promise<{ port: number; host: string; pairingSecret: string }> {
+    if (host !== "127.0.0.1")
+      throw new Error("Companion must bind to 127.0.0.1.");
     return new Promise((resolve, reject) => {
-      this.server = http.createServer(this.handleRequest);
-      this.server.listen(listenPort, listenHost, () => {
-        const addr = this.server?.address();
-        const actualPort = typeof addr === "object" && addr ? addr.port : listenPort;
-        this.log(`Listening on http://${listenHost}:${actualPort}`);
-        this.log(`Pairing Secret: ${this.tokenManager.getPairingSecret()}`);
+      this.server = http.createServer(
+        { requestTimeout: 10_000, headersTimeout: 10_000, maxHeaderSize: 8192 },
+        (req, res) => {
+          void this.handleRequest(req, res).catch(() => {
+            if (!res.destroyed)
+              this.send(res, 500, { ok: false, error: "companion_error" });
+          });
+        },
+      );
+      this.server.maxConnections = 16;
+      this.server.listen(port, host, () => {
+        const addr = this.server!.address();
         resolve({
-          port: actualPort,
-          host: listenHost,
+          port: typeof addr === "object" && addr ? addr.port : port,
+          host,
           pairingSecret: this.tokenManager.getPairingSecret(),
         });
       });
-      this.server.on("error", (err) => reject(err));
+      this.server.on("error", reject);
     });
   }
-
   stop(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.server) {
         resolve();
         return;
       }
-      this.server.close((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
+      this.server.close((error) => (error ? reject(error) : resolve()));
+      this.server.closeAllConnections();
       this.server = null;
     });
   }
 }
-

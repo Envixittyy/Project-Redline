@@ -1,3 +1,4 @@
+// Legacy capability catalog: descriptive only. Active scope lives in trust-contract.ts.
 import { isMutatingAiAction, type ProposedAiAction } from "../action-contract";
 
 export const REDLINE_CAPABILITIES = [
@@ -212,7 +213,7 @@ export type CapabilityEvaluationResult =
  */
 export function evaluateCapability(
   action: ProposedAiAction,
-  enabledCapabilities: ReadonlySet<RedlineCapabilityId> = new Set(REDLINE_CAPABILITIES),
+  enabledCapabilities: ReadonlySet<RedlineCapabilityId> = new Set(),
 ): CapabilityEvaluationResult {
   const capId = mapActionToCapability(action);
   const descriptor = CAPABILITY_CATALOG.find((c) => c.id === capId);

@@ -145,20 +145,22 @@ graph TD
   - Approved architecture: per-note opt-in import, one explicitly tracked active managed Notion root, canonical last-common fingerprints, staged generation writes, and persisted three-snapshot conflicts with explicit resolution. See `docs/FORWARD_ARCHITECTURE.md` section 8. Phase 8B remains unimplemented.
 
 ### Phase 9: Cloud AI Provider & Privacy Gates (P6 Core)
+
+**Phase 10A security correction (2026-08-31):** The historical completion labels below describe implementation history, not current activation. Legacy cloud preparation/consent/dispatch is paused before egress because browser-supplied context and generic Apply are not trusted. Re-enabling these adapters requires the scoped canonical-context/consent/proposal boundary; no cloud provider was added in this task.
+
 - **9A: Provider Adapters & Typed Action Dispatcher [`COMPLETE` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
   - Implemented configurable server-only provider adapters (Anthropic, Gemini, OpenAI) with fixed endpoints, timeout controls, secret redaction, and `AiActionProposal` parser.
 - **9B: Cloud Privacy Consent Gate [`COMPLETE` | Architecture gate approved | Medium | Risk: High | Reviewer: Codex | Model: Gemini 3.7 Flash]**
   - Implemented owner-scoped `ai_preferences` and metadata-only `ai_transfer_requests` state machine with 5-minute consent expiration, 30-day audit retention, canonical SHA-256 payload digest binding, interactive disclosure UI (`AiDisclosureModal`), entity handle translation, and Propose → Review → Commit boundary via `operation_batches`.
 
 ### Phase 10: Local AI Companion & Vision Ingestion (P6/P7)
-- **10A: Local Companion Transport & Security Architecture [`IMPLEMENTED` | Large | Risk: High | Model: Gemini 3.7 Flash]**
-  - Private loopback companion daemon (`127.0.0.1`) serving as the controlled localhost security boundary.
-  - Multi-runtime adapters for **Ollama** (`:11434`), **llama.cpp server** (`:8080`), and generic **OpenAI-compatible local endpoints** (`:1234/v1` LM Studio, LocalAI).
-  - Secure pairing handshake with ephemeral bearer tokens, origin validation, loopback-only safety guard, token revocation, and secret-safe logging.
-  - Redline AI Capability Layer: provider-independent capability registry, narrow read capabilities (`tasks.read`, `calendar.read`, `courses.read`, `school.read`, `notes.read`, `courseMaterials.read`), and typed proposal schemas (`tasks.proposeCreate/Update/Complete/Reschedule/Delete`, `calendar.proposeCreate/Update`, `notes.proposeCreate/Update`, `courses.proposeCreate/Update`, `courseMaterials.proposeAssociate`).
-  - Strict **Propose → Review → Apply** mutation invariant: local models have zero direct database mutation authority. Validated actions become reviewable `operation_batches` (`source = 'ai'`, `status = 'proposed'`) requiring user approval before execution via standard domain services.
-  - Zero-AI guarantee: application remains 100% operational when companion or runtime is offline.
-  - See `docs/LOCAL_COMPANION_ARCHITECTURE.md`.
+- **10A: Local Companion Transport & Security Architecture [`IMPLEMENTED — DEPLOYMENT VERIFICATION PENDING` | Large | Risk: High | Reviewer: Codex]**
+  - Direct desktop-browser transport to fixed `127.0.0.1:41400`; hosted servers never route to the PC. Exact origin, expiring pairing, fixed runtime destinations/routes, bounded responses, cancellation, and no redirect following.
+  - Three adapters: Ollama, llama.cpp, and local OpenAI-compatible. Real-model and hosted-origin permission checks remain deployment prerequisites; iPhone-to-PC transport is unsupported.
+  - Active capability: `taskChecklist.propose` / `task.readMinimal`, one canonical owner task, opaque request handle, bounded context, strict checklist-only schema, and semantic staleness checks. The old broad capability catalog is descriptive and grants nothing by default.
+  - Server-authenticated proposal provenance under restrictive RLS; ID-only approval through the task repository; one atomic task/checklist/audit SQL transaction. No service-role AI client, deletion, generic action executor, course writes, or automation.
+  - Existing settings receive only the necessary browser transport, memory-only pairing, and disabled-cloud messaging changes. Checklist generation/review UI, course import, personality controls, and settings redesign remain separate assignments.
+  - Normal application features remain independent of AI. Key/migration provisioning and manual target-browser validation are documented in `docs/LOCAL_COMPANION_ARCHITECTURE.md`.
 - **10B: Image & Screenshot Ingestion Pipeline [`PLANNED` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
   - Universal Capture image upload, lightweight local vision worker on-demand lifecycle (60–180s idle unload), and proposal generation.
 
@@ -195,7 +197,7 @@ To maintain architectural integrity and prevent security regressions, implementa
 | **Blackboard Assignment Ingestion** | Before Phase 7A | Must bridge external feed items to Universal Capture proposals without duplicate spam or task pollution. | **Codex** |
 | **Notion Two-Way Sync Semantics** | Before Phase 8B | Prevents echo loops, infinite sync triggers, and concurrent edit data loss. | **Codex** |
 | **Cloud AI Privacy Consent Gate** | Before Phase 9B | Enforces explicit user consent before transmitting private user data/images off-device. | **Codex** |
-| **Local Companion Transport & Security Architecture** | Phase 10A [`COMPLETE`] | Transport protocol, pairing handshake, origin validation, and loopback safety boundaries. | **Codex** |
+| **Local Companion Transport & Security Architecture** | Phase 10A [`IMPLEMENTED; DEPLOYMENT CHECK PENDING`] | Server proposal provenance, scoped capability, atomic task commit, pairing, fixed loopback transport; verify the actual hosted origin before activation. | **Codex** |
 | **Recurring Task & Recurrence Schema** | Before Phase 11A | Data model selection for recurrence instances vs virtual calendar projection. | **Codex / Claude Sonnet** |
 | **Push Notification Background Dispatch** | Before Phase 4D | Background execution architecture (Supabase pg_cron + Edge Functions vs Next.js workers). | **Claude Sonnet / Gemini 3.1 Pro** |
 | **Deterministic Scheduler Engine** | During Phase 5A | Complex pure algorithmic scheduling logic and edge-case validation. | **Claude Sonnet / Gemini 3.1 Pro** |

@@ -102,6 +102,8 @@
 }
 
 .grid[data-hide-planning] > [data-dashboard-widget="planning"],
+.grid[data-hide-next-class] > [data-dashboard-widget="next_class"],
+.grid[data-hide-today-classes] > [data-dashboard-widget="today_classes"],
 .grid[data-hide-schedule] > [data-dashboard-widget="schedule"],
 .grid[data-hide-today] > [data-dashboard-widget="today"],
 .grid[data-hide-overdue] > [data-dashboard-widget="overdue"],

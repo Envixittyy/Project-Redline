@@ -16,6 +16,8 @@ import type { Task } from "@/types/task";
 
 import { DashboardCustomizer } from "./dashboard-customizer";
 import { HomeScheduleList } from "./home-schedule";
+import { NextClassCard } from "./next-class-card";
+import { TodayClassesCard } from "./today-classes-card";
 import styles from "./home-dashboard.module.css";
 
 function taskTiming(task: Task) {
@@ -79,6 +81,16 @@ export function HomeDashboard({
       <WhatShouldIDoNow
         tasks={today}
         scheduleItems={schedule}
+        timeZone={timeZone}
+      />
+
+      <NextClassCard
+        courses={courses}
+        timeZone={timeZone}
+      />
+
+      <TodayClassesCard
+        courses={courses}
         timeZone={timeZone}
       />
 
@@ -186,7 +198,7 @@ export function HomeDashboard({
             <BookOpen size={18} />
           </span>
           <div>
-            <p>School</p>
+            <p>Courses</p>
             <h3>
               {courses.length
                 ? `${courses.length} active ${courses.length === 1 ? "course" : "courses"}`

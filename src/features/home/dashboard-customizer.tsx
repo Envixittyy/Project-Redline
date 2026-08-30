@@ -13,11 +13,13 @@ import styles from "./dashboard-customizer.module.css";
 
 const widgetOptions = [
   { id: "planning", label: "Plan My Day" },
+  { id: "next_class", label: "Next Class" },
+  { id: "today_classes", label: "Today's Classes" },
   { id: "schedule", label: "Schedule" },
   { id: "today", label: "Today" },
   { id: "overdue", label: "Overdue" },
   { id: "upcoming", label: "Upcoming" },
-  { id: "school", label: "School" },
+  { id: "school", label: "Courses" },
   { id: "notes", label: "Quick note" },
 ] as const;
 
@@ -26,6 +28,8 @@ type WidgetVisibility = Record<WidgetId, boolean>;
 
 const defaultVisibility: WidgetVisibility = {
   planning: true,
+  next_class: true,
+  today_classes: true,
   schedule: true,
   today: true,
   overdue: true,
@@ -34,7 +38,7 @@ const defaultVisibility: WidgetVisibility = {
   notes: true,
 };
 
-const storageKey = "life-os.dashboard.v1.visibility";
+const storageKey = "life-os.dashboard.v2.visibility";
 const visibilityEvent = "life-os:dashboard-visibility";
 let cachedVisibility = defaultVisibility;
 
@@ -152,6 +156,8 @@ export function DashboardCustomizer({ children }: { children: ReactNode }) {
       <div
         className={styles.grid}
         data-hide-planning={!visibility.planning || undefined}
+        data-hide-next-class={!visibility.next_class || undefined}
+        data-hide-today-classes={!visibility.today_classes || undefined}
         data-hide-schedule={!visibility.schedule || undefined}
         data-hide-today={!visibility.today || undefined}
         data-hide-overdue={!visibility.overdue || undefined}

@@ -86,9 +86,10 @@ graph TD
 - **4A: Code Hygiene & Formatting Cleanup [`PLANNED` | Small | Risk: Low | Model: Local Qwen]**
   - Unminify condensed single-line source files (`note-workspace.tsx`, `notes/page.tsx`, `offline/mutations/route.ts`, `blackboard/page.tsx`, `school/page.tsx`).
   - Delete unreferenced `SectionPlaceholder` component and styles.
-- **4B: Home Dashboard Mini-Schedule Widget [`PLANNED` | Small | Risk: Low | Model: Gemini 3.7 Flash]**
-  - Query today's native events, external calendar mirrors, and scheduled work sessions alongside tasks and school courses on `/`.
-  - Render an integrated timeline/schedule card showing immediate commitments.
+- **4B: Home Next Class & Today's Classes Canonical Projection [`COMPLETE` | Small | Risk: Low | Model: Gemini 3.7 Flash]**
+  - Project canonical School course meeting data directly to Home without separate timetable storage.
+  - Next Class card with active/in-progress precedence, time until start/end, location fallback, and next-day lookup.
+  - Today's Classes card projecting today's schedule in chronological order with past/in-progress/upcoming classification.
 - **4C: In-App Notification Center & User Preference UI [`PLANNED` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
   - Build an in-app notification drawer/tray in the application shell with unread/read state and safe deep-link navigation.
   - Create notification settings on `/more` for configuring quiet hours start/end times and per-course / per-type delivery toggles.
@@ -96,28 +97,28 @@ graph TD
   - Implement the background notification dispatch worker (evaluating upcoming deadlines, calendar reminders, and sync failures against user quiet hours and deduplication keys).
 
 ### Phase 5: Deterministic Scheduler Engine (P8 Core)
-- **5A: Pure Scheduling Engine Algorithm [`PLANNED` | Medium | Risk: Moderate | Model: Claude Sonnet / Gemini 3.1 Pro]**
+- **5A: Pure Scheduling Engine Algorithm [`COMPLETE` | Medium | Risk: Moderate | Model: Claude Sonnet / Gemini 3.1 Pro]**
   - Implement pure, mathematical scheduling algorithm (`src/features/planning/scheduler-engine.ts`) operating on `SchedulerInput` (tasks, deadlines, estimated duration, fixed commitments, preferred work windows, breaks, and buffers).
   - Produce deterministic `ProposedWorkSession` assignments and explicit unscheduled reasons.
-- **5B: "Plan My Day" & "What Should I Do Now?" UX [`PLANNED` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
+- **5B: "Plan My Day" & "What Should I Do Now?" UX [`COMPLETE` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
   - Interactive planning view presenting calculated proposals with one-click acceptance.
   - Conversional flow committing approved proposals directly into `task_work_sessions`.
 
 ### Phase 6: Focus & Goldfish Mode (P9 Presentation Layer)
-- **6A: Focus Presentation Filter Domain [`PLANNED` | Small | Risk: Low | Model: Gemini 3.7 Flash]**
+- **6A: Focus Presentation Filter Domain [`COMPLETE` | Small | Risk: Low | Model: Gemini 3.7 Flash]**
   - Pure presentation filter isolating today's immediate commitments, next task, hard deadlines, and active work session while hiding backlog noise.
   - Strict zero-guilt interface guidelines (no overdue shame counters, no red alert styling).
-- **6B: Fullscreen Focus Dashboard Mode [`PLANNED` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
+- **6B: Fullscreen Focus Dashboard Mode [`COMPLETE` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
   - Dedicated distraction-free view with optional minimal timer and keyboard navigation.
 
 ### Phase 7: Advanced Blackboard Proposal Ingestion & Academic Automation
-- **7A: Blackboard Assignment & Deadline Proposal Engine [`PLANNED` | Architecture gate approved | Medium | Risk: High | Reviewer: Codex]**
+- **7A: Blackboard Assignment & Deadline Proposal Engine [`COMPLETE` | Architecture gate approved | Medium | Risk: High | Reviewer: Codex]**
   - Detect newly synchronized items in `external_records` and emit structured proposal objects to Universal Capture.
   - Enable one-click user review and conversion into native Redline tasks without automated task pollution.
-  - Approved architecture: one stable proposal per stable provider-UID record, semantic-revision refresh/reopen rules, explicit capture commit/undo, and source-aware notification dedupe. UID-less fallback records remain mirrors only. See `docs/FORWARD_ARCHITECTURE.md` section 7. Phase 7A remains unimplemented.
-- **7B: Secure School Change Notifications [`PLANNED` | Small | Risk: Low | Model: Gemini 3.7 Flash]**
+  - Approved architecture: one stable proposal per stable provider-UID record, semantic-revision refresh/reopen rules, explicit capture commit/undo, and source-aware notification dedupe. UID-less fallback records remain mirrors only. See `docs/FORWARD_ARCHITECTURE.md` section 7.
+- **7B: Secure School Change Notifications [`COMPLETE` | Small | Risk: Low | Model: Gemini 3.7 Flash]**
   - Trigger in-app and push notifications for newly detected syllabus or deadline changes with direct links to the proposal review view.
-- **7C: Manual Blackboard-to-Course Mapping & Deterministic Task Extraction [`PLANNED` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
+- **7C: Manual Blackboard-to-Course Mapping & Deterministic Task Extraction [`COMPLETE` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
   - Frictionless manual mapping: `Blackboard source/course → Redline Course → Saved mapping`.
   - Canonical `course_id` association; display course code/name in UI.
   - Unassigned Blackboard events queue, "Remember this association", bulk course assignment, and mapping management. Zero AI course guessing for v1.

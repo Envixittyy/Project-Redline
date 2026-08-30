@@ -1,4 +1,4 @@
-import { validateLoopbackUrl } from "../security";
+import { validateLoopbackUrl, isModelId } from "../network-policy";
 import type {
   LocalInferenceRequest,
   LocalInferenceResponse,
@@ -9,6 +9,7 @@ import type {
 import {
   LocalAdapterError,
   normalizeLocalError,
+  readBoundedJson,
   type LocalRuntimeAdapter,
 } from "./runtime-adapter";
 
@@ -17,7 +18,7 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
 
   getCapabilities(): LocalRuntimeCapabilities {
     return {
-      streaming: true,
+      streaming: false,
       jsonFormat: true,
       modelDiscovery: true,
       abortSignal: true,
@@ -27,30 +28,50 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
   async checkHealth(endpoint: string): Promise<RuntimeHealthResult> {
     try {
       const url = validateLoopbackUrl(endpoint);
+      if (url.pathname !== "/")
+        throw new LocalAdapterError(
+          "Invalid runtime path.",
+          "invalid_endpoint",
+        );
       const tagsUrl = new URL("/api/tags", url).toString();
       const res = await fetch(tagsUrl, {
         method: "GET",
         headers: { Accept: "application/json" },
         signal: AbortSignal.timeout(5000),
+        redirect: "error",
       });
 
       if (!res.ok) {
+        await res.body?.cancel();
         return {
           ok: false,
           provider: this.id,
           endpoint,
           models: [],
-          error: `Ollama returned HTTP ${res.status}: ${res.statusText}`,
+          error: "Local runtime request failed.",
         };
       }
 
-      const data = (await res.json()) as { models?: Array<{ name: string; model?: string; details?: Record<string, unknown> }> };
-      const models: LocalModelDescriptor[] = (data.models || []).map((m) => ({
-        id: m.model || m.name,
-        name: m.name,
-        provider: this.id,
-        details: m.details,
-      }));
+      const data = await readBoundedJson<{
+        models?: Array<{
+          name: string;
+          model?: string;
+          details?: Record<string, unknown>;
+        }>;
+      }>(res);
+      if (!Array.isArray(data.models))
+        throw new LocalAdapterError(
+          "Invalid model list.",
+          "malformed_response",
+        );
+      const models: LocalModelDescriptor[] = data.models
+        .slice(0, 100)
+        .filter((m) => m && isModelId(m.model || m.name))
+        .map((m) => ({
+          id: m.model || m.name,
+          name: m.model || m.name,
+          provider: this.id,
+        }));
 
       return {
         ok: true,
@@ -73,7 +94,10 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
   async listModels(endpoint: string): Promise<LocalModelDescriptor[]> {
     const health = await this.checkHealth(endpoint);
     if (!health.ok) {
-      throw new LocalAdapterError(health.error || "Failed to list Ollama models.", "discovery_failed");
+      throw new LocalAdapterError(
+        health.error || "Failed to list Ollama models.",
+        "discovery_failed",
+      );
     }
     return health.models;
   }
@@ -85,6 +109,11 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
   ): Promise<LocalInferenceResponse> {
     try {
       const url = validateLoopbackUrl(endpoint);
+      if (url.pathname !== "/")
+        throw new LocalAdapterError(
+          "Invalid runtime path.",
+          "invalid_endpoint",
+        );
       const chatUrl = new URL("/api/chat", url).toString();
 
       const messages = [];
@@ -103,38 +132,60 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
         payload.format = "json";
       }
 
-      if (request.temperature !== undefined) {
-        payload.options = { temperature: request.temperature };
+      if (
+        request.temperature !== undefined ||
+        request.maxTokens !== undefined
+      ) {
+        payload.options = {
+          ...(request.temperature !== undefined
+            ? { temperature: request.temperature }
+            : {}),
+          ...(request.maxTokens !== undefined
+            ? { num_predict: request.maxTokens }
+            : {}),
+        };
       }
 
       const res = await fetch(chatUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: signal || AbortSignal.timeout(60000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(60000)])
+          : AbortSignal.timeout(60000),
+        redirect: "error",
       });
 
       if (!res.ok) {
-        const errorText = await res.text().catch(() => "");
+        await res.body?.cancel();
         if (res.status === 404) {
           throw new LocalAdapterError(
-            `Ollama model "${request.model}" not found. Try running "ollama pull ${request.model}".`,
+            "Local runtime request failed.",
             "model_not_found",
           );
         }
         throw new LocalAdapterError(
-          `Ollama returned HTTP ${res.status}: ${errorText || res.statusText}`,
+          "Local runtime request failed.",
           "inference_failed",
         );
       }
 
-      const data = (await res.json()) as {
+      const data = await readBoundedJson<{
         message?: { content?: string };
         prompt_eval_count?: number;
         eval_count?: number;
-      };
+      }>(res);
 
-      const content = data.message?.content || "";
+      const content = data.message?.content;
+      if (
+        typeof content !== "string" ||
+        !content.trim() ||
+        content.length > 32768
+      )
+        throw new LocalAdapterError(
+          "Invalid model content.",
+          "malformed_response",
+        );
       return {
         ok: true,
         content,
@@ -151,4 +202,3 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
     }
   }
 }
-

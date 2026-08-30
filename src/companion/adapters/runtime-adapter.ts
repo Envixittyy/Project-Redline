@@ -20,25 +20,94 @@ export interface LocalRuntimeAdapter {
 }
 
 export class LocalAdapterError extends Error {
-  constructor(message: string, public readonly code: string) {
+  readonly code: string;
+
+  constructor(message: string, code: string) {
     super(message);
     this.name = "LocalAdapterError";
+    this.code = code;
   }
 }
 
-export function normalizeLocalError(err: unknown, provider: LocalProviderType): LocalInferenceResponse {
+export const MAX_RUNTIME_RESPONSE_BYTES = 1024 * 1024;
+
+export async function readBoundedResponseText(
+  response: Response,
+  maxBytes = MAX_RUNTIME_RESPONSE_BYTES,
+): Promise<string> {
+  const declaredLength = response.headers.get("content-length");
+  if (declaredLength && Number(declaredLength) > maxBytes) {
+    await response.body?.cancel();
+    throw new LocalAdapterError(
+      "Runtime response exceeded the allowed size.",
+      "response_too_large",
+    );
+  }
+
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel();
+        throw new LocalAdapterError(
+          "Runtime response exceeded the allowed size.",
+          "response_too_large",
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const combined = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(combined);
+}
+
+export async function readBoundedJson<T>(response: Response): Promise<T> {
+  const text = await readBoundedResponseText(response);
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new LocalAdapterError(
+      "Runtime returned malformed JSON.",
+      "malformed_response",
+    );
+  }
+}
+
+export function normalizeLocalError(
+  err: unknown,
+  provider: LocalProviderType,
+): LocalInferenceResponse {
   if (err instanceof LocalAdapterError) {
     return {
       ok: false,
       content: "",
       model: "",
       provider,
-      error: `[${err.code}] ${err.message}`,
+      error: err.code,
     };
   }
 
   const message = err instanceof Error ? err.message : String(err);
-  if (message.includes("ECONNREFUSED") || message.includes("Failed to fetch") || message.includes("fetch failed")) {
+  if (
+    message.includes("ECONNREFUSED") ||
+    message.includes("Failed to fetch") ||
+    message.includes("fetch failed")
+  ) {
     return {
       ok: false,
       content: "",
@@ -63,7 +132,6 @@ export function normalizeLocalError(err: unknown, provider: LocalProviderType): 
     content: "",
     model: "",
     provider,
-    error: message,
+    error: "The local runtime request failed.",
   };
 }
-

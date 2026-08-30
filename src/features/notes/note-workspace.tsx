@@ -288,7 +288,6 @@ export function NoteWorkspace({
     startTransition(async () => {
       const res = await applyAiProposalAction(
         aiProposal.operationBatchId,
-        aiProposal.proposal.actions,
       );
       setMessage(res.message);
       setAiProposal(null);

@@ -1,102 +1,81 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { CompanionServer } from "@/companion/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   checkCompanionHealth,
-  executeLocalInference,
-  getCompanionStatus,
   pairCompanion,
-  unpairCompanion,
+  inferLocalContent,
 } from "./companion-client";
-
-describe("Local Companion Client Integration", () => {
-  let server: CompanionServer;
-  let companionUrl: string;
-  const pairingSecret = "companion-client-test-secret";
-  let pairingToken: string;
-
-  beforeAll(async () => {
-    server = new CompanionServer({
-      port: 0,
-      host: "127.0.0.1",
-      pairingSecret,
-      silent: true,
+const config = {
+  enabled: true,
+  companionUrl: "http://127.0.0.1:41400",
+  provider: "ollama" as const,
+  endpoint: "http://127.0.0.1:11434",
+  model: "test",
+  pairingToken: `fwd_comp_${"a".repeat(64)}`,
+};
+describe("Browser-to-loopback transport", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("never sends server-side requests to the host server localhost", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    expect((await checkCompanionHealth()).ok).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("rejects LAN/WAN/credentials/alternate ports before fetch", async () => {
+    vi.stubGlobal("window", {});
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    for (const target of [
+      "http://10.0.0.1:41400",
+      "https://example.com",
+      "http://user:secret@127.0.0.1:41400",
+      "http://127.0.0.1:8080",
+    ])
+      expect((await pairCompanion(target, "secret")).ok).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("uses CORS, no cookies, refuses redirects and requests loopback permission", async () => {
+    vi.stubGlobal("window", {});
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ ok: true, content: "untrusted" })),
+      );
+    vi.stubGlobal("fetch", fetch);
+    expect(
+      await inferLocalContent(config, { model: "test", prompt: "data" }),
+    ).toBe("untrusted");
+    expect(fetch.mock.calls[0][0].toString()).toBe(
+      "http://127.0.0.1:41400/v1/infer",
+    );
+    expect(fetch.mock.calls[0][1]).toMatchObject({
+      credentials: "omit",
+      redirect: "error",
+      mode: "cors",
+      targetAddressSpace: "loopback",
+      cache: "no-store",
     });
-    const info = await server.start();
-    companionUrl = `http://127.0.0.1:${info.port}`;
-
-    const pairRes = await pairCompanion(companionUrl, pairingSecret, "http://localhost:3000");
-    if (pairRes.ok && pairRes.token) {
-      pairingToken = pairRes.token;
-    }
   });
-
-  afterAll(async () => {
-    await server.stop();
-  });
-
-  it("checks companion health when companion is running", async () => {
-    const health = await checkCompanionHealth(companionUrl);
-    expect(health.ok).toBe(true);
-    expect(health.companion).toBe("running");
-  });
-
-  it("fails gracefully when companion daemon is offline", async () => {
-    const health = await checkCompanionHealth("http://127.0.0.1:59998");
-    expect(health.ok).toBe(false);
-    expect(health.companion).toBe("disconnected");
-  });
-
-  it("fails pairing with invalid secret", async () => {
-    const pairRes = await pairCompanion(companionUrl, "wrong-secret", "http://localhost:3000");
-    expect(pairRes.ok).toBe(false);
-    expect(pairRes.error).toContain("Invalid pairing secret");
-  });
-
-  it("retrieves companion status and runtime health", async () => {
-    const status = await getCompanionStatus({
-      enabled: true,
-      companionUrl,
-      provider: "ollama",
-      endpoint: "http://127.0.0.1:11434",
-      model: "qwen2.5:7b",
-      pairingToken,
-    });
-
-    expect(status.companionRunning).toBe(true);
-    expect(status.paired).toBe(true);
-  });
-
-  it("rejects inference when pairing token is missing", async () => {
+  it("does not echo runtime error bodies or retry ambiguous failures", async () => {
+    vi.stubGlobal("window", {});
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("private prompt and secrets", { status: 502 }),
+      );
+    vi.stubGlobal("fetch", fetch);
     await expect(
-      executeLocalInference(
-        {
-          enabled: true,
-          companionUrl,
-          provider: "ollama",
-          endpoint: "http://127.0.0.1:11434",
-          model: "qwen2.5:7b",
-          pairingToken: null,
-        },
-        "Create task",
-      ),
-    ).rejects.toThrow(/not paired/);
+      inferLocalContent(config, { model: "test", prompt: "data" }),
+    ).rejects.toThrow("Companion request failed.");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
-
-  it("unpairs companion successfully", async () => {
-    const unpairRes = await unpairCompanion(companionUrl, pairingToken);
-    expect(unpairRes.ok).toBe(true);
-
-    const statusAfter = await getCompanionStatus({
-      enabled: true,
-      companionUrl,
-      provider: "ollama",
-      endpoint: "http://127.0.0.1:11434",
-      model: "qwen2.5:7b",
-      pairingToken,
-    });
-
-    expect(statusAfter.paired).toBe(false);
-    expect(statusAfter.error).toContain("expired or invalid");
+  it("rejects oversized response bodies", async () => {
+    vi.stubGlobal("window", {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("x".repeat(100000))),
+    );
+    await expect(
+      inferLocalContent(config, { model: "test", prompt: "data" }),
+    ).rejects.toThrow(/size/);
   });
 });
-

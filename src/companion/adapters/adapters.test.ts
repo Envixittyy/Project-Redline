@@ -154,7 +154,7 @@ describe("Local Runtime Adapters", () => {
       });
 
       expect(res.ok).toBe(false);
-      expect(res.error).toContain("Ollama model \"missing-model\" not found");
+      expect(res.error).toBe("model_not_found");
     });
 
     it("normalizes offline runtime errors gracefully", async () => {

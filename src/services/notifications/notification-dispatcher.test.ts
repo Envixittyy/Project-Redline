@@ -525,10 +525,13 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
 
     // Push deliveries are deferred, not sent
     expect(summary.pushesSent).toBe(0);
-    expect(summary.pushesDeferred).toBeGreaterThanOrEqual(1);
+    // Creation already marks these deliveries deferred; this counter tracks
+    // only pending deliveries newly deferred by the dispatcher.
+    expect(summary.pushesDeferred).toBe(0);
     expect(mockFetch).not.toHaveBeenCalled();
 
     const webPushDeliveries = mockDeliveries.filter((d) => d.channel === "web_push");
+    expect(webPushDeliveries).toHaveLength(1);
     expect(webPushDeliveries.every((d) => d.status === "deferred")).toBe(true);
   });
 

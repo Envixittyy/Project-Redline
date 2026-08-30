@@ -14,12 +14,11 @@ import type {
 } from "@/services/integrations/ai/types";
 
 import {
-  checkCompanionHealthAction,
   clearAiTransferHistoryAction,
-  getCompanionStatusAction,
-  pairCompanionAction,
   updateAiPreferencesAction,
 } from "./ai-actions";
+import { checkCompanionHealth, getCompanionStatus, pairCompanion, unpairCompanion } from "@/services/integrations/ai/companion-client";
+import { clearCompanionSession, setCompanionSession } from "@/services/integrations/ai/companion-session";
 import styles from "./ai-settings-panel.module.css";
 
 type AiSettingsPanelProps = {
@@ -57,8 +56,9 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
     preferences.localModel || "qwen2.5:7b",
   );
   const [pairingSecret, setPairingSecret] = useState("");
+  const [pairingExpiresAt, setPairingExpiresAt] = useState<string | null>(null);
   const [pairingToken, setPairingToken] = useState<string | null>(
-    preferences.localPairingToken || null,
+    null,
   );
 
   // Live status state
@@ -66,6 +66,11 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
   const [runtimeConnected, setRuntimeConnected] = useState<boolean | null>(null);
   const [discoveredModels, setDiscoveredModels] = useState<Array<{ id: string; name: string }>>([]);
   const [companionError, setCompanionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pairingToken || !pairingExpiresAt) { clearCompanionSession(); return; }
+    setCompanionSession({ enabled: true, companionUrl, provider: localProvider, endpoint: localEndpoint, model: localModel, pairingToken }, pairingExpiresAt);
+  }, [companionUrl, localProvider, localEndpoint, localModel, pairingToken, pairingExpiresAt]);
 
   // Update default endpoint when switching provider
   function handleProviderChange(provider: LocalProviderType) {
@@ -76,7 +81,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
   }
 
   async function checkStatus() {
-    const health = await checkCompanionHealthAction(companionUrl);
+    const health = await checkCompanionHealth(companionUrl);
     setCompanionRunning(health.ok);
 
     if (!health.ok) {
@@ -86,7 +91,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
     }
 
     if (pairingToken) {
-      const status = await getCompanionStatusAction({
+      const status = await getCompanionStatus({
         enabled: true,
         companionUrl,
         provider: localProvider,
@@ -95,6 +100,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
         pairingToken,
       });
       setRuntimeConnected(status.runtimeConnected);
+      if (!status.paired) setPairingToken(null);
       setDiscoveredModels(status.models);
       if (status.error) setCompanionError(status.error);
       else setCompanionError(null);
@@ -107,7 +113,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
     let active = true;
 
     async function loadStatus() {
-      const health = await checkCompanionHealthAction(companionUrl);
+      const health = await checkCompanionHealth(companionUrl);
       if (!active) return;
       setCompanionRunning(health.ok);
 
@@ -118,7 +124,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
       }
 
       if (pairingToken) {
-        const status = await getCompanionStatusAction({
+        const status = await getCompanionStatus({
           enabled: true,
           companionUrl,
           provider: localProvider,
@@ -128,6 +134,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
         });
         if (!active) return;
         setRuntimeConnected(status.runtimeConnected);
+        if (!status.paired) setPairingToken(null);
         setDiscoveredModels(status.models);
         if (status.error) setCompanionError(status.error);
         else setCompanionError(null);
@@ -136,7 +143,8 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
       }
     }
 
-    loadStatus();
+    // Local-network permission should be requested by an explicit user action.
+    if (pairingToken) void loadStatus();
 
     return () => {
       active = false;
@@ -148,9 +156,11 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
     if (!pairingSecret.trim()) return;
 
     startTransition(async () => {
-      const res = await pairCompanionAction(companionUrl, pairingSecret.trim());
+      const res = await pairCompanion(companionUrl, pairingSecret.trim());
       if (res.ok && res.token) {
         setPairingToken(res.token);
+        setPairingExpiresAt(res.expiresAt!);
+        setCompanionSession({ enabled: true, companionUrl, provider: localProvider, endpoint: localEndpoint, model: localModel, pairingToken: res.token }, res.expiresAt!);
         setMessage("Companion paired successfully.");
         setCompanionError(null);
         setPairingSecret("");
@@ -193,7 +203,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
           <Laptop size={22} color="var(--accent-text)" />
           <div>
             <h2>Local AI Companion (Phase 10A)</h2>
-            <p>Private localhost gateway for Ollama, llama.cpp, and local OpenAI-compatible runtimes.</p>
+            <p>Available on this PC only. Hosted desktop browsers may ask for local network permission. iPhone cannot reach the PC companion.</p>
           </div>
           <div className={styles.statusBadge}>
             {companionRunning === true ? (
@@ -211,7 +221,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
                 <XCircle size={14} /> Disconnected
               </span>
             ) : (
-              <span className={styles.badgeMuted}>Checking...</span>
+              <span className={styles.badgeMuted}>Not checked</span>
             )}
           </div>
         </header>
@@ -293,7 +303,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
               <div className={styles.field}>
                 <strong>Pair Companion Daemon</strong>
                 <span className={styles.fieldHint}>
-                  Run <code>node scripts/run-companion.mjs</code> and copy the pairing secret below.
+                  Run <code>pnpm companion</code> in an interactive terminal and copy the pairing secret below.
                 </span>
                 <div className={styles.pairInputRow}>
                   <input
@@ -316,8 +326,10 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
                 className={styles.buttonSecondary}
                 type="button"
                 onClick={() => {
+                  const token = pairingToken;
                   setPairingToken(null);
-                  setMessage("Companion unpaired.");
+                  clearCompanionSession();
+                  void unpairCompanion(companionUrl, token).then(result => setMessage(result.message));
                 }}
               >
                 Unpair
@@ -350,7 +362,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
           <Cpu size={22} color="var(--accent-text)" />
           <div>
             <h2>Cloud AI Privacy & Settings (Phase 9)</h2>
-            <p>Configure optional cloud model assistance, fallback modes, and permission boundaries.</p>
+            <p>Cloud dispatch is paused for trust migration. Saved cloud preferences do not enable requests. The mutation policy also applies to local proposals.</p>
           </div>
         </header>
 
@@ -359,12 +371,13 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
             <div>
               <strong>Enable Cloud AI</strong>
               <div className={styles.fieldHint}>
-                When disabled, all cloud requests are strictly denied.
+                Cloud transfers are currently disabled regardless of this saved preference.
               </div>
             </div>
             <input
               type="checkbox"
               checked={cloudEnabled}
+              disabled
               onChange={(e) => setCloudEnabled(e.target.checked)}
               style={{ width: "1.25rem", height: "1.25rem" }}
             />
@@ -407,7 +420,6 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
               className={styles.select}
               value={permissionMode}
               onChange={(e) => setPermissionMode(e.target.value as AiPermissionMode)}
-              disabled={!cloudEnabled}
             >
               <option value="ask_before_changing">Ask before changing (Review proposal before commit)</option>
               <option value="suggest_only">Suggest only (Do not enable mutation commits)</option>

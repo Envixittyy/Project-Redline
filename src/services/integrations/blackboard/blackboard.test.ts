@@ -163,7 +163,8 @@ describe("Blackboard sync plan", () => {
     expect(planBlackboardSync([], [existing]).missing).toEqual([existing]);
   });
 
-  it("does not silently resolve ambiguous courses", () => {
+  it("resolves course strictly from known saved mapping and does not guess", () => {
+    // Unmapped course yields "none" (routes to Unassigned Queue)
     expect(
       matchBlackboardCourse(
         "CS101",
@@ -173,7 +174,20 @@ describe("Blackboard sync plan", () => {
         ],
         {},
       ).kind,
-    ).toBe("ambiguous");
+    ).toBe("none");
+
+    // Known saved mapping resolves to matched course ID
+    expect(
+      matchBlackboardCourse(
+        "CS101",
+        [{ id: "course-uuid-1", code: "CS101", name: "Computer Science" }],
+        { CS101: "course-uuid-1" },
+      ),
+    ).toEqual({
+      kind: "matched",
+      courseId: "course-uuid-1",
+      method: "known",
+    });
   });
 });
 

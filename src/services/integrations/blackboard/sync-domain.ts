@@ -152,27 +152,12 @@ export function matchBlackboardCourse(
 ) {
   if (!code) return { kind: "none" as const };
 
-  const mapped = known[code];
+  const trimmed = code.trim();
+  const mapped = known[trimmed] || known[code];
   if (mapped && courses.some((course) => course.id === mapped)) {
     return { kind: "matched" as const, courseId: mapped, method: "known" as const };
   }
 
-  const normalized = code.replace(/[^a-z0-9]/gi, "").toLowerCase();
-  const candidates = courses.filter(
-    (course) =>
-      course.code.replace(/[^a-z0-9]/gi, "").toLowerCase() === normalized ||
-      course.name.replace(/[^a-z0-9]/gi, "").toLowerCase() === normalized,
-  );
-
-  if (candidates.length === 1) {
-    return {
-      kind: "matched" as const,
-      courseId: candidates[0].id,
-      method: "normalized" as const,
-    };
-  }
-  if (candidates.length > 1) {
-    return { kind: "ambiguous" as const, candidateIds: candidates.map((course) => course.id) };
-  }
   return { kind: "none" as const };
 }
+

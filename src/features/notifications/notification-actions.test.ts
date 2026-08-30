@@ -12,8 +12,10 @@ import {
   markNotificationReadAction,
   markNotificationUnreadAction,
   registerPushSubscriptionAction,
+  runNotificationDispatchAction,
   saveNotificationPreferenceAction,
   saveQuietHoursAction,
+  sendTestNotificationAction,
 } from "./notification-actions";
 
 // Mock next/cache
@@ -25,6 +27,7 @@ const mockUserId = "user-test-123";
 
 let mockNotificationRows: Array<Record<string, unknown>> = [];
 let mockPrefRows: Array<Record<string, unknown>> = [];
+const mockDeliveries: Array<Record<string, unknown>> = [];
 
 vi.mock("@/services/supabase/request", () => ({
   requireAuthenticatedSupabase: vi.fn(async () => ({
@@ -66,6 +69,17 @@ vi.mock("@/services/supabase/request", () => ({
                 })),
               };
             }),
+            upsert: vi.fn((eventData: Record<string, unknown>) => {
+              const created = { id: `event-${Date.now()}`, ...eventData };
+              mockNotificationRows.push(created);
+              return {
+                select: vi.fn(() => ({
+                  maybeSingle: vi.fn(() =>
+                    Promise.resolve({ data: created, error: null }),
+                  ),
+                })),
+              };
+            }),
             update: vi.fn((fields: Record<string, unknown>) => ({
               eq: vi.fn((_f1: string, idVal: string) => ({
                 eq: vi.fn(() => {
@@ -98,12 +112,84 @@ vi.mock("@/services/supabase/request", () => ({
         if (table === "notification_preferences") {
           return {
             select: vi.fn(() => ({
-              eq: vi.fn(() => Promise.resolve({ data: mockPrefRows, error: null })),
+              eq: vi.fn(() => ({
+                or: vi.fn(() => Promise.resolve({ data: mockPrefRows, error: null })),
+                is: vi.fn(() => Promise.resolve({ data: mockPrefRows, error: null })),
+                then: (resolve: (v: unknown) => unknown) =>
+                  resolve({ data: mockPrefRows, error: null }),
+              })),
             })),
             upsert: vi.fn((data: Record<string, unknown>) => {
               mockPrefRows.push(data);
               return Promise.resolve({ data: null, error: null });
             }),
+          };
+        }
+
+        if (table === "notification_deliveries") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    order: vi.fn(() => ({
+                      limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
+                    })),
+                  })),
+                })),
+              })),
+            })),
+            insert: vi.fn((deliv: Record<string, unknown>) => {
+              mockDeliveries.push(deliv);
+              return Promise.resolve({ data: null, error: null });
+            }),
+            update: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
+              })),
+            })),
+          };
+        }
+
+        if (table === "tasks") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                in: vi.fn(() => Promise.resolve({ data: [], error: null })),
+              })),
+            })),
+          };
+        }
+
+        if (table === "calendar_events") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  gte: vi.fn(() => ({
+                    lte: vi.fn(() => Promise.resolve({ data: [], error: null })),
+                  })),
+                })),
+              })),
+            })),
+          };
+        }
+
+        if (table === "courses") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                is: vi.fn(() => Promise.resolve({ data: [], error: null })),
+              })),
+            })),
+          };
+        }
+
+        if (table === "course_meetings") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
           };
         }
 
@@ -121,6 +207,11 @@ vi.mock("@/services/supabase/request", () => ({
 
         if (table === "push_subscriptions") {
           return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                is: vi.fn(() => Promise.resolve({ data: [], error: null })),
+              })),
+            })),
             upsert: vi.fn(() => Promise.resolve({ data: null, error: null })),
             update: vi.fn(() => ({
               eq: vi.fn(() => ({
@@ -254,5 +345,22 @@ describe("Notification Server Actions (Phase 4C)", () => {
       "https://fcm.googleapis.com/fcm/send/sample",
     );
     expect(res.ok).toBe(true);
+  });
+
+  it("sendTestNotificationAction creates a test notification event", async () => {
+    const res = await sendTestNotificationAction();
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.message).toBeTruthy();
+    }
+  });
+
+  it("runNotificationDispatchAction executes notification dispatch summary", async () => {
+    const res = await runNotificationDispatchAction();
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data).toHaveProperty("tasksEvaluated");
+      expect(res.data).toHaveProperty("pushesSent");
+    }
   });
 });

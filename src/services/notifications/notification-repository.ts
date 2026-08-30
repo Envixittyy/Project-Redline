@@ -497,3 +497,267 @@ export async function updateQuietHours(
     throw error;
   }
 }
+
+export type PushDeliveryWithDetails = {
+  id: string;
+  userId: string;
+  notificationEventId: string;
+  pushSubscriptionId: string | null;
+  channel: string;
+  status: "pending" | "deferred" | "sent" | "failed" | "unavailable";
+  attemptedAt: string | null;
+  deliveredAt: string | null;
+  errorCode: string | null;
+  createdAt: string;
+  event: {
+    id: string;
+    eventType: string;
+    dedupeKey: string;
+    title: string;
+    body: string;
+    deepLink: string;
+    courseId: string | null;
+    createdAt: string;
+  };
+  subscription: {
+    id: string;
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+    disabledAt: string | null;
+  } | null;
+};
+
+type DeliveryQueryRow = {
+  id: string;
+  user_id: string;
+  notification_event_id: string;
+  push_subscription_id: string | null;
+  channel: string;
+  status: "pending" | "deferred" | "sent" | "failed" | "unavailable";
+  attempted_at: string | null;
+  delivered_at: string | null;
+  error_code: string | null;
+  created_at: string;
+  notification_events: {
+    id: string;
+    event_type: string;
+    dedupe_key: string;
+    title: string;
+    body: string;
+    deep_link: string;
+    course_id: string | null;
+    created_at: string;
+  } | null;
+  push_subscriptions: {
+    id: string;
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+    disabled_at: string | null;
+  } | null;
+};
+
+function mapDeliveryRow(row: DeliveryQueryRow): PushDeliveryWithDetails | null {
+  if (!row.notification_events) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    notificationEventId: row.notification_event_id,
+    pushSubscriptionId: row.push_subscription_id,
+    channel: row.channel,
+    status: row.status,
+    attemptedAt: row.attempted_at,
+    deliveredAt: row.delivered_at,
+    errorCode: row.error_code,
+    createdAt: row.created_at,
+    event: {
+      id: row.notification_events.id,
+      eventType: row.notification_events.event_type,
+      dedupeKey: row.notification_events.dedupe_key,
+      title: row.notification_events.title,
+      body: row.notification_events.body,
+      deepLink: row.notification_events.deep_link,
+      courseId: row.notification_events.course_id,
+      createdAt: row.notification_events.created_at,
+    },
+    subscription: row.push_subscriptions
+      ? {
+          id: row.push_subscriptions.id,
+          endpoint: row.push_subscriptions.endpoint,
+          p256dh: row.push_subscriptions.p256dh,
+          auth: row.push_subscriptions.auth,
+          disabledAt: row.push_subscriptions.disabled_at,
+        }
+      : null,
+  };
+}
+
+/**
+ * Lists pending Web Push deliveries with joined event and subscription details.
+ */
+export async function listPendingPushDeliveries(
+  client: AuthenticatedClient,
+  userId: string,
+  limit = 50,
+): Promise<PushDeliveryWithDetails[]> {
+  const { data, error } = await client
+    .from("notification_deliveries")
+    .select(`
+      id,
+      user_id,
+      notification_event_id,
+      push_subscription_id,
+      channel,
+      status,
+      attempted_at,
+      delivered_at,
+      error_code,
+      created_at,
+      notification_events!inner (
+        id,
+        event_type,
+        dedupe_key,
+        title,
+        body,
+        deep_link,
+        course_id,
+        created_at
+      ),
+      push_subscriptions (
+        id,
+        endpoint,
+        p256dh,
+        auth,
+        disabled_at
+      )
+    `)
+    .eq("user_id", userId)
+    .eq("channel", "web_push")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error("[notifications] listPendingPushDeliveries failed:", error);
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as DeliveryQueryRow[])
+    .map(mapDeliveryRow)
+    .filter((d): d is PushDeliveryWithDetails => d !== null);
+}
+
+/**
+ * Lists deferred Web Push deliveries for quiet hours re-evaluation.
+ */
+export async function listDeferredPushDeliveries(
+  client: AuthenticatedClient,
+  userId: string,
+  limit = 50,
+): Promise<PushDeliveryWithDetails[]> {
+  const { data, error } = await client
+    .from("notification_deliveries")
+    .select(`
+      id,
+      user_id,
+      notification_event_id,
+      push_subscription_id,
+      channel,
+      status,
+      attempted_at,
+      delivered_at,
+      error_code,
+      created_at,
+      notification_events!inner (
+        id,
+        event_type,
+        dedupe_key,
+        title,
+        body,
+        deep_link,
+        course_id,
+        created_at
+      ),
+      push_subscriptions (
+        id,
+        endpoint,
+        p256dh,
+        auth,
+        disabled_at
+      )
+    `)
+    .eq("user_id", userId)
+    .eq("channel", "web_push")
+    .eq("status", "deferred")
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error("[notifications] listDeferredPushDeliveries failed:", error);
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as DeliveryQueryRow[])
+    .map(mapDeliveryRow)
+    .filter((d): d is PushDeliveryWithDetails => d !== null);
+}
+
+/**
+ * Updates a delivery status row.
+ */
+export async function updateDeliveryStatus(
+  client: AuthenticatedClient,
+  userId: string,
+  deliveryId: string,
+  update: {
+    status: "pending" | "deferred" | "sent" | "failed" | "unavailable";
+    attemptedAt?: string | null;
+    deliveredAt?: string | null;
+    errorCode?: string | null;
+  },
+): Promise<void> {
+  const updatePayload: Record<string, unknown> = {
+    status: update.status,
+  };
+  if (update.attemptedAt !== undefined) {
+    updatePayload.attempted_at = update.attemptedAt;
+  }
+  if (update.deliveredAt !== undefined) {
+    updatePayload.delivered_at = update.deliveredAt;
+  }
+  if (update.errorCode !== undefined) {
+    updatePayload.error_code = update.errorCode;
+  }
+
+  const { error } = await client
+    .from("notification_deliveries")
+    .update(updatePayload)
+    .eq("id", deliveryId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("[notifications] updateDeliveryStatus failed:", error);
+    throw error;
+  }
+}
+
+/**
+ * Disables a push subscription permanently (e.g. after receiving HTTP 404/410).
+ */
+export async function disablePushSubscription(
+  client: AuthenticatedClient,
+  userId: string,
+  subscriptionId: string,
+): Promise<void> {
+  const { error } = await client
+    .from("push_subscriptions")
+    .update({ disabled_at: new Date().toISOString() })
+    .eq("id", subscriptionId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("[notifications] disablePushSubscription failed:", error);
+    throw error;
+  }
+}

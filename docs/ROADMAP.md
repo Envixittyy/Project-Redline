@@ -93,8 +93,10 @@ graph TD
 - **4C: In-App Notification Center & User Preference UI [`COMPLETE` | Medium | Risk: Low | Model: Gemini 3.7 Flash]**
   - Build an in-app notification drawer/tray in the application shell with unread/read state and safe deep-link navigation.
   - Create notification settings on `/more` and `/settings/notifications` for configuring quiet hours start/end times, category delivery toggles, and deliberate Web Push enablement.
-- **4D: Web Push Background Dispatch Engine [`ARCHITECTURE REVIEW REQUIRED` | Medium | Risk: Moderate | Reviewer: Claude Sonnet / Gemini 3.1 Pro]**
-  - Implement the background notification dispatch worker (evaluating upcoming deadlines, calendar reminders, and sync failures against user quiet hours and deduplication keys).
+- **4D: Web Push Background Dispatch Engine [`COMPLETE` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
+  - Implement the background notification dispatch worker (evaluating upcoming deadlines, calendar reminders, and course meeting reminders against user quiet hours, staleness rules, and deduplication keys).
+  - Pure Node.js `node:crypto` zero-dependency RFC 8291 (`aes128gcm`) Web Push payload encryption and RFC 8292 VAPID token authorization.
+  - Secure cron / manual trigger endpoint `/api/notifications/dispatch` supporting bearer cron secrets and user sessions.
 
 ### Phase 5: Deterministic Scheduler Engine (P8 Core)
 - **5A: Pure Scheduling Engine Algorithm [`COMPLETE` | Medium | Risk: Moderate | Model: Claude Sonnet / Gemini 3.1 Pro]**

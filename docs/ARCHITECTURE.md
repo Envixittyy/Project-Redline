@@ -236,6 +236,35 @@ Both personal tables use a nullable-first `user_id uuid references auth.users(id
 
 Existing rows are preserved. A service-role-only RPC assigns only null owners atomically; a separate service-role-only finalizer verifies zero ownerless rows before setting `NOT NULL`. The operator supplies the environment-specific owner UUID at runtime, never through committed SQL. See `docs/SUPABASE_AUTH.md` for the staged procedure and recovery rules.
 
+## Phase 4 Notification Center, Background Dispatch & Web Push Architecture
+
+Phase 4 (`src/services/notifications/`, `src/features/notifications/`, and `/api/notifications/dispatch`) establishes a general, privacy-conscious notification system spanning Tasks, Calendar, School Course Meetings, and Blackboard synchronization.
+
+### Pipeline Architecture
+
+```text
+Canonical Redline Data (Tasks, Calendar, School, Blackboard)
+                         ↓
+             Notification Planner / Evaluator
+                         ↓
+                notification_events
+                         ↓
+          Notification Delivery Dispatcher
+                         ↓
+              notification_deliveries
+                         ↓
+         Web Push Delivery (RFC 8291 / 8292)
+                         ↓
+            Browser / Installed iOS PWA
+```
+
+### Key Contracts:
+- **General Redline Core**: School is a specialized domain; notifications are structured across tasks, calendar, school, blackboard, and system sync.
+- **Pure Zero-Dependency Web Push**: Native `node:crypto` implementation of RFC 8291 `aes128gcm` payload encryption (ECDH P-256, HKDF, AES-128-GCM binary record formatting) and RFC 8292 VAPID JWT generation (ECDSA P-256 SHA-256).
+- **Quiet Hours & Staleness Reconciliation**: In-app notifications are created immediately. Web push deliveries are deferred (`status = 'deferred'`) during user quiet hours. When quiet hours elapse, deferred push deliveries are checked for staleness (`isNotificationDeliveryStale`). Transitory notifications (e.g. "Class starts in 15m") that have expired transition to `status = 'unavailable'`, preventing belated wakeups.
+- **State Machine & Dead Subscription Invalidation**: `notification_deliveries` tracks `pending`, `deferred`, `sent`, `failed`, `unavailable`. Push service HTTP 404/410 Gone responses permanently disable `push_subscriptions.disabled_at = now()`.
+- **Authenticated Dispatch Endpoint**: `/api/notifications/dispatch` accepts POST and GET requests authenticated via `CRON_SECRET` / `NOTIFICATION_DISPATCH_SECRET` bearer tokens or authenticated user sessions.
+
 ## Tasks and calendar are separate domains
 
 A task and a calendar event are different entities. A task may have a deadline or scheduled interval and may be rendered in a calendar view, but that rendering does not convert it into a standard calendar event. Calendar presentation should eventually consume a union or view model while persistence retains distinct task and event records.

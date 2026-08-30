@@ -20,6 +20,7 @@ import type {
   NotificationEvent,
   NotificationPreferencesState,
 } from "@/types/notification";
+import { validateWebPushSubscription } from "@/services/notifications/web-push-client";
 
 export type NotificationActionResult<T = void> =
   | { ok: true; data: T }
@@ -215,11 +216,23 @@ export async function registerPushSubscriptionAction(input: {
 }): Promise<NotificationActionResult> {
   try {
     const endpoint = requireText(input?.endpoint, "Push endpoint", 2000);
-    if (!endpoint.startsWith("https://")) {
-      throw new InvalidNotificationInput("Endpoint must be an HTTPS URL.");
-    }
     const p256dh = requireText(input?.keys?.p256dh, "Push key p256dh", 500);
     const auth = requireText(input?.keys?.auth, "Push key auth", 500);
+    const validationError = validateWebPushSubscription({
+      endpoint,
+      p256dh,
+      auth,
+    });
+    if (validationError) {
+      throw new InvalidNotificationInput("Invalid browser push subscription.");
+    }
+
+    const expirationTime =
+      typeof input.expirationTime === "number" &&
+      Number.isFinite(input.expirationTime) &&
+      input.expirationTime > Date.now()
+        ? new Date(input.expirationTime).toISOString()
+        : null;
 
     const { client, userId } = await requireAuthenticatedSupabase();
 
@@ -242,10 +255,7 @@ export async function registerPushSubscriptionAction(input: {
         endpoint,
         p256dh,
         auth,
-        expires_at:
-          typeof input.expirationTime === "number"
-            ? new Date(input.expirationTime).toISOString()
-            : null,
+        expires_at: expirationTime,
         disabled_at: null,
       },
       { onConflict: "user_id,endpoint" },
@@ -288,7 +298,9 @@ export async function sendTestNotificationAction(): Promise<
 > {
   try {
     const { client, userId } = await requireAuthenticatedSupabase();
-    const testKey = `test_notification:${Date.now()}`;
+    // A database-backed minute bucket keeps repeated clicks/replays idempotent
+    // across server instances without adding a separate rate-limit service.
+    const testKey = `test_notification:${Math.floor(Date.now() / 60_000)}`;
 
     const eventResult = await createNotificationEvent(client, {
       userId,

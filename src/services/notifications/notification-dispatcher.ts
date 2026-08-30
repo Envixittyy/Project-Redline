@@ -1,9 +1,12 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { projectTodayClasses } from "@/features/home/home-classes";
 import type { CalendarEvent } from "@/types/calendar-event";
 import type { CourseWithMeetings, PersistedCourseMeeting } from "@/types/course";
 import type { Task, TaskStatus } from "@/types/task";
+import { todayIn } from "@/lib/date/day";
 import {
   isNotificationDeliveryStale,
   isQuietHours,
@@ -13,13 +16,17 @@ import {
   safeNotificationPayload,
 } from "./notification-domain";
 import {
+  claimPendingPushDelivery,
   createNotificationEvent,
   disablePushSubscription,
+  failStalePushDeliveryClaims,
   getNotificationPreferences,
+  isNotificationEventEnabled,
   listDeferredPushDeliveries,
   listPendingPushDeliveries,
   updateDeliveryStatus,
   type AuthenticatedClient,
+  type PushDeliveryWithDetails,
 } from "./notification-repository";
 import { sendWebPushNotification } from "./web-push-client";
 
@@ -37,6 +44,214 @@ export type DispatchSummary = {
   pushesDeferred: number;
   pushesExpired: number;
 };
+
+function dedupeSourceAndRevision(
+  dedupeKey: string,
+  eventType: string,
+): { sourceId: string; revision: string } | null {
+  const prefix = `${eventType}:`;
+  if (!dedupeKey.startsWith(prefix)) return null;
+  const remainder = dedupeKey.slice(prefix.length);
+  const separator = remainder.indexOf(":");
+  if (separator <= 0 || separator === remainder.length - 1) return null;
+  return {
+    sourceId: remainder.slice(0, separator),
+    revision: remainder.slice(separator + 1),
+  };
+}
+
+async function isDeliverySourceCurrent(
+  client: AuthenticatedClient,
+  userId: string,
+  delivery: PushDeliveryWithDetails,
+  currentInstant: Date,
+  timeZone: string,
+): Promise<boolean> {
+  const { event } = delivery;
+
+  if (event.eventType.startsWith("task_")) {
+    const identity = dedupeSourceAndRevision(
+      event.dedupeKey,
+      event.eventType,
+    );
+    if (!identity) return false;
+    const { data, error } = await client
+      .from("tasks")
+      .select("status,due_date,due_at")
+      .eq("user_id", userId)
+      .eq("id", identity.sourceId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return false;
+    const task = data as {
+      status: string;
+      due_date: string | null;
+      due_at: string | null;
+    };
+    if (
+      (task.status !== "todo" && task.status !== "in_progress") ||
+      (task.due_at ?? task.due_date) !== identity.revision
+    ) {
+      return false;
+    }
+    if (event.eventType === "task_due_soon") {
+      return task.due_at
+        ? currentInstant.getTime() <= Date.parse(task.due_at)
+        : task.due_date === todayIn(timeZone, currentInstant);
+    }
+    return true;
+  }
+
+  if (event.eventType === "calendar_event_soon") {
+    const identity = dedupeSourceAndRevision(
+      event.dedupeKey,
+      event.eventType,
+    );
+    if (!identity) return false;
+    const { data, error } = await client
+      .from("calendar_events")
+      .select("starts_at,all_day")
+      .eq("user_id", userId)
+      .eq("id", identity.sourceId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return false;
+    const calendarEvent = data as { starts_at: string; all_day: boolean };
+    return !calendarEvent.all_day && calendarEvent.starts_at === identity.revision;
+  }
+
+  if (event.eventType === "school_class_soon") {
+    const parts = event.dedupeKey.split(":");
+    if (parts.length < 5) return false;
+    const courseId = parts[1];
+    const meetingId = parts[2];
+    const occurrenceInstant = parts.slice(3).join(":");
+    if (Number.isNaN(Date.parse(occurrenceInstant))) return false;
+    const [courseResult, meetingResult] = await Promise.all([
+      client
+        .from("courses")
+        .select("id,code,name,instructor,location,color,archived_at")
+        .eq("user_id", userId)
+        .eq("id", courseId)
+        .maybeSingle(),
+      client
+        .from("course_meetings")
+        .select(
+          "id,course_id,title,weekdays,start_date,end_date_exclusive,start_time,end_time,time_zone,location",
+        )
+        .eq("user_id", userId)
+        .eq("id", meetingId)
+        .maybeSingle(),
+    ]);
+    if (courseResult.error) throw courseResult.error;
+    if (meetingResult.error) throw meetingResult.error;
+    if (!courseResult.data || !meetingResult.data) {
+      return false;
+    }
+
+    const courseRow = courseResult.data as {
+      id: string;
+      code: string;
+      name: string;
+      instructor: string | null;
+      location: string | null;
+      color: string | null;
+      archived_at: string | null;
+    };
+    const meetingRow = meetingResult.data as {
+      id: string;
+      course_id: string;
+      title: string;
+      weekdays: number[];
+      start_date: string;
+      end_date_exclusive: string | null;
+      start_time: string;
+      end_time: string;
+      time_zone: string;
+      location: string | null;
+    };
+    if (courseRow.archived_at || meetingRow.course_id !== courseRow.id) return false;
+
+    const occurrenceCourse: CourseWithMeetings = {
+      id: courseRow.id,
+      code: courseRow.code,
+      name: courseRow.name,
+      instructor: courseRow.instructor,
+      location: courseRow.location,
+      color: courseRow.color,
+      archivedAt: courseRow.archived_at,
+      meetings: [
+        {
+          id: meetingRow.id,
+          courseId: meetingRow.course_id,
+          title: meetingRow.title,
+          weekdays: meetingRow.weekdays,
+          startDate: meetingRow.start_date,
+          endDateExclusive: meetingRow.end_date_exclusive,
+          startTime: meetingRow.start_time.slice(0, 5),
+          endTime: meetingRow.end_time.slice(0, 5),
+          timeZone: meetingRow.time_zone,
+          location: meetingRow.location,
+        },
+      ],
+    };
+    return projectTodayClasses(
+      [occurrenceCourse],
+      timeZone,
+      new Date(occurrenceInstant),
+    ).some(
+      (occurrence) =>
+        occurrence.meetingId === meetingId &&
+        occurrence.startInstant === occurrenceInstant,
+    );
+  }
+
+  if (event.eventType.startsWith("blackboard_")) {
+    const identity = dedupeSourceAndRevision(
+      event.dedupeKey,
+      event.eventType,
+    );
+    if (!identity) return false;
+    const [recordResult, proposalResult] = await Promise.all([
+      client
+        .from("external_records")
+        .select("proposal_revision,missing_since")
+        .eq("user_id", userId)
+        .eq("id", identity.sourceId)
+        .maybeSingle(),
+      client
+        .from("capture_proposals")
+        .select("status,source_revision")
+        .eq("user_id", userId)
+        .eq("external_record_id", identity.sourceId)
+        .maybeSingle(),
+    ]);
+    if (recordResult.error) throw recordResult.error;
+    if (proposalResult.error) throw proposalResult.error;
+    if (!recordResult.data || !proposalResult.data) return false;
+    const data = recordResult.data;
+    const record = data as {
+      proposal_revision: string | null;
+      missing_since: string | null;
+    };
+    const proposal = proposalResult.data as {
+      status: string;
+      source_revision: string | null;
+    };
+    const expectedStatus =
+      event.eventType === "blackboard_proposal_divergence"
+        ? "committed"
+        : "proposed";
+    return (
+      !record.missing_since &&
+      record.proposal_revision === identity.revision &&
+      proposal.source_revision === identity.revision &&
+      proposal.status === expectedStatus
+    );
+  }
+
+  return !isNotificationDeliveryStale(event, currentInstant);
+}
 
 /**
  * Evaluates active tasks and generates due / overdue notifications.
@@ -367,6 +582,32 @@ async function reconcileDeferredDeliveries(
         errorCode: "expired_during_quiet_hours",
       });
       expired++;
+      continue;
+    }
+
+    const enabled = await isNotificationEventEnabled(
+      client,
+      userId,
+      delivery.event.eventType,
+      delivery.event.courseId,
+    );
+    const sourceCurrent = enabled
+      ? await isDeliverySourceCurrent(
+          client,
+          userId,
+          delivery,
+          currentInstant,
+          timeZone,
+        )
+      : false;
+    if (!enabled || !sourceCurrent) {
+      await updateDeliveryStatus(client, userId, delivery.id, {
+        status: "unavailable",
+        errorCode: !enabled
+          ? "disabled_by_preference"
+          : "source_changed_or_unavailable",
+      });
+      expired++;
     } else {
       await updateDeliveryStatus(client, userId, delivery.id, {
         status: "pending",
@@ -391,6 +632,12 @@ async function dispatchPendingDeliveries(
   fetchImpl?: typeof fetch,
 ): Promise<{ sent: number; failed: number; deferred: number; expired: number }> {
   const inQuiet = isQuietHours(currentInstant, timeZone, quietStart, quietEnd);
+
+  await failStalePushDeliveryClaims(
+    client,
+    userId,
+    new Date(currentInstant.getTime() - 15 * 60_000).toISOString(),
+  );
 
   const pendingList = await listPendingPushDeliveries(client, userId, 50);
   let sent = 0;
@@ -418,7 +665,38 @@ async function dispatchPendingDeliveries(
       continue;
     }
 
-    // 3. Check if notification has expired
+    // 3. Check current preferences, source state, and expiry immediately before egress.
+    const enabled = await isNotificationEventEnabled(
+      client,
+      userId,
+      delivery.event.eventType,
+      delivery.event.courseId,
+    );
+    if (!enabled) {
+      await updateDeliveryStatus(client, userId, delivery.id, {
+        status: "unavailable",
+        errorCode: "disabled_by_preference",
+      });
+      expired++;
+      continue;
+    }
+
+    const sourceCurrent = await isDeliverySourceCurrent(
+      client,
+      userId,
+      delivery,
+      currentInstant,
+      timeZone,
+    );
+    if (!sourceCurrent) {
+      await updateDeliveryStatus(client, userId, delivery.id, {
+        status: "unavailable",
+        errorCode: "source_changed_or_unavailable",
+      });
+      expired++;
+      continue;
+    }
+
     if (isNotificationDeliveryStale(delivery.event, currentInstant)) {
       await updateDeliveryStatus(client, userId, delivery.id, {
         status: "unavailable",
@@ -428,8 +706,23 @@ async function dispatchPendingDeliveries(
       continue;
     }
 
-    // 4. Send Web Push
+    // 4. Claim atomically so concurrent dispatchers cannot send the same row.
+    const claimedAt = currentInstant.toISOString();
+    const claimed = await claimPendingPushDelivery(
+      client,
+      userId,
+      delivery.id,
+      claimedAt,
+    );
+    if (!claimed) continue;
+
+    // 5. Send Web Push. Claims are at-most-once: ambiguous network outcomes are
+    // terminal rather than automatically retried and potentially duplicated.
     const payload = safeNotificationPayload(delivery.event);
+    payload.dedupeKey = `event-${createHash("sha256")
+      .update(delivery.event.dedupeKey)
+      .digest("base64url")
+      .slice(0, 24)}`;
     const sendResult = await sendWebPushNotification({
       subscription: delivery.subscription,
       payload,
@@ -439,14 +732,17 @@ async function dispatchPendingDeliveries(
     if (sendResult.ok) {
       await updateDeliveryStatus(client, userId, delivery.id, {
         status: "sent",
-        deliveredAt: new Date().toISOString(),
+        deliveredAt: currentInstant.toISOString(),
+        claimedAt: null,
+        errorCode: null,
       });
       sent++;
     } else if (sendResult.permanentFailure) {
       await updateDeliveryStatus(client, userId, delivery.id, {
         status: "failed",
         errorCode: sendResult.errorCode,
-        attemptedAt: new Date().toISOString(),
+        attemptedAt: claimedAt,
+        claimedAt: null,
       });
       await disablePushSubscription(client, userId, delivery.subscription.id);
       failed++;
@@ -454,7 +750,8 @@ async function dispatchPendingDeliveries(
       await updateDeliveryStatus(client, userId, delivery.id, {
         status: "failed",
         errorCode: sendResult.errorCode,
-        attemptedAt: new Date().toISOString(),
+        attemptedAt: claimedAt,
+        claimedAt: null,
       });
       failed++;
     }
@@ -479,20 +776,30 @@ export async function evaluateAndDispatchNotifications(
   const timeZone =
     preferences.timeZone || process.env.APP_TIME_ZONE || "Asia/Manila";
 
-  // 1. Evaluate Tasks
-  const taskResult = preferences.taskReminders
-    ? await evaluateTasks(client, userId, currentInstant, timeZone)
-    : { evaluated: 0, planned: 0 };
+  // 1. Evaluate Tasks. Event creation resolves the effective global/course
+  // preference; a global off switch must not hide an explicit course override.
+  const taskResult = await evaluateTasks(
+    client,
+    userId,
+    currentInstant,
+    timeZone,
+  );
 
   // 2. Evaluate Calendar Events
-  const calResult = preferences.calendarReminders
-    ? await evaluateCalendarEvents(client, userId, currentInstant, timeZone)
-    : { evaluated: 0, planned: 0 };
+  const calResult = await evaluateCalendarEvents(
+    client,
+    userId,
+    currentInstant,
+    timeZone,
+  );
 
   // 3. Evaluate School Classes
-  const schoolResult = preferences.schoolClassReminders
-    ? await evaluateSchoolClasses(client, userId, currentInstant, timeZone)
-    : { evaluated: 0, planned: 0 };
+  const schoolResult = await evaluateSchoolClasses(
+    client,
+    userId,
+    currentInstant,
+    timeZone,
+  );
 
   // 4. Reconcile Deferred Push Deliveries (post quiet hours)
   const deferredResult = await reconcileDeferredDeliveries(

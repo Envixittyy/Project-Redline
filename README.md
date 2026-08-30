@@ -57,9 +57,12 @@ Copy-Item .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | Public Supabase project URL used by cookie-backed clients |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public project key; access remains restricted by RLS |
 | `INTEGRATION_CREDENTIAL_ENCRYPTION_KEY` | Server-only key used to encrypt private integration credentials; never prefix it with `NEXT_PUBLIC_` |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Public VAPID application-server key used only by the browser when subscribing |
+| `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Server-only Web Push signing key and contact URI |
+| `CRON_SECRET` | Server-only bearer secret authenticating automatic notification dispatch |
 | `APP_TIME_ZONE` | Optional IANA zone deciding what "today" means. Defaults to `Asia/Manila` |
 
-The server-only `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are required only for the controlled owner backfill and isolated RLS integration tests. They are not used by normal feature repositories.
+The server-only `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are used only by explicitly privileged operations: the controlled owner backfill, isolated RLS integration tests, and cron-secret notification dispatch across the authenticated user registry. Normal browser and feature-repository traffic remains owner-scoped through RLS.
 
 Use the committed Supabase CLI configuration to apply `supabase/migrations`, then follow [the Supabase Auth and owner-backfill runbook](docs/SUPABASE_AUTH.md) before opening the application to normal traffic. A configured Auth project without these migrations can sign users in but cannot serve the protected workspace.
 
@@ -67,7 +70,7 @@ Without the public variables, the private workspace fails closed at the login su
 
 ### Access model
 
-`tasks` and `calendar_events` carry `user_id` ownership. Authenticated CRUD uses a request-scoped publishable-key client, and RLS permits only rows where `auth.uid() = user_id`. Anonymous and cross-owner access are denied. The service role exists solely for explicitly named maintenance operations.
+`tasks` and `calendar_events` carry `user_id` ownership. Authenticated CRUD uses a request-scoped publishable-key client, and RLS permits only rows where `auth.uid() = user_id`. Anonymous and cross-owner access are denied. The service role exists solely for the explicitly named privileged server operations above.
 
 ## Repository map
 

@@ -28,6 +28,8 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
   let mockCalendarEvents: Array<Record<string, unknown>> = [];
   let mockCourses: Array<Record<string, unknown>> = [];
   let mockCourseMeetings: Array<Record<string, unknown>> = [];
+  let mockExternalRecords: Array<Record<string, unknown>> = [];
+  let mockCaptureProposals: Array<Record<string, unknown>> = [];
   let mockNotificationEvents: Array<Record<string, unknown>> = [];
   let mockDeliveries: Array<Record<string, unknown>> = [];
   let mockPushSubscriptions: Array<Record<string, unknown>> = [];
@@ -54,6 +56,14 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
             select: vi.fn(() => ({
               eq: vi.fn(() => ({
                 in: vi.fn(() => Promise.resolve({ data: mockTasks, error: null })),
+                eq: vi.fn((_field: string, taskId: string) => ({
+                  maybeSingle: vi.fn(() =>
+                    Promise.resolve({
+                      data: mockTasks.find((task) => task.id === taskId) ?? null,
+                      error: null,
+                    }),
+                  ),
+                })),
               })),
             })),
           };
@@ -63,7 +73,7 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
           return {
             select: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                eq: vi.fn((_field: string, value: string | boolean) => ({
                   gte: vi.fn((_f1: string, startVal: string) => ({
                     lte: vi.fn((_f2: string, endVal: string) => {
                       const matching = mockCalendarEvents.filter((e) => {
@@ -73,6 +83,14 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
                       return Promise.resolve({ data: matching, error: null });
                     }),
                   })),
+                  maybeSingle: vi.fn(() =>
+                    Promise.resolve({
+                      data:
+                        mockCalendarEvents.find((event) => event.id === value) ??
+                        null,
+                      error: null,
+                    }),
+                  ),
                 })),
               })),
             })),
@@ -84,6 +102,14 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
             select: vi.fn(() => ({
               eq: vi.fn(() => ({
                 is: vi.fn(() => Promise.resolve({ data: mockCourses, error: null })),
+                eq: vi.fn((_field: string, courseId: string) => ({
+                  maybeSingle: vi.fn(() =>
+                    Promise.resolve({
+                      data: mockCourses.find((course) => course.id === courseId) ?? null,
+                      error: null,
+                    }),
+                  ),
+                })),
               })),
             })),
           };
@@ -92,9 +118,59 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
         if (table === "course_meetings") {
           return {
             select: vi.fn(() => ({
-              eq: vi.fn(() =>
-                Promise.resolve({ data: mockCourseMeetings, error: null }),
-              ),
+              eq: vi.fn(() => {
+                const result = Promise.resolve({
+                  data: mockCourseMeetings,
+                  error: null,
+                }) as Promise<{
+                  data: Array<Record<string, unknown>>;
+                  error: null;
+                }> & {
+                  eq: (field: string, meetingId: string) => {
+                    maybeSingle: () => Promise<{
+                      data: Record<string, unknown> | null;
+                      error: null;
+                    }>;
+                  };
+                };
+                result.eq = (_field: string, meetingId: string) => ({
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data:
+                        mockCourseMeetings.find(
+                          (meeting) => meeting.id === meetingId,
+                        ) ?? null,
+                      error: null,
+                    }),
+                });
+                return result;
+              }),
+            })),
+          };
+        }
+
+        if (table === "external_records" || table === "capture_proposals") {
+          const rows =
+            table === "external_records"
+              ? mockExternalRecords
+              : mockCaptureProposals;
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn((_field: string, sourceId: string) => ({
+                  maybeSingle: vi.fn(() =>
+                    Promise.resolve({
+                      data:
+                        rows.find((row) =>
+                          table === "external_records"
+                            ? row.id === sourceId
+                            : row.external_record_id === sourceId,
+                        ) ?? null,
+                      error: null,
+                    }),
+                  ),
+                })),
+              })),
             })),
           };
         }
@@ -224,16 +300,39 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
                 return Promise.resolve({ data: null, error: null });
               },
             ),
-            update: vi.fn((fields: Record<string, unknown>) => ({
-              eq: vi.fn((_f1: string, delivId: string) => ({
-                eq: vi.fn(() => {
-                  mockDeliveries = mockDeliveries.map((d) =>
-                    d.id === delivId ? { ...d, ...fields } : d,
-                  );
+            update: vi.fn((fields: Record<string, unknown>) => {
+              const filters: Array<[string, unknown]> = [];
+              const execute = () => {
+                const matches = (delivery: Record<string, unknown>) =>
+                  filters.every(([field, value]) => delivery[field] === value);
+                const matched = mockDeliveries.find(matches);
+                mockDeliveries = mockDeliveries.map((delivery) =>
+                  matches(delivery) ? { ...delivery, ...fields } : delivery,
+                );
+                return matched
+                  ? { data: { id: matched.id }, error: null }
+                  : { data: null, error: null };
+              };
+              const chain = {
+                eq(field: string, value: unknown) {
+                  filters.push([field, value]);
+                  return chain;
+                },
+                lt() {
                   return Promise.resolve({ data: null, error: null });
-                }),
-              })),
-            })),
+                },
+                select() {
+                  return chain;
+                },
+                maybeSingle() {
+                  return Promise.resolve(execute());
+                },
+                then(resolve: (value: unknown) => unknown) {
+                  return Promise.resolve(execute()).then(resolve);
+                },
+              };
+              return chain;
+            }),
           };
         }
 
@@ -355,6 +454,8 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
 
     mockNotificationEvents = [];
     mockDeliveries = [];
+    mockExternalRecords = [];
+    mockCaptureProposals = [];
     mockPushSubscriptions = [
       {
         id: "sub-1",
@@ -395,6 +496,15 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
     expect(mockDeliveries.filter((d) => d.channel === "web_push").length).toBe(3);
     expect(summary.pushesSent).toBe(3);
     expect(mockFetch).toHaveBeenCalledTimes(3);
+    for (const [, requestInit] of mockFetch.mock.calls as Array<
+      [string, RequestInit]
+    >) {
+      const topic = (requestInit.headers as Record<string, string>).Topic;
+      expect(topic).toMatch(/^event-[A-Za-z0-9_-]{24}$/);
+      expect(topic).not.toContain("task-101");
+      expect(topic).not.toContain("event-201");
+      expect(topic).not.toContain("meeting-1");
+    }
   });
 
   it("defers push deliveries during quiet hours while still generating in-app events", async () => {
@@ -549,5 +659,216 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
 
     // Total events remain unchanged
     expect(mockNotificationEvents.length).toBe(eventCountAfterRun1);
+  });
+
+  it("atomically claims a pending delivery across concurrent dispatcher runs", async () => {
+    mockCalendarEvents = [];
+    mockCourses = [];
+    mockCourseMeetings = [];
+    mockNotificationEvents.push({
+      id: "event-concurrent",
+      user_id: userId,
+      event_type: "task_due_soon",
+      dedupe_key: "task_due_soon:task-101:2026-08-30",
+      title: "Calculus",
+      body: "Due today",
+      deep_link: "/tasks",
+      course_id: "course-1",
+      created_at: "2026-08-30T03:59:00Z",
+    });
+    mockDeliveries.push({
+      id: "delivery-concurrent",
+      user_id: userId,
+      notification_event_id: "event-concurrent",
+      push_subscription_id: "sub-1",
+      channel: "web_push",
+      status: "pending",
+      created_at: "2026-08-30T03:59:00Z",
+    });
+
+    const client = createMockSupabaseClient();
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 201 }));
+    const currentInstant = new Date("2026-08-30T04:00:00Z");
+
+    const summaries = await Promise.all([
+      evaluateAndDispatchNotifications(client, userId, {
+        currentInstant,
+        fetchImpl,
+      }),
+      evaluateAndDispatchNotifications(client, userId, {
+        currentInstant,
+        fetchImpl,
+      }),
+    ]);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(summaries.reduce((total, summary) => total + summary.pushesSent, 0)).toBe(1);
+    expect(
+      mockDeliveries.find((delivery) => delivery.id === "delivery-concurrent")
+        ?.status,
+    ).toBe("sent");
+  });
+
+  it("suppresses a deferred reminder after its task is completed", async () => {
+    mockCalendarEvents = [];
+    mockCourses = [];
+    mockCourseMeetings = [];
+    mockTasks[0].status = "completed";
+    mockNotificationEvents.push({
+      id: "event-completed",
+      user_id: userId,
+      event_type: "task_due_soon",
+      dedupe_key: "task_due_soon:task-101:2026-08-30",
+      title: "Calculus",
+      body: "Due today",
+      deep_link: "/tasks",
+      course_id: "course-1",
+      created_at: "2026-08-30T03:00:00Z",
+    });
+    mockDeliveries.push({
+      id: "delivery-completed",
+      user_id: userId,
+      notification_event_id: "event-completed",
+      push_subscription_id: "sub-1",
+      channel: "web_push",
+      status: "deferred",
+      created_at: "2026-08-30T03:00:00Z",
+    });
+
+    const fetchImpl = vi.fn();
+    await evaluateAndDispatchNotifications(createMockSupabaseClient(), userId, {
+      currentInstant: new Date("2026-08-30T04:00:00Z"),
+      fetchImpl,
+    });
+
+    const delivery = mockDeliveries.find(
+      (candidate) => candidate.id === "delivery-completed",
+    );
+    expect(delivery?.status).toBe("unavailable");
+    expect(delivery?.error_code).toBe("source_changed_or_unavailable");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("suppresses a deferred reminder after its preference is disabled", async () => {
+    mockCalendarEvents = [];
+    mockCourses = [];
+    mockCourseMeetings = [];
+    mockPreferences[0].enabled = false;
+    mockNotificationEvents.push({
+      id: "event-disabled",
+      user_id: userId,
+      event_type: "task_due_soon",
+      dedupe_key: "task_due_soon:task-101:2026-08-30",
+      title: "Calculus",
+      body: "Due today",
+      deep_link: "/tasks",
+      course_id: "course-1",
+      created_at: "2026-08-30T03:00:00Z",
+    });
+    mockDeliveries.push({
+      id: "delivery-disabled",
+      user_id: userId,
+      notification_event_id: "event-disabled",
+      push_subscription_id: "sub-1",
+      channel: "web_push",
+      status: "deferred",
+      created_at: "2026-08-30T03:00:00Z",
+    });
+
+    const fetchImpl = vi.fn();
+    await evaluateAndDispatchNotifications(createMockSupabaseClient(), userId, {
+      currentInstant: new Date("2026-08-30T04:00:00Z"),
+      fetchImpl,
+    });
+
+    const delivery = mockDeliveries.find(
+      (candidate) => candidate.id === "delivery-disabled",
+    );
+    expect(delivery?.status).toBe("unavailable");
+    expect(delivery?.error_code).toBe("disabled_by_preference");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("honors a course override when the global task preference is disabled", async () => {
+    mockCalendarEvents = [];
+    mockCourses = [];
+    mockCourseMeetings = [];
+    mockPreferences[0].notification_type = "task_reminders";
+    mockPreferences[0].enabled = false;
+    mockPreferences.push({
+      id: "p-course",
+      user_id: userId,
+      course_id: "course-1",
+      notification_type: "task_reminders",
+      enabled: true,
+      quiet_start: null,
+      quiet_end: null,
+      time_zone: timeZone,
+      daily_digest: false,
+    });
+
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 201 }));
+    const summary = await evaluateAndDispatchNotifications(
+      createMockSupabaseClient(),
+      userId,
+      {
+        currentInstant: new Date("2026-08-30T04:00:00Z"),
+        fetchImpl,
+      },
+    );
+
+    expect(summary.taskNotificationsPlanned).toBe(1);
+    expect(summary.pushesSent).toBe(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses a deferred Blackboard notification after dismissal", async () => {
+    mockTasks = [];
+    mockCalendarEvents = [];
+    mockCourses = [];
+    mockCourseMeetings = [];
+    mockExternalRecords.push({
+      id: "record-1",
+      proposal_revision: "revision-1",
+      missing_since: null,
+    });
+    mockCaptureProposals.push({
+      external_record_id: "record-1",
+      status: "rejected",
+      source_revision: "revision-1",
+    });
+    mockNotificationEvents.push({
+      id: "event-blackboard-dismissed",
+      user_id: userId,
+      event_type: "blackboard_assignment",
+      dedupe_key: "blackboard_assignment:record-1:revision-1",
+      title: "New Blackboard item",
+      body: "An item is available for review.",
+      deep_link: "/inbox",
+      course_id: null,
+      created_at: "2026-08-30T03:00:00Z",
+    });
+    mockDeliveries.push({
+      id: "delivery-blackboard-dismissed",
+      user_id: userId,
+      notification_event_id: "event-blackboard-dismissed",
+      push_subscription_id: "sub-1",
+      channel: "web_push",
+      status: "deferred",
+      created_at: "2026-08-30T03:00:00Z",
+    });
+
+    const fetchImpl = vi.fn();
+    await evaluateAndDispatchNotifications(createMockSupabaseClient(), userId, {
+      currentInstant: new Date("2026-08-30T04:00:00Z"),
+      fetchImpl,
+    });
+
+    const delivery = mockDeliveries.find(
+      (candidate) => candidate.id === "delivery-blackboard-dismissed",
+    );
+    expect(delivery?.status).toBe("unavailable");
+    expect(delivery?.error_code).toBe("source_changed_or_unavailable");
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

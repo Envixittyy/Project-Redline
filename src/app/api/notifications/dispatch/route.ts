@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 
 import { evaluateAndDispatchNotifications } from "@/services/notifications/notification-dispatcher";
 import { getSupabaseAdminClient } from "@/services/supabase/admin";
@@ -11,42 +12,45 @@ function isAuthorizedCron(request: Request): boolean {
   const validSecrets = [
     process.env.CRON_SECRET,
     process.env.NOTIFICATION_DISPATCH_SECRET,
-    process.env.INTERNAL_CRON_SECRET,
-  ].filter(Boolean) as string[];
+  ].flatMap((value) => {
+    const secret = value?.trim();
+    return secret ? [secret] : [];
+  });
 
   if (validSecrets.length === 0) {
     return false;
   }
 
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const token = authHeader.slice(7).trim();
-    if (validSecrets.includes(token)) return true;
-  }
+  const bearerMatch = authHeader?.match(/^Bearer ([^\s]+)$/);
+  const candidate = bearerMatch?.[1] ?? cronSecretHeader?.trim() ?? "";
+  if (!candidate) return false;
 
-  if (cronSecretHeader && validSecrets.includes(cronSecretHeader.trim())) {
-    return true;
-  }
-
-  return false;
+  const candidateBuffer = Buffer.from(candidate);
+  return validSecrets.some((secret) => {
+    const secretBuffer = Buffer.from(secret);
+    return (
+      candidateBuffer.length === secretBuffer.length &&
+      timingSafeEqual(candidateBuffer, secretBuffer)
+    );
+  });
 }
 
-async function handleDispatch(request: Request) {
+async function handleDispatch(request: Request, allowUserSession: boolean) {
   try {
     // 1. Check if caller has valid cron secret
     if (isAuthorizedCron(request)) {
       const adminClient = getSupabaseAdminClient();
 
-      // For single-user Redline, find user from preferences or auth users
-      const { data: prefUsers, error } = await adminClient
-        .from("notification_preferences")
-        .select("user_id")
-        .limit(10);
+      // Authentication is the authoritative user registry. A newly registered
+      // device must be dispatchable even before its owner saves preferences.
+      const { data: authUsers, error } = await adminClient.auth.admin.listUsers({
+        page: 1,
+        perPage: 10,
+      });
 
       if (error) throw error;
 
-      const userIds = Array.from(
-        new Set((prefUsers ?? []).map((p: { user_id: string }) => p.user_id)),
-      );
+      const userIds = authUsers.users.map((user) => user.id);
 
       const summaries = [];
       for (const uid of userIds) {
@@ -65,7 +69,14 @@ async function handleDispatch(request: Request) {
       });
     }
 
-    // 2. Fallback: Authenticated user session
+    if (!allowUserSession) {
+      return NextResponse.json(
+        { ok: false, message: "Unauthorized notification dispatch request." },
+        { status: 401 },
+      );
+    }
+
+    // 2. POST-only fallback: authenticated user session, scoped to that owner.
     const { client, userId } = await requireAuthenticatedSupabase();
     const summary = await evaluateAndDispatchNotifications(client, userId);
 
@@ -93,9 +104,9 @@ async function handleDispatch(request: Request) {
 }
 
 export async function POST(request: Request) {
-  return handleDispatch(request);
+  return handleDispatch(request, true);
 }
 
 export async function GET(request: Request) {
-  return handleDispatch(request);
+  return handleDispatch(request, false);
 }

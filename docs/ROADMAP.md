@@ -95,8 +95,9 @@ graph TD
   - Create notification settings on `/more` and `/settings/notifications` for configuring quiet hours start/end times, category delivery toggles, and deliberate Web Push enablement.
 - **4D: Web Push Background Dispatch Engine [`COMPLETE` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
   - Implement the background notification dispatch worker (evaluating upcoming deadlines, calendar reminders, and course meeting reminders against user quiet hours, staleness rules, and deduplication keys).
-  - Pure Node.js `node:crypto` zero-dependency RFC 8291 (`aes128gcm`) Web Push payload encryption and RFC 8292 VAPID token authorization.
-  - Secure cron / manual trigger endpoint `/api/notifications/dispatch` supporting bearer cron secrets and user sessions.
+  - Standards-compatible RFC 8291 (`aes128gcm`) Web Push payload encryption and RFC 8292 VAPID authorization through the maintained `web-push` package.
+  - Secure cron / manual trigger endpoint `/api/notifications/dispatch`: cron-secret GET/POST may process the authenticated user registry, while session-authenticated manual dispatch is POST-only and owner-scoped.
+  - Production automation remains a deployment configuration step: configure an HTTPS scheduler to call `GET /api/notifications/dispatch` with `Authorization: Bearer <CRON_SECRET>` on the chosen cadence.
 
 ### Phase 5: Deterministic Scheduler Engine (P8 Core)
 - **5A: Pure Scheduling Engine Algorithm [`COMPLETE` | Medium | Risk: Moderate | Model: Claude Sonnet / Gemini 3.1 Pro]**

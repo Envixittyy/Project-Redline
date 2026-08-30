@@ -71,40 +71,59 @@ function mapNotificationEvent(row: NotificationEventRow): NotificationEvent {
 /**
  * Checks whether an event type matches a preference row type.
  */
-function preferenceMatchesType(prefType: string, eventType: string): boolean {
-  if (prefType === "all" || prefType === eventType) return true;
+function preferenceSpecificity(prefType: string, eventType: string): number {
+  if (prefType === eventType) return 3;
   if (
     (prefType === "tasks" || prefType === "task_reminders") &&
     (eventType.startsWith("task_") || eventType === "due_reminder")
   ) {
-    return true;
+    return 2;
   }
   if (
     (prefType === "calendar" || prefType === "calendar_reminders") &&
     eventType.startsWith("calendar_")
   ) {
-    return true;
+    return 2;
   }
   if (
     (prefType === "school" || prefType === "school_class_reminders") &&
     eventType.startsWith("school_")
   ) {
-    return true;
+    return 2;
   }
   if (
     (prefType === "blackboard" || prefType === "blackboard_new_items") &&
     eventType === "blackboard_assignment"
   ) {
-    return true;
+    return 2;
   }
   if (
     (prefType === "blackboard" || prefType === "blackboard_deadline_changes") &&
     (eventType === "blackboard_deadline_changed" ||
       eventType === "blackboard_proposal_divergence")
   ) {
-    return true;
+    return 2;
   }
-  return false;
+  return prefType === "all" ? 1 : -1;
+}
+
+function selectEffectivePreference(
+  rows: NotificationPreferenceRow[],
+  eventType: string,
+  courseId: string | null,
+): NotificationPreferenceRow | undefined {
+  const bestMatch = (scopeRows: NotificationPreferenceRow[]) =>
+    scopeRows
+      .map((row) => ({ row, score: preferenceSpecificity(row.notification_type, eventType) }))
+      .filter(({ score }) => score >= 0)
+      .sort((left, right) => right.score - left.score)[0]?.row;
+
+  if (courseId) {
+    const courseMatch = bestMatch(rows.filter((row) => row.course_id === courseId));
+    if (courseMatch) return courseMatch;
+  }
+
+  return bestMatch(rows.filter((row) => row.course_id === null));
 }
 
 /**
@@ -139,22 +158,11 @@ export async function createNotificationEvent(
 
   const prefRows = (preferences ?? []) as NotificationPreferenceRow[];
 
-  // Course-specific preference takes precedence over global preference
-  const coursePref = input.courseId
-    ? prefRows.find(
-        (p) =>
-          p.course_id === input.courseId &&
-          preferenceMatchesType(p.notification_type, input.eventType),
-      )
-    : undefined;
-
-  const globalPref = prefRows.find(
-    (p) =>
-      p.course_id === null &&
-      preferenceMatchesType(p.notification_type, input.eventType),
+  const activePref = selectEffectivePreference(
+    prefRows,
+    input.eventType,
+    input.courseId ?? null,
   );
-
-  const activePref = coursePref ?? globalPref;
 
   if (activePref && !activePref.enabled) {
     return { created: false, suppressedReason: "disabled_by_preference" };
@@ -498,16 +506,55 @@ export async function updateQuietHours(
   }
 }
 
+/** Re-checks category and course overrides immediately before Web Push egress. */
+export async function isNotificationEventEnabled(
+  client: AuthenticatedClient,
+  userId: string,
+  eventType: string,
+  courseId: string | null,
+): Promise<boolean> {
+  let query = client
+    .from("notification_preferences")
+    .select("id,user_id,course_id,notification_type,enabled,quiet_start,quiet_end,time_zone,daily_digest")
+    .eq("user_id", userId);
+
+  if (courseId) {
+    query = query.or(`course_id.eq.${courseId},course_id.is.null`);
+  } else {
+    query = query.is("course_id", null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("[notifications] isNotificationEventEnabled failed:", error);
+    throw error;
+  }
+
+  const preference = selectEffectivePreference(
+    (data ?? []) as NotificationPreferenceRow[],
+    eventType,
+    courseId,
+  );
+  return preference?.enabled ?? true;
+}
+
 export type PushDeliveryWithDetails = {
   id: string;
   userId: string;
   notificationEventId: string;
   pushSubscriptionId: string | null;
   channel: string;
-  status: "pending" | "deferred" | "sent" | "failed" | "unavailable";
+  status:
+    | "pending"
+    | "deferred"
+    | "sending"
+    | "sent"
+    | "failed"
+    | "unavailable";
   attemptedAt: string | null;
   deliveredAt: string | null;
   errorCode: string | null;
+  claimedAt: string | null;
   createdAt: string;
   event: {
     id: string;
@@ -534,10 +581,17 @@ type DeliveryQueryRow = {
   notification_event_id: string;
   push_subscription_id: string | null;
   channel: string;
-  status: "pending" | "deferred" | "sent" | "failed" | "unavailable";
+  status:
+    | "pending"
+    | "deferred"
+    | "sending"
+    | "sent"
+    | "failed"
+    | "unavailable";
   attempted_at: string | null;
   delivered_at: string | null;
   error_code: string | null;
+  claimed_at: string | null;
   created_at: string;
   notification_events: {
     id: string;
@@ -570,6 +624,7 @@ function mapDeliveryRow(row: DeliveryQueryRow): PushDeliveryWithDetails | null {
     attemptedAt: row.attempted_at,
     deliveredAt: row.delivered_at,
     errorCode: row.error_code,
+    claimedAt: row.claimed_at,
     createdAt: row.created_at,
     event: {
       id: row.notification_events.id,
@@ -613,6 +668,7 @@ export async function listPendingPushDeliveries(
       attempted_at,
       delivered_at,
       error_code,
+      claimed_at,
       created_at,
       notification_events!inner (
         id,
@@ -668,6 +724,7 @@ export async function listDeferredPushDeliveries(
       attempted_at,
       delivered_at,
       error_code,
+      claimed_at,
       created_at,
       notification_events!inner (
         id,
@@ -704,6 +761,63 @@ export async function listDeferredPushDeliveries(
 }
 
 /**
+ * Atomically transitions one pending delivery to sending. Concurrent workers
+ * race on the status predicate, so only one receives the claimed row.
+ */
+export async function claimPendingPushDelivery(
+  client: AuthenticatedClient,
+  userId: string,
+  deliveryId: string,
+  claimedAt: string,
+): Promise<boolean> {
+  const { data, error } = await client
+    .from("notification_deliveries")
+    .update({
+      status: "sending",
+      claimed_at: claimedAt,
+      attempted_at: claimedAt,
+    })
+    .eq("id", deliveryId)
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.error("[notifications] claimPendingPushDelivery failed:", error);
+    throw error;
+  }
+
+  return Boolean(data);
+}
+
+/**
+ * A crashed at-most-once send attempt is terminally failed after its lease.
+ * It is never silently re-sent because the provider may already have accepted it.
+ */
+export async function failStalePushDeliveryClaims(
+  client: AuthenticatedClient,
+  userId: string,
+  claimedBefore: string,
+): Promise<void> {
+  const { error } = await client
+    .from("notification_deliveries")
+    .update({
+      status: "failed",
+      error_code: "dispatch_claim_expired",
+    })
+    .eq("user_id", userId)
+    .eq("channel", "web_push")
+    .eq("status", "sending")
+    .lt("claimed_at", claimedBefore);
+
+  if (error) {
+    console.error("[notifications] failStalePushDeliveryClaims failed:", error);
+    throw error;
+  }
+}
+
+/**
  * Updates a delivery status row.
  */
 export async function updateDeliveryStatus(
@@ -711,10 +825,17 @@ export async function updateDeliveryStatus(
   userId: string,
   deliveryId: string,
   update: {
-    status: "pending" | "deferred" | "sent" | "failed" | "unavailable";
+    status:
+      | "pending"
+      | "deferred"
+      | "sending"
+      | "sent"
+      | "failed"
+      | "unavailable";
     attemptedAt?: string | null;
     deliveredAt?: string | null;
     errorCode?: string | null;
+    claimedAt?: string | null;
   },
 ): Promise<void> {
   const updatePayload: Record<string, unknown> = {
@@ -728,6 +849,9 @@ export async function updateDeliveryStatus(
   }
   if (update.errorCode !== undefined) {
     updatePayload.error_code = update.errorCode;
+  }
+  if (update.claimedAt !== undefined) {
+    updatePayload.claimed_at = update.claimedAt;
   }
 
   const { error } = await client

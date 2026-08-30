@@ -27,16 +27,16 @@ vi.mock("@/services/supabase/request", () => ({
 }));
 
 const mockAdminClient = {
-  from: vi.fn(() => ({
-    select: vi.fn(() => ({
-      limit: vi.fn(() =>
+  auth: {
+    admin: {
+      listUsers: vi.fn(() =>
         Promise.resolve({
-          data: [{ user_id: "owner-user-id" }],
+          data: { users: [{ id: "owner-user-id" }] },
           error: null,
         }),
       ),
-    })),
-  })),
+    },
+  },
 };
 
 vi.mock("@/services/supabase/admin", () => ({
@@ -48,7 +48,44 @@ import { GET, POST } from "./route";
 describe("Notification Dispatch Route Handler (Phase 4D)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.NOTIFICATION_DISPATCH_SECRET;
+    delete process.env.INTERNAL_CRON_SECRET;
     process.env.CRON_SECRET = "super-secret-cron-key";
+  });
+
+  it("rejects cron authentication when every configured secret is absent", async () => {
+    delete process.env.CRON_SECRET;
+    mockRequireAuth.mockRejectedValue(new Error("User is not authenticated."));
+
+    const response = await POST(
+      new Request("https://redline.local/api/notifications/dispatch", {
+        method: "POST",
+        headers: { authorization: "Bearer anything" },
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(mockAdminClient.auth.admin.listUsers).not.toHaveBeenCalled();
+  });
+
+  it("rejects wrong and malformed cron credentials", async () => {
+    mockRequireAuth.mockRejectedValue(new Error("User is not authenticated."));
+
+    for (const authorization of [
+      "Bearer wrong-secret",
+      "Bearer",
+      "Bearer super-secret-cron-key extra",
+      "Basic super-secret-cron-key",
+    ]) {
+      const response = await POST(
+        new Request("https://redline.local/api/notifications/dispatch", {
+          method: "POST",
+          headers: { authorization },
+        }),
+      );
+      expect(response.status).toBe(401);
+    }
+    expect(mockDispatch).not.toHaveBeenCalled();
   });
 
   it("returns 401 when request is not authenticated and has no cron secret", async () => {
@@ -121,5 +158,22 @@ describe("Notification Dispatch Route Handler (Phase 4D)", () => {
     expect(json.authenticatedVia).toBe("user_session");
     expect(json.userId).toBe("user-session-123");
     expect(mockDispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not allow a user session to trigger dispatch through GET", async () => {
+    mockRequireAuth.mockResolvedValue({
+      client: {},
+      userId: "user-session-123",
+    });
+
+    const response = await GET(
+      new Request("https://redline.local/api/notifications/dispatch", {
+        method: "GET",
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(mockRequireAuth).not.toHaveBeenCalled();
+    expect(mockDispatch).not.toHaveBeenCalled();
   });
 });

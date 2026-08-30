@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -24,6 +25,10 @@ vi.mock("next/cache", () => ({
 }));
 
 const mockUserId = "user-test-123";
+const receiverKey = crypto.createECDH("prime256v1");
+receiverKey.generateKeys();
+const validP256dh = receiverKey.getPublicKey("base64url");
+const validAuth = crypto.randomBytes(16).toString("base64url");
 
 let mockNotificationRows: Array<Record<string, unknown>> = [];
 let mockPrefRows: Array<Record<string, unknown>> = [];
@@ -143,11 +148,19 @@ vi.mock("@/services/supabase/request", () => ({
               mockDeliveries.push(deliv);
               return Promise.resolve({ data: null, error: null });
             }),
-            update: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
-              })),
-            })),
+            update: vi.fn(() => {
+              const chain = {
+                eq: vi.fn(() => chain),
+                lt: vi.fn(() => Promise.resolve({ data: null, error: null })),
+                select: vi.fn(() => chain),
+                maybeSingle: vi.fn(() =>
+                  Promise.resolve({ data: null, error: null }),
+                ),
+                then: (resolve: (value: unknown) => unknown) =>
+                  Promise.resolve({ data: null, error: null }).then(resolve),
+              };
+              return chain;
+            }),
           };
         }
 
@@ -335,9 +348,15 @@ describe("Notification Server Actions (Phase 4C)", () => {
 
     const valid = await registerPushSubscriptionAction({
       endpoint: "https://fcm.googleapis.com/fcm/send/sample",
-      keys: { p256dh: "key1", auth: "auth1" },
+      keys: { p256dh: validP256dh, auth: validAuth },
     });
     expect(valid.ok).toBe(true);
+
+    const internalEndpoint = await registerPushSubscriptionAction({
+      endpoint: "https://127.0.0.1/internal",
+      keys: { p256dh: validP256dh, auth: validAuth },
+    });
+    expect(internalEndpoint.ok).toBe(false);
   });
 
   it("disablePushSubscriptionAction disables push endpoint", async () => {

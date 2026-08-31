@@ -10,6 +10,7 @@ import {
   LocalAdapterError,
   normalizeLocalError,
   readBoundedJson,
+  runtimeHttpError,
   type LocalRuntimeAdapter,
 } from "./runtime-adapter";
 
@@ -164,16 +165,7 @@ export class LlamaCppAdapter implements LocalRuntimeAdapter {
 
       if (!res.ok) {
         await res.body?.cancel();
-        if (res.status === 404) {
-          throw new LocalAdapterError(
-            "Local runtime request failed.",
-            "model_not_found",
-          );
-        }
-        throw new LocalAdapterError(
-          "Local runtime request failed.",
-          "inference_failed",
-        );
+        throw runtimeHttpError(res.status);
       }
 
       const data = await readBoundedJson<{

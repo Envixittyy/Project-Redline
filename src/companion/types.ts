@@ -25,6 +25,7 @@ export type LocalInferenceRequest = {
 };
 
 export type LocalInferenceResponse = {
+  failureCode?: "provider_unavailable" | "rate_limited" | "timeout" | "invalid_output" | "provider_rejected";
   ok: boolean;
   content: string;
   model: string;

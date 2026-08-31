@@ -13,7 +13,9 @@ import {
   DEFAULT_RUNTIME_ENDPOINTS,
   isModelId,
   validateLoopbackUrl,
+  validatePrivateCompanionOrigin,
 } from "./network-policy";
+import { CompanionTicketVerifier, type CompanionTicket } from "./request-ticket";
 import type { LocalInferenceRequest, LocalProviderType } from "./types";
 
 export type CompanionServerOptions = {
@@ -25,6 +27,8 @@ export type CompanionServerOptions = {
   pairingTtlMs?: number;
   silent?: boolean;
   runtimeEndpoints?: Partial<Record<LocalProviderType, string>>;
+  // Separate loopback-only listener behind Tailscale Serve, never Funnel.
+  remote?: { origin: string; userLogin: string; signingKey: string };
 };
 const MAX_BODY = 96 * 1024;
 const routes = new Map([
@@ -99,9 +103,17 @@ export class CompanionServer {
   private server: http.Server | null = null;
   private busy = false;
   private pairAttempts: number[] = [];
+  private readonly remote?: CompanionServerOptions["remote"];
+  private readonly tickets?: CompanionTicketVerifier;
   constructor(options: CompanionServerOptions = {}) {
     this.host = options.host ?? "127.0.0.1";
     this.port = options.port ?? 41400;
+    if (options.remote) {
+      validatePrivateCompanionOrigin(options.remote.origin);
+      if (!options.remote.userLogin || options.remote.userLogin.length > 254 || /[\r\n]/.test(options.remote.userLogin)) throw new Error("Invalid private network identity.");
+      this.remote = options.remote;
+      this.tickets = new CompanionTicketVerifier(options.remote.signingKey, options.remote.origin);
+    }
     this.allowedOrigins = options.allowedOrigins ?? DEFAULT_ALLOWED_ORIGINS;
     if (
       !this.allowedOrigins.length ||
@@ -186,7 +198,8 @@ export class CompanionServer {
     const address = req.socket.localPort;
     if (
       req.socket.remoteAddress !== "127.0.0.1" ||
-      host !== `127.0.0.1:${address}`
+      (host !== `127.0.0.1:${address}` && (!this.remote || host !== new URL(this.remote.origin).host)) ||
+      (this.remote && req.headers["tailscale-user-login"] !== this.remote.userLogin)
     ) {
       this.send(res, 403, { ok: false, error: "invalid_host" });
       return;
@@ -196,7 +209,7 @@ export class CompanionServer {
     // The only originless operation is non-sensitive loopback health for CLI smoke checks.
     if (
       !validateOrigin(origin, this.allowedOrigins) &&
-      !(route === "/health" && req.method === "GET" && !origin)
+      !(route === "/health" && req.method === "GET" && !origin && !this.remote)
     ) {
       this.send(res, 403, { ok: false, error: "invalid_origin" });
       return;
@@ -217,7 +230,7 @@ export class CompanionServer {
       if (
         req.headers["access-control-request-method"] !== method ||
         requestedHeaders.some(
-          (h) => !["authorization", "content-type"].includes(h),
+          (h) => !["authorization", "content-type", ...(this.remote ? ["x-redline-ticket"] : [])].includes(h),
         )
       ) {
         this.send(res, 403, { ok: false, error: "invalid_preflight" }, origin);
@@ -227,7 +240,7 @@ export class CompanionServer {
         "Access-Control-Allow-Origin": origin!,
         Vary: "Origin",
         "Access-Control-Allow-Methods": method,
-        "Access-Control-Allow-Headers": "Authorization, Content-Type",
+        "Access-Control-Allow-Headers": `Authorization, Content-Type${this.remote ? ", X-Redline-Ticket" : ""}`,
         "Access-Control-Max-Age": "60",
         ...(req.headers["access-control-request-private-network"] === "true"
           ? { "Access-Control-Allow-Private-Network": "true" }
@@ -240,6 +253,20 @@ export class CompanionServer {
       this.send(res, 405, { ok: false, error: "unsupported_method" }, origin);
       return;
     }
+    const token = req.headers.authorization?.match(/^Bearer (fwd_comp_[a-f0-9]{64})$/)?.[1];
+    let remoteBody: unknown;
+    let ticket: CompanionTicket | undefined;
+    let identity: string | undefined;
+    if (this.remote) {
+      try {
+        remoteBody = route === "/health" ? null : await this.body(req);
+        ticket = this.tickets!.verify(req.headers["x-redline-ticket"], origin!, route, remoteBody, token);
+        identity = `${ticket.userId}:${ticket.deviceId}`;
+      } catch {
+        this.send(res, 401, { ok: false, error: "authorization_denied" }, origin);
+        return;
+      }
+    }
     if (route === "/health") {
       this.send(
         res,
@@ -249,10 +276,7 @@ export class CompanionServer {
       );
       return;
     }
-    const token = req.headers.authorization?.match(
-      /^Bearer (fwd_comp_[a-f0-9]{64})$/,
-    )?.[1];
-    if (route !== "/pair" && !this.tokenManager.verify(token, origin)) {
+    if (route !== "/pair" && !this.tokenManager.verify(token, origin, identity)) {
       this.send(res, 401, { ok: false, error: "pairing_invalid" }, origin);
       return;
     }
@@ -271,8 +295,8 @@ export class CompanionServer {
           return;
         }
         this.pairAttempts.push(Date.now());
-        const body = record(await this.body(req), ["pairingSecret"]);
-        const result = this.tokenManager.pair(body.pairingSecret, origin!);
+        const body = record(this.remote ? remoteBody : await this.body(req), ["pairingSecret"]);
+        const result = this.tokenManager.pair(body.pairingSecret, origin!, identity);
         this.send(res, result.ok ? 200 : 401, result, origin);
         return;
       }
@@ -282,7 +306,7 @@ export class CompanionServer {
         return;
       }
       const body = record(
-        await this.body(req),
+        this.remote ? remoteBody : await this.body(req),
         route === "/v1/infer"
           ? ["provider", "endpoint", "request"]
           : ["provider", "endpoint"],
@@ -296,7 +320,7 @@ export class CompanionServer {
       try {
         if (route === "/v1/status") {
           const result = await adapter.checkHealth(endpoint);
-          if (!this.tokenManager.verify(token, origin))
+          if (!this.tokenManager.verify(token, origin, identity))
             this.send(
               res,
               401,
@@ -328,7 +352,7 @@ export class CompanionServer {
               controller.signal,
             );
             // Re-pair/unpair during inference prevents delivery to the revoked session.
-            if (!this.tokenManager.verify(token, origin))
+            if (!this.tokenManager.verify(token, origin, identity))
               this.send(
                 res,
                 401,

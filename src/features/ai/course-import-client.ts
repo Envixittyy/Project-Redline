@@ -1,41 +1,13 @@
 "use client";
 import { getCompanionSession } from "@/services/integrations/ai/companion-session";
-import { inferLocalContent } from "@/services/integrations/ai/companion-client";
-import {
-  finalizeCourseImportAction,
-  prepareCourseImportAction,
-} from "./course-import-actions";
+import type { CourseImportReview } from "@/services/integrations/ai/course-import-contract";
+import type { InferenceProvenance } from "@/services/integrations/ai/routing-contract";
+import { generateRoutedProposal } from "./routing-client";
 
-/** Explicit user-selected upload only. This function never applies a proposal. */
+/** Selected upload only. No provider-specific business logic or mutation. */
 export async function generateCourseImport(file: File, signal?: AbortSignal) {
-  const config = getCompanionSession();
-  if (!config)
-    return {
-      ok: false as const,
-      message: "Pair the companion in AI Settings on this PC first.",
-    };
-  try {
-    const form = new FormData();
-    form.set("file", file);
-    const prepared = await prepareCourseImportAction(
-      form,
-      config.provider,
-      config.model,
-    );
-    if (!prepared.ok) return prepared;
-    if (signal?.aborted) throw new Error("cancelled");
-    const raw = await inferLocalContent(
-      config,
-      prepared.prepared.inference,
-      signal,
-    );
-    if (signal?.aborted) throw new Error("cancelled");
-    return await finalizeCourseImportAction(prepared.prepared.requestId, raw);
-  } catch {
-    return {
-      ok: false as const,
-      message:
-        "Local course import cancelled or unavailable. No course was created.",
-    };
-  }
+  const form = new FormData();
+  form.set("file", file);
+  const result = await generateRoutedProposal("course", form, getCompanionSession(), signal);
+  return result.ok ? { ...result, review: result.review as CourseImportReview & { provenance: InferenceProvenance } } : result;
 }

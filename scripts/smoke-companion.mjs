@@ -101,6 +101,14 @@ try {
       format: "iife",
       globalName: "companionClient",
       platform: "browser",
+      define: { "process.env.NEXT_PUBLIC_COMPANION_REMOTE_ORIGIN": "undefined" },
+      plugins: [{
+        name: "local-only-auth-boundary",
+        setup(b) {
+          b.onResolve({ filter: /remote-companion-actions$/ }, () => ({ path: "remote-auth", namespace: "fixture" }));
+          b.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: "export async function remoteSessionTicketAction(){throw Error('Remote auth is not part of the loopback smoke fixture')}" }));
+        },
+      }],
     });
     const fixture = JSON.stringify({
       enabled: true,

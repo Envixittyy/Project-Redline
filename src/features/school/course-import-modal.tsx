@@ -152,8 +152,8 @@ export function CourseImportModal({ onClose }: { onClose: () => void }) {
         <div className={styles.titleGroup}>
           <h2>AI Course Document Import</h2>
           <div className={styles.subtitle}>
-            Selected text is retained with the private review audit and sent to your paired local
-            model. No changes until approval. TXT, MD, CSV, ICS only; 256 KiB
+            Selected text is retained with the private review audit. Your AI mode selects inference; cloud transfer asks first.
+            No changes until approval. TXT, MD, CSV, ICS only; 256 KiB
             file, 25,000 characters, 32 KiB context.
           </div>
         </div>
@@ -192,7 +192,7 @@ export function CourseImportModal({ onClose }: { onClose: () => void }) {
                   Extracting timetable from document…
                 </span>
                 <span className={styles.dropzoneHint}>
-                  AI Companion is structuring course details and meetings
+                  AI is proposing course details and meetings
                 </span>
               </>
             ) : (
@@ -221,6 +221,7 @@ export function CourseImportModal({ onClose }: { onClose: () => void }) {
       ) : (
         <fieldset disabled={applying} className={styles.reviewSection}>
           <legend>Review proposed course</legend>
+          {review?.provenance && <p>Source: {review.provenance.location.replaceAll("_", " ")} · {review.provenance.provider} · {review.provenance.model}</p>}
           <p>
             {review?.fileName} · Meetings start {review?.startDate} ·{" "}
             {review?.timeZone}. No end date; adjust later in School. Review

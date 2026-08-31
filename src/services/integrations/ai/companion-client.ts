@@ -21,38 +21,61 @@ export type CompanionPairResult = {
   expiresAt?: string;
   error?: string;
 };
-export class LocalCompanionClientError extends Error {}
+export class LocalCompanionClientError extends Error {
+  constructor(message: string, public readonly code = "invalid_output") { super(message); }
+}
+let deviceId: string | undefined;
+export function companionDeviceId() { return deviceId ??= crypto.randomUUID(); }
 
 async function request(
   base: string,
   path: string,
   init: RequestInit,
   timeout: number,
+  inferenceTicket?: string,
 ): Promise<Record<string, unknown>> {
   // A hosted server's localhost is never the user's PC.
   if (typeof window === "undefined")
     throw new LocalCompanionClientError(
-      "Companion transport requires a browser on the companion PC.",
+      "Companion transport requires an authenticated Forward browser session.",
     );
   const url = new URL(path, validateCompanionUrl(base));
-  const options: RequestInit & { targetAddressSpace: "loopback" } = {
+  const remote = url.protocol === "https:";
+  let ticket = inferenceTicket;
+  if (remote && path !== "/v1/infer") {
+    const { remoteSessionTicketAction } = await import("@/features/ai/remote-companion-actions");
+    const token = new Headers(init.headers).get("Authorization")?.replace(/^Bearer /, "") ?? null;
+    const result = await remoteSessionTicketAction(path, init.body ? JSON.parse(String(init.body)) : null, token, companionDeviceId());
+    if (!result.ok) throw new LocalCompanionClientError("Remote authorization unavailable.", "pairing_invalid");
+    ticket = result.ticket;
+  }
+  if (remote && !ticket) throw new LocalCompanionClientError("Remote authorization required.", "pairing_invalid");
+  const options: RequestInit & { targetAddressSpace?: "loopback" } = {
     ...init,
     mode: "cors",
     credentials: "omit",
     cache: "no-store",
     redirect: "error",
-    targetAddressSpace: "loopback",
+    ...(!remote ? { targetAddressSpace: "loopback" as const } : {}),
+    headers: { ...Object.fromEntries(new Headers(init.headers)), ...(remote ? { "X-Redline-Ticket": ticket! } : {}) },
     signal: init.signal
       ? AbortSignal.any([init.signal, AbortSignal.timeout(timeout)])
       : AbortSignal.timeout(timeout),
   };
-  const response = await fetch(url, options);
+  let response: Response;
+  try { response = await fetch(url, options); }
+  catch { throw new LocalCompanionClientError("Companion unavailable.", init.signal?.aborted ? "cancelled" : "network_unavailable"); }
   if (!response.ok) {
-    await response.body?.cancel();
+    let failureCode = "invalid_output";
+    try {
+      const body = JSON.parse(await readBoundedResponseText(response, 4096));
+      if (["provider_unavailable", "rate_limited", "timeout", "invalid_output", "provider_rejected"].includes(body.failureCode)) failureCode = body.failureCode;
+    } catch { /* Never infer infrastructure failure from malformed provider output. */ }
     throw new LocalCompanionClientError(
       response.status === 401
         ? "Pairing expired or revoked. Restart and re-pair."
         : "Companion request failed.",
+      response.status === 401 || response.status === 403 ? "pairing_invalid" : response.status === 429 ? "rate_limited" : failureCode,
     );
   }
   const parsed: unknown = JSON.parse(
@@ -91,7 +114,7 @@ export async function checkCompanionHealth(
       companion: "disconnected",
       version: "unknown",
       error:
-        "Companion unavailable. Use this PC, start the companion, and allow local network access in your browser.",
+        "Companion unavailable. Check the home PC and Companion, connect the private network for remote mode, and allow browser network access.",
     };
   }
 }
@@ -194,9 +217,10 @@ export async function inferLocalContent(
   config: LocalCompanionConfig,
   inference: LocalInferenceRequest,
   signal?: AbortSignal,
+  inferenceTicket?: string,
 ): Promise<string> {
   if (!config.pairingToken || !config.enabled || !isModelId(config.model))
-    throw new LocalCompanionClientError("Local AI is not configured.");
+    throw new LocalCompanionClientError("Local AI is not configured.", "local_unavailable");
   const endpoint = validateLoopbackUrl(config.endpoint).toString();
   const result = await request(
     config.companionUrl,
@@ -213,6 +237,7 @@ export async function inferLocalContent(
       signal,
     },
     65000,
+    inferenceTicket,
   );
   if (
     result.ok !== true ||

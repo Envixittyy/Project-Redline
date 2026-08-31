@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import { isModelId } from "@/companion/network-policy";
+import { validInferenceProvider, isCloud } from "./routing-contract";
 import { resolveTimeZone, todayIn } from "@/lib/date/day";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import { applyReviewedCourseImport } from "@/services/courses/course-repository";
@@ -25,9 +25,7 @@ export async function prepareCourseImport(
 ) {
   const { client, userId } = await requireAuthenticatedSupabase();
   if (
-    typeof provider !== "string" ||
-    !["ollama", "llamacpp", "openai_compatible"].includes(provider) ||
-    !isModelId(model)
+    !validInferenceProvider(provider, model) || typeof model !== "string"
   )
     throw new AiTrustError("invalid_provider");
   const file = form instanceof FormData ? form.get("file") : null;
@@ -101,14 +99,15 @@ export async function readCourseImportReview(
     startDate: r.startDate,
     timeZone: r.timeZone,
     status: r.status,
+    provenance: r.provenance,
   };
 }
-export async function finalizeCourseImport(requestId: unknown, raw: unknown) {
+export async function finalizeCourseImport(requestId: unknown, raw: unknown, serverInference = false) {
   const { client, userId } = await requireAuthenticatedSupabase();
   const { data: r, error } = await client
     .from("ai_course_requests")
     .select(
-      "id,source_text,source_digest,source_handle,capability,status,expires_at",
+      "id,source_text,source_digest,source_handle,capability,status,expires_at,provider",
     )
     .eq("id", uuid(requestId))
     .eq("user_id", userId)
@@ -120,6 +119,7 @@ export async function finalizeCourseImport(requestId: unknown, raw: unknown) {
     Date.parse(r.expires_at) <= Date.now()
   )
     throw new AiTrustError("request_unavailable");
+  if (isCloud(r.provider) && !serverInference) throw new AiTrustError("capability_denied");
   if (
     createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest
   )

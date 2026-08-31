@@ -8,7 +8,6 @@ import { Surface } from "@/components/ui/surface";
 import type {
   AiPermissionMode,
   AiPreferences,
-  AiProviderId,
   CloudFallbackMode,
   LocalProviderType,
 } from "@/services/integrations/ai/types";
@@ -20,23 +19,30 @@ import {
 import { checkCompanionHealth, getCompanionStatus, pairCompanion, unpairCompanion } from "@/services/integrations/ai/companion-client";
 import { clearCompanionSession, setCompanionSession } from "@/services/integrations/ai/companion-session";
 import styles from "./ai-settings-panel.module.css";
+import type { AiMode, CloudProvider } from "@/services/integrations/ai/routing-contract";
 
 type AiSettingsPanelProps = {
   preferences: AiPreferences;
+  providers?: Record<CloudProvider, { configured: boolean; model: string | null; status: string }>;
 };
 
-export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
+export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
   // Cloud preferences
   const [cloudEnabled, setCloudEnabled] = useState(preferences.cloudEnabled);
-  const [defaultProvider, setDefaultProvider] = useState<AiProviderId>(
-    preferences.defaultProvider || "anthropic",
+  const [defaultProvider, setDefaultProvider] = useState<CloudProvider>(
+    preferences.preferredCloud || "gemini",
   );
+  const [aiMode, setAiMode] = useState<AiMode>(preferences.aiMode ?? "auto");
+  const [secondaryCloud, setSecondaryCloud] = useState(preferences.secondaryCloud ?? false);
+  const [checklistCloud, setChecklistCloud] = useState(preferences.checklistCloud ?? false);
+  const [courseImportCloud, setCourseImportCloud] = useState(preferences.courseImportCloud ?? false);
+  const remoteOrigin = process.env.NEXT_PUBLIC_COMPANION_REMOTE_ORIGIN;
   const [fallbackMode, setFallbackMode] = useState<CloudFallbackMode>(
-    preferences.cloudFallbackMode,
+    preferences.cloudFallbackMode === "off" ? "off" : "ask_each_time",
   );
   const [permissionMode, setPermissionMode] = useState<AiPermissionMode>(
     preferences.permissionMode,
@@ -175,7 +181,8 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
     startTransition(async () => {
       const res = await updateAiPreferencesAction({
         cloudEnabled,
-        defaultProvider,
+        preferredCloud: defaultProvider,
+        aiMode, secondaryCloud, checklistCloud, courseImportCloud,
         cloudFallbackMode: fallbackMode,
         permissionMode,
       });
@@ -185,7 +192,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
   }
 
   function handleClearHistory() {
-    if (!window.confirm("Clear all AI transfer audit metadata? This will not affect created tasks or notes.")) {
+    if (!window.confirm("Clear legacy cloud-transfer history? Protected routing metadata, course sources and reviewed proposals are not deleted. Created tasks and notes are unchanged.")) {
       return;
     }
     startTransition(async () => {
@@ -202,8 +209,8 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
         <header className={styles.header}>
           <Laptop size={22} color="var(--accent-text)" />
           <div>
-            <h2>Local AI Companion (Phase 10A)</h2>
-            <p>Available on this PC only. Hosted desktop browsers may ask for local network permission. iPhone cannot reach the PC companion.</p>
+            <h2>Local / Remote Companion</h2>
+            <p>Same-PC loopback, or the configured home PC over private Tailscale HTTPS. Other devices require Tailscale, pairing and a running home PC. No public runtime ports.</p>
           </div>
           <div className={styles.statusBadge}>
             {companionRunning === true ? (
@@ -228,16 +235,18 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
 
         <div className={styles.form}>
           <label className={styles.field}>
-            Companion Loopback URL
-            <input
-              className={styles.input}
-              type="text"
+            Companion transport
+            <select
+              className={styles.select}
               value={companionUrl}
-              onChange={(e) => setCompanionUrl(e.target.value)}
-              placeholder="http://127.0.0.1:41400"
-            />
+              disabled={!!pairingToken}
+              onChange={(e) => { setCompanionUrl(e.target.value); setCompanionRunning(null); setRuntimeConnected(null); }}
+            >
+              <option value="http://127.0.0.1:41400">Same PC · loopback</option>
+              {remoteOrigin && <option value={remoteOrigin}>Home PC · private Tailscale</option>}
+            </select>
             <span className={styles.fieldHint}>
-              Controlled localhost security boundary (127.0.0.1 only).
+              {companionUrl}. Unpair before switching. Remote address is configured by the server operator, not browser input.
             </span>
           </label>
 
@@ -256,7 +265,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
             </label>
 
             <label className={styles.field}>
-              Runtime Endpoint
+              Runtime configuration assertion (home-PC loopback)
               <input
                 className={styles.input}
                 type="text"
@@ -303,7 +312,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
               <div className={styles.field}>
                 <strong>Pair Companion Daemon</strong>
                 <span className={styles.fieldHint}>
-                  Run <code>pnpm companion</code> in an interactive terminal and copy the pairing secret below.
+                  Run <code>pnpm companion</code> on the home PC. Copy the local or remote pairing code matching this transport. It expires after five minutes.
                 </span>
                 <div className={styles.pairInputRow}>
                   <input
@@ -361,25 +370,31 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
         <header className={styles.header}>
           <Cpu size={22} color="var(--accent-text)" />
           <div>
-            <h2>Cloud AI Privacy & Settings (Phase 9)</h2>
-            <p>Cloud dispatch is paused for trust migration. Saved cloud preferences do not enable requests. The mutation policy also applies to local proposals.</p>
+            <h2>AI routing & privacy</h2>
+            <p>Provider choice changes inference, never permissions. Only checklist and course-import capabilities are enabled. Every cloud transfer asks first.</p>
           </div>
         </header>
 
         <form className={styles.form} onSubmit={handleSave}>
+          <label className={styles.field}>AI mode
+            <select className={styles.select} value={aiMode} onChange={e => setAiMode(e.target.value as AiMode)}>
+              <option value="auto">Auto · local first</option><option value="local">Local only</option>
+              <option value="gemini">Gemini</option><option value="openrouter">OpenRouter</option>
+            </select>
+          </label>
           <div className={styles.toggleRow}>
             <div>
               <strong>Enable Cloud AI</strong>
               <div className={styles.fieldHint}>
-                Cloud transfers are currently disabled regardless of this saved preference.
+                Allow cloud offers for the capabilities you enable below. This is not transfer consent.
               </div>
             </div>
             <input
               type="checkbox"
               checked={cloudEnabled}
-              disabled
+              aria-label="Enable cloud AI offers"
               onChange={(e) => setCloudEnabled(e.target.checked)}
-              style={{ width: "1.25rem", height: "1.25rem" }}
+              style={{ width: "2.75rem", height: "2.75rem" }}
             />
           </div>
 
@@ -388,12 +403,11 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
             <select
               className={styles.select}
               value={defaultProvider}
-              onChange={(e) => setDefaultProvider(e.target.value as AiProviderId)}
+              onChange={(e) => setDefaultProvider(e.target.value as CloudProvider)}
               disabled={!cloudEnabled}
             >
-              <option value="anthropic">Anthropic (Claude 3.5 Sonnet)</option>
-              <option value="gemini">Google (Gemini 2.0 Flash)</option>
-              <option value="openai">OpenAI (GPT-4o mini)</option>
+              <option value="gemini">Gemini</option>
+              <option value="openrouter">OpenRouter</option>
             </select>
           </label>
 
@@ -407,12 +421,17 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
             >
               <option value="ask_each_time">Ask each time (Interactive disclosure & one-time consent)</option>
               <option value="off">Off (Deny all cloud transfer requests)</option>
-              <option value="automatic_on_low_confidence">Prompt on low confidence</option>
             </select>
             <span className={styles.fieldHint}>
               Every transfer containing private app data requires interactive one-time consent.
             </span>
           </label>
+
+          <label className={styles.toggleRow}><span>Offer secondary cloud provider after an infrastructure failure (Auto only)</span><input type="checkbox" checked={secondaryCloud} disabled={!cloudEnabled} onChange={e => setSecondaryCloud(e.target.checked)} /></label>
+          <label className={styles.toggleRow}><span>Allow cloud disclosure for task checklists</span><input type="checkbox" checked={checklistCloud} disabled={!cloudEnabled} onChange={e => setChecklistCloud(e.target.checked)} /></label>
+          <label className={styles.toggleRow}><span>Allow cloud disclosure for selected course text</span><input type="checkbox" checked={courseImportCloud} disabled={!cloudEnabled} onChange={e => setCourseImportCloud(e.target.checked)} /></label>
+          <p className={styles.fieldHint}>Fallback availability: {cloudEnabled && fallbackMode !== "off" && (checklistCloud || courseImportCloud) ? "may be offered for enabled capabilities; fresh consent required" : "disabled"}. Unknown/private future domains are local-only. Model IDs and keys are configured on the server.</p>
+          {providers && <div className={styles.fieldHint}>{(["gemini", "openrouter"] as const).map(p => <p key={p}>{p}: {providers[p].configured ? `configured · ${providers[p].model} · online status not checked` : "not configured"}</p>)}</div>}
 
           <label className={styles.field}>
             Mutation Permission Policy
@@ -446,7 +465,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
           <ShieldCheck size={20} />
           <div>
             <h2>Data Retention & Audit</h2>
-            <p>Transfer metadata is stored without raw prompts or outputs and automatically expires in 30 days.</p>
+            <p>New routing metadata and reviewed proposals remain in the protected audit. Course source text is retained there too. Five-minute expiry stops execution; it does not erase content. This button clears legacy cloud history only.</p>
           </div>
         </header>
 
@@ -458,7 +477,7 @@ export function AiSettingsPanel({ preferences }: AiSettingsPanelProps) {
             onClick={handleClearHistory}
           >
             <Trash2 size={16} />
-            Clear AI Transfer History Now
+            Clear Legacy Cloud Transfer History
           </button>
         </div>
       </Surface>

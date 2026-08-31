@@ -30,6 +30,9 @@ export class LocalAdapterError extends Error {
 }
 
 export const MAX_RUNTIME_RESPONSE_BYTES = 1024 * 1024;
+export function runtimeHttpError(status: number) {
+  return new LocalAdapterError("Local runtime request failed.", status === 404 ? "model_not_found" : status >= 500 ? "provider_unavailable" : status === 429 ? "rate_limited" : "provider_rejected");
+}
 
 export async function readBoundedResponseText(
   response: Response,
@@ -99,6 +102,7 @@ export function normalizeLocalError(
       model: "",
       provider,
       error: err.code,
+      failureCode: err.code === "provider_unavailable" || err.code === "model_not_found" ? "provider_unavailable" : err.code === "rate_limited" ? "rate_limited" : err.code === "provider_rejected" ? "provider_rejected" : "invalid_output",
     };
   }
 
@@ -114,16 +118,18 @@ export function normalizeLocalError(
       model: "",
       provider,
       error: `Runtime offline: Could not connect to ${provider} local server.`,
+      failureCode: "provider_unavailable",
     };
   }
 
-  if (message.includes("AbortError") || message.includes("aborted")) {
+  if (message.includes("AbortError") || message.includes("aborted") || (err instanceof Error && ["TimeoutError", "AbortError"].includes(err.name))) {
     return {
       ok: false,
       content: "",
       model: "",
       provider,
       error: "Inference request was cancelled or timed out.",
+      failureCode: "timeout",
     };
   }
 
@@ -133,5 +139,6 @@ export function normalizeLocalError(
     model: "",
     provider,
     error: "The local runtime request failed.",
+    failureCode: "invalid_output",
   };
 }

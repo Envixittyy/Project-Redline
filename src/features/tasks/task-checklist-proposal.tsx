@@ -118,7 +118,7 @@ export function TaskChecklistProposal({
         </button>
         <p>
           Uses this saved task’s title, description, and existing checklist with
-          your paired local model. Unsaved edits and linked materials are not
+          your selected AI mode. Cloud transfer asks first. Unsaved edits and linked materials are not
           sent.
         </p>
       </div>
@@ -159,6 +159,7 @@ export function TaskChecklistProposal({
             For saved task: {review.taskTitle}. Nothing changes until you apply
             this review.
           </p>
+          {review.provenance && <p>Source: {review.provenance.location.replaceAll("_", " ")} · {review.provenance.provider} · {review.provenance.model}</p>}
           <fieldset
             disabled={applying}
             style={{ border: 0, padding: 0, minWidth: 0 }}

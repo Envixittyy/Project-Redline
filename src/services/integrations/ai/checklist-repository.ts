@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { isModelId } from "@/companion/network-policy";
+import { validInferenceProvider, isCloud } from "./routing-contract";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import {
   applyReviewedTaskChecklist,
@@ -15,7 +15,6 @@ import {
   type ChecklistReview,
 } from "./trust-contract";
 import { signAiCommand } from "./trust-signing";
-import type { LocalProviderType } from "./types";
 
 export async function prepareTaskChecklist(
   taskId: unknown,
@@ -25,9 +24,7 @@ export async function prepareTaskChecklist(
   const { client, userId } = await requireAuthenticatedSupabase();
   const id = uuid(taskId);
   if (
-    typeof provider !== "string" ||
-    !["ollama", "llamacpp", "openai_compatible"].includes(provider) ||
-    !isModelId(model)
+    !validInferenceProvider(provider, model) || typeof model !== "string"
   )
     throw new AiTrustError("invalid_provider");
   const context = await readTaskChecklistContext(id);
@@ -47,7 +44,7 @@ export async function prepareTaskChecklist(
   if (error) throw new AiTrustError("request_not_prepared");
   return {
     requestId,
-    provider: provider as LocalProviderType,
+    provider,
     inference: { ...inference, model },
     disclosure: {
       taskTitle: context.title,
@@ -90,6 +87,7 @@ export async function readChecklistReview(
     taskTitle: review.taskTitle,
     items: review.items,
     status: review.status,
+    provenance: review.provenance,
   };
 }
 
@@ -97,12 +95,13 @@ export async function readChecklistReview(
 export async function finalizeTaskChecklist(
   requestId: unknown,
   rawOutput: unknown,
+  serverInference = false,
 ): Promise<ChecklistReview> {
   const { client, userId } = await requireAuthenticatedSupabase();
   const { data: r, error } = await client
     .from("ai_requests")
     .select(
-      "id,task_id,task_handle,source_revision,capability,status,expires_at",
+      "id,task_id,task_handle,source_revision,capability,status,expires_at,provider",
     )
     .eq("id", uuid(requestId))
     .eq("user_id", userId)
@@ -115,6 +114,7 @@ export async function finalizeTaskChecklist(
     !r.task_id
   )
     throw new AiTrustError("request_unavailable");
+  if (isCloud(r.provider) && !serverInference) throw new AiTrustError("capability_denied");
   const context = await readTaskChecklistContext(r.task_id);
   if (context.revision !== r.source_revision)
     throw new AiTrustError("source_changed");

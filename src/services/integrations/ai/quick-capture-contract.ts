@@ -42,6 +42,14 @@ export type QuickCaptureProposal = {
   confidence: "HIGH" | "MEDIUM" | "LOW";
 };
 
+export type QuickCaptureReview = {
+  batchId: string;
+  proposal: QuickCaptureProposal;
+  status: string;
+  sourceHandle: string;
+  provenance: unknown;
+};
+
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);

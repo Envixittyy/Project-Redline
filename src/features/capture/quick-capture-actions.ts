@@ -2,23 +2,13 @@
 
 import { prepareRoutedInference } from "@/services/integrations/ai/inference-router";
 import {
-  applyQuickCaptureTask,
-  applyQuickCaptureEvent,
+  applyQuickCapture,
 } from "@/services/integrations/ai/quick-capture-repository";
-import type {
-  ProposedTaskCapture,
-  ProposedEventCapture,
-} from "@/services/integrations/ai/quick-capture-contract";
 
 export async function prepareQuickCaptureAction(rawText: string, local: unknown) {
   return prepareRoutedInference("quick_capture", rawText, local);
 }
 
-export async function applyQuickCaptureTaskAction(draft: ProposedTaskCapture) {
-  return applyQuickCaptureTask(draft);
+export async function applyQuickCaptureAction(batchId: string) {
+  return applyQuickCapture(batchId);
 }
-
-export async function applyQuickCaptureEventAction(draft: ProposedEventCapture) {
-  return applyQuickCaptureEvent(draft);
-}
-

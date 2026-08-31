@@ -69,10 +69,8 @@ export function ContextualAssistantModal({
         return;
       }
 
-      const proposal = (result as { ok: true; review: { proposal: ContextualAssistantProposal } }).review.proposal;
-      setHistory((prev) => [...prev, { question: q, answer: proposal }]);
-      setQuestion("");
-    } catch (err) {
+      const answer = ((result as unknown) as { ok: true; review: { answer: ContextualAssistantProposal } }).review.answer;
+      setHistory((prev) => [...prev, { question: q, answer }]);
       setError(err instanceof Error ? err.message : "Failed to get answer.");
     } finally {
       setLoading(false);

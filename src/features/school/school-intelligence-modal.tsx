@@ -31,11 +31,15 @@ import type {
 import type { CourseImportReview, CourseProposal } from "@/services/integrations/ai/course-import-contract";
 import {
   applyScheduleImportAction,
+  reviseScheduleImportAction,
   applyBlackboardScreenshotAction,
+  reviseBlackboardScreenshotAction,
   applyAcademicCalendarAction,
+  reviseAcademicCalendarAction,
 } from "./school-ai-actions";
 import {
   applyCourseImportAction,
+  reviseCourseImportAction,
   rejectCourseImportAction,
 } from "@/features/ai/course-import-actions";
 import styles from "./school-intelligence-modal.module.css";
@@ -172,16 +176,10 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     if (!scheduleReview) return;
     startApplyTransition(async () => {
       try {
-        const result = await applyScheduleImportAction({
-          batchId: scheduleReview.batchId,
-          courses: scheduleCourses.map((c) => ({
-            code: c.code,
-            title: c.title,
-            section: c.section,
-            matchedCourseId: c.matchedCourseId,
-            meetings: c.meetings,
-          })),
-        });
+        let batchId = scheduleReview.batchId;
+        const revised = await reviseScheduleImportAction(batchId, scheduleCourses);
+        batchId = revised.batchId;
+        const result = await applyScheduleImportAction(batchId);
         if (result.ok) onClose();
         else setError("Failed to apply class schedule.");
       } catch (err) {
@@ -194,17 +192,10 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     if (!bbReview) return;
     startApplyTransition(async () => {
       try {
-        const result = await applyBlackboardScreenshotAction({
-          batchId: bbReview.batchId,
-          courses: bbCourses.map((c) => ({
-            sourceLabel: c.sourceLabel,
-            code: c.code,
-            title: c.title,
-            section: c.section,
-            action: c.action,
-            matchedCourseId: c.targetCourseId,
-          })),
-        });
+        let batchId = bbReview.batchId;
+        const revised = await reviseBlackboardScreenshotAction(batchId, bbCourses);
+        batchId = revised.batchId;
+        const result = await applyBlackboardScreenshotAction(batchId);
         if (result.ok) onClose();
         else setError("Failed to apply Blackboard courses.");
       } catch (err) {
@@ -217,7 +208,14 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     if (!syllabusReview) return;
     startApplyTransition(async () => {
       try {
-        const result = await applyCourseImportAction(syllabusReview.batchId);
+        let batchId = syllabusReview.batchId;
+        if (syllabusProposal) {
+          const revised = await reviseCourseImportAction(batchId, syllabusProposal);
+          if (revised.ok && revised.review) {
+            batchId = revised.review.batchId;
+          }
+        }
+        const result = await applyCourseImportAction(batchId);
         if (result.ok) onClose();
         else setError("Failed to apply syllabus.");
       } catch (err) {
@@ -231,10 +229,10 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     startApplyTransition(async () => {
       try {
         const approvedEvents = calendarEvents.filter((e) => e.selected);
-        const result = await applyAcademicCalendarAction({
-          batchId: calendarReview.batchId,
-          events: approvedEvents,
-        });
+        let batchId = calendarReview.batchId;
+        const revised = await reviseAcademicCalendarAction(batchId, approvedEvents);
+        batchId = revised.batchId;
+        const result = await applyAcademicCalendarAction(batchId);
         if (result.ok) onClose();
         else setError("Failed to apply academic calendar events.");
       } catch (err) {

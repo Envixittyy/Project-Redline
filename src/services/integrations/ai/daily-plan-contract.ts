@@ -24,6 +24,14 @@ export type DailyPlanAdviceProposal = {
   scheduleRationale: string;
 };
 
+export type DailyPlanAdviceReview = {
+  batchId: string;
+  advice: DailyPlanAdviceProposal;
+  status: string;
+  sourceHandle: string;
+  provenance: unknown;
+};
+
 export function parseDailyPlanAdviceOutput(
   raw: unknown,
   capability: string,

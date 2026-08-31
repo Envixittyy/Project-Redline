@@ -5,8 +5,9 @@ import {
 } from "@/services/integrations/ai/inference-router";
 import {
   applyAssessmentPredictions,
-  type AssessmentPredictionApplyInput,
+  reviseAssessmentPredictions,
 } from "@/services/integrations/ai/assessment-prediction-repository";
+import type { ProposedPrediction } from "@/services/integrations/ai/assessment-prediction-contract";
 import {
   listActivePredictions,
   listPredictionsForCourse,
@@ -19,8 +20,12 @@ export async function prepareAssessmentPredictionsAction(courseId: string, local
   return prepareRoutedInference("assessment_prediction", courseId, local);
 }
 
-export async function applyAssessmentPredictionsAction(input: AssessmentPredictionApplyInput) {
-  return applyAssessmentPredictions(input);
+export async function reviseAssessmentPredictionsAction(batchId: string, predictions: ProposedPrediction[]) {
+  return reviseAssessmentPredictions(batchId, predictions);
+}
+
+export async function applyAssessmentPredictionsAction(batchId: string) {
+  return applyAssessmentPredictions(batchId);
 }
 
 export async function getActivePredictionsAction() {
@@ -83,4 +88,3 @@ export async function confirmPredictionAsEventAction(
     return { ok: false, message: (err as Error).message };
   }
 }
-

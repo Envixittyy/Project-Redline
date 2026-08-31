@@ -1,8 +1,7 @@
 import "server-only";
-import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
-
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
+import { resolveTimeZone, todayIn } from "@/lib/date/day";
 import {
   ASSESSMENT_PREDICTION_CAPABILITY,
   assessmentPredictionPrompt,
@@ -11,16 +10,20 @@ import {
   type ProposedPrediction,
 } from "./assessment-prediction-contract";
 import { AiTrustError, uuid } from "./trust-contract";
+import { validInferenceProvider } from "./routing-contract";
+import { signAiCommand } from "./trust-signing";
 
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export async function prepareAssessmentPredictions(
   courseId: string,
-  provider: string,
-  model: string,
+  provider: unknown,
+  model: unknown,
 ) {
-  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
+  if (!validInferenceProvider(provider, model) || typeof model !== "string") {
+    throw new AiTrustError("invalid_provider");
+  }
   const validCourseId = uuid(courseId);
 
   // 1. Load course
@@ -49,17 +52,17 @@ export async function prepareAssessmentPredictions(
     })),
   );
 
-  // 3. Load syllabus text from course materials
+  // 3. Load syllabus text from course materials (correct schema columns: type, description, title)
   const { data: materials } = await client
     .from("course_materials")
-    .select("title,material_type,content")
+    .select("title,type,description")
     .eq("course_id", validCourseId)
     .eq("user_id", userId);
 
   const syllabus = (materials || []).find(
-    (mat) => mat.material_type === "syllabus" || mat.title.toLowerCase().includes("syllabus"),
+    (mat) => mat.type === "syllabus" || mat.title.toLowerCase().includes("syllabus"),
   );
-  const syllabusText = syllabus?.content || (materials || []).map((m) => `${m.title}:\n${m.content || ""}`).join("\n\n") || "No syllabus text uploaded.";
+  const syllabusText = syllabus?.description || (materials || []).map((m) => `${m.title}:\n${m.description || ""}`).join("\n\n") || "No syllabus text uploaded.";
 
   // 4. Load academic calendar events
   const { data: calEvents } = await client
@@ -89,7 +92,7 @@ export async function prepareAssessmentPredictions(
   }));
 
   const requestId = randomUUID();
-  const handle = `pred_${randomUUID()}`;
+  const handle = `pred_${randomUUID().replaceAll("-", "")}`;
   const promptData = assessmentPredictionPrompt(handle, {
     course,
     meetings: formattedMeetings,
@@ -100,25 +103,26 @@ export async function prepareAssessmentPredictions(
 
   const sourceText = JSON.stringify(promptData);
   const sourceDigest = createHash("sha256").update(sourceText).digest("hex");
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  const timeZone = resolveTimeZone();
+  const startDate = todayIn(timeZone);
 
-  const { error } = await client.from("ai_course_requests").insert({
-    id: requestId,
-    user_id: userId,
-    capability: ASSESSMENT_PREDICTION_CAPABILITY.id,
-    source_handle: handle,
-    file_name: `${course.code}_predictions.json`,
-    source_text: sourceText,
-    source_digest: sourceDigest,
-    start_date: new Date().toISOString().slice(0, 10),
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-    provider,
-    model,
-    status: "prepared",
-    expires_at: expiresAt,
-  });
+  const { error } = await client.rpc(
+    "ai_create_scoped_request",
+    signAiCommand(userId, "prepare_scoped_request", {
+      id: requestId,
+      capability: ASSESSMENT_PREDICTION_CAPABILITY.id,
+      source_handle: handle,
+      source_digest: sourceDigest,
+      source_text: sourceText,
+      file_name: `${course.code}_predictions.json`,
+      start_date: startDate,
+      time_zone: timeZone,
+      provider,
+      model,
+    }),
+  );
 
-  if (error) throw new AiTrustError("request_unavailable");
+  if (error) throw new AiTrustError("request_not_prepared");
 
   return {
     requestId,
@@ -126,7 +130,39 @@ export async function prepareAssessmentPredictions(
     promptData,
     payloadDigest: sourceDigest,
     bytes: Buffer.byteLength(sourceText),
-    expiresAt,
+  };
+}
+
+async function loadReview(batchId: unknown) {
+  const { client } = await requireAuthenticatedSupabase();
+  const { data, error } = await client.rpc("ai_read_scoped_review", {
+    p_batch_id: uuid(batchId),
+  });
+  if (error || !data) throw new AiTrustError("untrusted_proposal");
+  const proposal = parseAssessmentPredictionOutput(
+    JSON.stringify(data.input),
+    data.capability,
+    data.sourceHandle,
+  );
+  if (!/^[a-f0-9]{64}$/.test(data.proposalDigest)) {
+    throw new AiTrustError("untrusted_proposal");
+  }
+  return { ...data, predictions: proposal.predictions } as AssessmentPredictionReview & {
+    proposalDigest: string;
+    sourceHandle: string;
+  };
+}
+
+export async function readAssessmentPredictionReview(
+  batchId: unknown,
+): Promise<AssessmentPredictionReview> {
+  const r = await loadReview(batchId);
+  return {
+    batchId: r.batchId,
+    predictions: r.predictions,
+    status: r.status,
+    sourceHandle: r.sourceHandle,
+    provenance: r.provenance,
   };
 }
 
@@ -134,107 +170,105 @@ export async function finalizeAssessmentPredictions(
   requestId: string,
   rawOutput: unknown,
 ): Promise<AssessmentPredictionReview> {
-  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client
-    .from("ai_course_requests")
-    .select("id,source_handle,file_name,status,expires_at")
+    .from("ai_scoped_requests")
+    .select("id,source_handle,file_name,status,source_text,source_digest,capability,expires_at")
     .eq("id", uuid(requestId))
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (reqError || !request || request.status !== "prepared") {
+  if (
+    reqError ||
+    !request ||
+    request.status !== "prepared" ||
+    Date.parse(request.expires_at) <= Date.now()
+  ) {
     throw new AiTrustError("request_unavailable");
+  }
+
+  if (createHash("sha256").update(request.source_text).digest("hex") !== request.source_digest) {
+    throw new AiTrustError("source_changed");
   }
 
   const proposal = parseAssessmentPredictionOutput(
     rawOutput,
-    ASSESSMENT_PREDICTION_CAPABILITY.id,
+    request.capability,
     request.source_handle,
   );
 
-  const batchId = randomUUID();
+  const result = await client.rpc(
+    "ai_record_scoped_proposal",
+    signAiCommand(userId, "record_scoped_proposal", {
+      request_id: request.id,
+      proposal,
+      summary: `Assessment Predictions: ${proposal.predictions.length} items`,
+      target_entity: "assessment_prediction",
+    }),
+  );
 
-  const { error: batchError } = await client.from("operation_batches").insert({
-    id: batchId,
-    user_id: userId,
-    source: "ai",
-    status: "proposed",
-    ai_course_request_id: request.id,
-  });
+  if (result.error || typeof result.data !== "string") {
+    throw new AiTrustError("proposal_not_recorded");
+  }
 
-  if (batchError) throw new AiTrustError("request_unavailable");
-
-  const { error: stepError } = await client.from("operation_steps").insert({
-    id: randomUUID(),
-    batch_id: batchId,
-    user_id: userId,
-    position: 0,
-    action_type: ASSESSMENT_PREDICTION_CAPABILITY.outputType,
-    input: proposal,
-  });
-
-  if (stepError) throw new AiTrustError("request_unavailable");
-
-  return {
-    batchId,
-    predictions: proposal.predictions,
-    status: "proposed",
-    sourceHandle: request.source_handle,
-  };
+  return readAssessmentPredictionReview(result.data);
 }
 
-export type AssessmentPredictionApplyInput = {
-  batchId: string;
-  predictions: ProposedPrediction[];
-};
-
-export async function applyAssessmentPredictions(input: AssessmentPredictionApplyInput) {
-  schoolIntelligenceUnavailable();
+export async function reviseAssessmentPredictions(
+  batchId: unknown,
+  editedPredictions: ProposedPrediction[],
+): Promise<AssessmentPredictionReview> {
   const { client, userId } = await requireAuthenticatedSupabase();
-  const batchId = uuid(input.batchId);
+  const review = await loadReview(batchId);
+  const proposal = {
+    schema_version: 1,
+    type: "assessment_prediction_proposal",
+    source_handle: review.sourceHandle,
+    predictions: editedPredictions,
+  };
 
-  const { data: batch, error: batchErr } = await client
-    .from("operation_batches")
-    .select("id,status,ai_course_request_id")
-    .eq("id", batchId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  const result = await client.rpc(
+    "ai_revise_scoped_proposal",
+    signAiCommand(userId, "revise_scoped_proposal", {
+      batch_id: review.batchId,
+      proposal,
+      summary: `Edited Assessment Predictions: ${editedPredictions.length} items`,
+      target_entity: "assessment_prediction",
+    }),
+  );
 
-  if (batchErr || !batch || batch.status !== "proposed") {
-    throw new Error("Invalid or already applied prediction batch.");
+  if (result.error || typeof result.data !== "string") {
+    throw new AiTrustError("proposal_unavailable");
   }
 
-  let savedCount = 0;
-
-  for (const p of input.predictions) {
-    const { error: insertErr } = await client.from("school_assessment_predictions").insert({
-      user_id: userId,
-      course_id: p.courseId,
-      prediction_type: p.predictionType,
-      title: p.title.trim(),
-      predicted_date: p.predictedDate,
-      predicted_time: p.predictedTime || null,
-      confidence: p.confidence,
-      status: "active",
-      rationale: p.rationale.trim(),
-      source_reference: p.sourceReference || null,
-    });
-
-    if (!insertErr) {
-      savedCount++;
-    } else {
-      console.error("Failed to insert assessment prediction:", insertErr);
-    }
-  }
-
-  await client
-    .from("operation_batches")
-    .update({ status: "committed" })
-    .eq("id", batchId)
-    .eq("user_id", userId);
-
-  return { ok: true, count: savedCount };
+  return readAssessmentPredictionReview(result.data);
 }
 
+export async function applyAssessmentPredictions(batchId: unknown) {
+  const { client, userId } = await requireAuthenticatedSupabase();
+  const review = await loadReview(batchId);
+
+  const { data, error } = await client.rpc(
+    "apply_ai_assessment_predictions",
+    signAiCommand(userId, "approve_assessment_predictions", {
+      batch_id: review.batchId,
+      proposal_digest: review.proposalDigest,
+    }),
+  );
+
+  if (error || !data) {
+    throw new AiTrustError("request_unavailable");
+  }
+
+  return { ok: true, ...data };
+}
+
+export async function rejectAssessmentPredictions(batchId: unknown) {
+  const { client, userId } = await requireAuthenticatedSupabase();
+  const { error } = await client.rpc(
+    "ai_reject_scoped_proposal",
+    signAiCommand(userId, "reject_scoped_proposal", { batch_id: uuid(batchId) }),
+  );
+  if (error) throw new AiTrustError("proposal_unavailable");
+}

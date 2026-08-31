@@ -1,10 +1,7 @@
 import "server-only";
-import { schoolIntelligenceUnavailable } from "@/services/integrations/ai/school-intelligence-policy";
-
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type { ConfidenceLevel, PredictionType } from "@/services/integrations/ai/assessment-prediction-contract";
-import { createTask } from "@/services/tasks/task-repository";
-import { createCalendarEvent } from "@/services/calendar-events/calendar-event-repository";
+import { signAiCommand } from "@/services/integrations/ai/trust-signing";
 
 export type SchoolAssessmentPrediction = {
   id: string;
@@ -107,6 +104,10 @@ export async function dismissPrediction(predictionId: string): Promise<boolean> 
   return !error && data?.ok === true;
 }
 
+/**
+ * Atomically confirms a prediction into a Task.
+ * 2 concurrent presses will result in at most 1 Task created and status set to confirmed.
+ */
 export async function confirmPredictionAsTask(
   predictionId: string,
   draft: {
@@ -116,29 +117,29 @@ export async function confirmPredictionAsTask(
     priority?: "low" | "medium" | "high" | "urgent";
     courseId?: string;
   },
-): Promise<{ ok: boolean; taskId?: string }> {
-  schoolIntelligenceUnavailable();
+): Promise<{ ok: boolean; taskId?: string; message?: string }> {
   const { client, userId } = await requireAuthenticatedSupabase();
 
-  // Create task in database
-  const created = await createTask({
-    title: draft.title,
-    dueDate: draft.dueDate,
-    dueAt: draft.dueAt || null,
-    priority: draft.priority || "medium",
-    courseId: draft.courseId || null,
-  });
+  const { data, error } = await client.rpc(
+    "confirm_prediction_to_task",
+    signAiCommand(userId, "confirm_prediction_task", {
+      prediction_id: predictionId,
+      title: draft.title,
+      dueDate: draft.dueDate,
+      priority: draft.priority,
+    }),
+  );
 
-  // Mark prediction confirmed
-  await client
-    .from("school_assessment_predictions")
-    .update({ status: "confirmed" })
-    .eq("id", predictionId)
-    .eq("user_id", userId);
+  if (error || !data || data.ok !== true) {
+    return { ok: false, message: data?.error || error?.message || "Failed to confirm prediction as task." };
+  }
 
-  return { ok: true, taskId: created.id };
+  return { ok: true, taskId: data.taskId };
 }
 
+/**
+ * Atomically confirms a prediction into a Calendar Event.
+ */
 export async function confirmPredictionAsEvent(
   predictionId: string,
   draft: {
@@ -148,28 +149,22 @@ export async function confirmPredictionAsEvent(
     allDay: boolean;
     course?: string;
   },
-): Promise<{ ok: boolean; eventId?: string }> {
-  schoolIntelligenceUnavailable();
+): Promise<{ ok: boolean; eventId?: string; message?: string }> {
   const { client, userId } = await requireAuthenticatedSupabase();
 
-  const saved = await createCalendarEvent({
-    title: draft.title,
-    start: draft.startsAt,
-    end: draft.endsAt,
-    allDay: draft.allDay,
-    eventType: "assessment",
-    source: "life_os",
-    course: draft.course,
-  });
+  const { data, error } = await client.rpc(
+    "confirm_prediction_to_event",
+    signAiCommand(userId, "confirm_prediction_event", {
+      prediction_id: predictionId,
+      title: draft.title,
+    }),
+  );
 
-  // Mark prediction confirmed
-  await client
-    .from("school_assessment_predictions")
-    .update({ status: "confirmed" })
-    .eq("id", predictionId)
-    .eq("user_id", userId);
+  if (error || !data || data.ok !== true) {
+    return { ok: false, message: data?.error || error?.message || "Failed to confirm prediction as event." };
+  }
 
-  return { ok: true, eventId: saved.id };
+  return { ok: true, eventId: data.eventId };
 }
 
 export async function supersedeMatchingPredictions(
@@ -177,7 +172,6 @@ export async function supersedeMatchingPredictions(
   title: string,
   confirmedDate: string,
 ): Promise<number> {
-  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   // Find active predictions for this course

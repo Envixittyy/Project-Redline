@@ -83,6 +83,15 @@ export type AiPreferences = {
   secondaryCloud?: boolean;
   checklistCloud?: boolean;
   courseImportCloud?: boolean;
+  schoolScheduleCloud?: boolean;
+  blackboardCourseCloud?: boolean;
+  academicCalendarCloud?: boolean;
+  assessmentPredictionCloud?: boolean;
+  notesCloud?: boolean;
+  quickCaptureCloud?: boolean;
+  dailyPlanCloud?: boolean;
+  courseMaterialCloud?: boolean;
+  contextualAssistantCloud?: boolean;
   id: string;
   userId: string;
   cloudEnabled: boolean;

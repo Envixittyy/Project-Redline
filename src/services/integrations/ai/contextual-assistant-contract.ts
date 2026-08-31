@@ -23,6 +23,14 @@ export type ContextualAssistantProposal = {
   suggestedFollowUps?: string[];
 };
 
+export type ContextualAssistantReview = {
+  batchId: string;
+  answer: ContextualAssistantProposal;
+  status: string;
+  sourceHandle: string;
+  provenance: unknown;
+};
+
 export function parseContextualAssistantOutput(
   raw: unknown,
   capability: string,

@@ -11,16 +11,19 @@ import {
 } from "@/services/integrations/ai/inference-router";
 import {
   applyScheduleImport,
-  type ScheduleApplyInput,
+  reviseScheduleImport,
 } from "@/services/integrations/ai/schedule-import-repository";
+import type { ProposedCourseSchedule } from "@/services/integrations/ai/school-schedule-contract";
 import {
   applyBlackboardScreenshotImport,
-  type BlackboardScreenshotApplyInput,
+  reviseBlackboardScreenshotImport,
 } from "@/services/integrations/ai/blackboard-screenshot-repository";
+import type { ProposedBlackboardCourse } from "@/services/integrations/ai/blackboard-screenshot-contract";
 import {
   applyAcademicCalendarImport,
-  type AcademicCalendarApplyInput,
+  reviseAcademicCalendar,
 } from "@/services/integrations/ai/academic-calendar-repository";
+import type { ProposedAcademicEvent } from "@/services/integrations/ai/academic-calendar-contract";
 
 export async function prepareScheduleImportAction(formData: FormData, local: unknown) {
   return prepareRoutedInference("schedule_image", formData, local);
@@ -58,15 +61,26 @@ export async function prepareFallbackAction(attemptId: string) {
   return prepareFallback(attemptId);
 }
 
-export async function applyScheduleImportAction(input: ScheduleApplyInput) {
-  return applyScheduleImport(input);
+export async function reviseScheduleImportAction(batchId: string, courses: ProposedCourseSchedule[]) {
+  return reviseScheduleImport(batchId, courses);
 }
 
-export async function applyBlackboardScreenshotAction(input: BlackboardScreenshotApplyInput) {
-  return applyBlackboardScreenshotImport(input);
+export async function applyScheduleImportAction(batchId: string) {
+  return applyScheduleImport(batchId);
 }
 
-export async function applyAcademicCalendarAction(input: AcademicCalendarApplyInput) {
-  return applyAcademicCalendarImport(input);
+export async function reviseBlackboardScreenshotAction(batchId: string, courses: ProposedBlackboardCourse[]) {
+  return reviseBlackboardScreenshotImport(batchId, courses);
 }
 
+export async function applyBlackboardScreenshotAction(batchId: string) {
+  return applyBlackboardScreenshotImport(batchId);
+}
+
+export async function reviseAcademicCalendarAction(batchId: string, events: ProposedAcademicEvent[]) {
+  return reviseAcademicCalendar(batchId, events);
+}
+
+export async function applyAcademicCalendarAction(batchId: string) {
+  return applyAcademicCalendarImport(batchId);
+}

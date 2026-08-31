@@ -51,6 +51,15 @@ export type NoteSummaryProposal = {
   keyPoints: string[];
 };
 
+export type NoteSummaryReview = {
+  batchId: string;
+  summary: string;
+  keyPoints: string[];
+  status: string;
+  sourceHandle: string;
+  provenance: unknown;
+};
+
 export type NoteRewriteProposal = {
   schema_version: 1;
   type: "propose_note_rewrite";
@@ -58,6 +67,16 @@ export type NoteRewriteProposal = {
   rewrittenTitle?: string;
   rewrittenBody: string;
   changesExplanation: string;
+};
+
+export type NoteRewriteReview = {
+  batchId: string;
+  rewrittenTitle?: string;
+  rewrittenBody: string;
+  changesExplanation: string;
+  status: string;
+  sourceHandle: string;
+  provenance: unknown;
 };
 
 export type NoteActionItem = {
@@ -71,6 +90,14 @@ export type NoteActionItemsProposal = {
   type: "propose_note_action_items";
   source_handle: string;
   actionItems: NoteActionItem[];
+};
+
+export type NoteActionItemsReview = {
+  batchId: string;
+  actionItems: NoteActionItem[];
+  status: string;
+  sourceHandle: string;
+  provenance: unknown;
 };
 
 export function parseNoteSummaryOutput(

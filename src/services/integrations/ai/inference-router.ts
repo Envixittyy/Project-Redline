@@ -43,9 +43,24 @@ import { CONTEXTUAL_ASSISTANT_CAPABILITY } from "./contextual-assistant-contract
 
 export async function routingPreferences(): Promise<RoutingPreferences> {
   const p = await getAiPreferences();
-  return { aiMode: p.aiMode ?? "auto", preferredCloud: p.preferredCloud ?? "gemini", secondaryCloud: p.secondaryCloud ?? false,
-    checklistCloud: p.checklistCloud ?? false, courseImportCloud: p.courseImportCloud ?? false,
-    cloudEnabled: p.cloudEnabled, cloudFallbackMode: p.cloudFallbackMode };
+  return {
+    aiMode: p.aiMode ?? "auto",
+    preferredCloud: p.preferredCloud ?? "gemini",
+    secondaryCloud: p.secondaryCloud ?? false,
+    checklistCloud: p.checklistCloud ?? false,
+    courseImportCloud: p.courseImportCloud ?? false,
+    schoolScheduleCloud: p.schoolScheduleCloud ?? false,
+    blackboardCourseCloud: p.blackboardCourseCloud ?? false,
+    academicCalendarCloud: p.academicCalendarCloud ?? false,
+    assessmentPredictionCloud: p.assessmentPredictionCloud ?? false,
+    notesCloud: p.notesCloud ?? false,
+    quickCaptureCloud: p.quickCaptureCloud ?? false,
+    dailyPlanCloud: p.dailyPlanCloud ?? false,
+    courseMaterialCloud: p.courseMaterialCloud ?? false,
+    contextualAssistantCloud: p.contextualAssistantCloud ?? false,
+    cloudEnabled: p.cloudEnabled,
+    cloudFallbackMode: p.cloudFallbackMode,
+  };
 }
 async function rpc(operation: string, data: Record<string, unknown>) {
   const { client, userId } = await requireAuthenticatedSupabase();
@@ -54,14 +69,23 @@ async function rpc(operation: string, data: Record<string, unknown>) {
   return result.data;
 }
 type Attempt = {
-  id: string; checklist_request_id: string | null; course_request_id: string | null;
-  provider: InferenceProvider; model: string; location: InferenceLocation; capability: string;
-  payload_digest: string; status: string; error_code: string | null; expires_at: string;
+  id: string;
+  checklist_request_id: string | null;
+  course_request_id: string | null;
+  scoped_request_id: string | null;
+  provider: InferenceProvider;
+  model: string;
+  location: InferenceLocation;
+  capability: string;
+  payload_digest: string;
+  status: string;
+  error_code: string | null;
+  expires_at: string;
 };
 export async function loadInferenceAttempt(id: unknown) {
   const { client, userId } = await requireAuthenticatedSupabase();
   const { data, error } = await client.from("ai_inference_attempts")
-    .select("id,checklist_request_id,course_request_id,provider,model,location,capability,payload_digest,status,error_code,expires_at")
+    .select("id,checklist_request_id,course_request_id,scoped_request_id,provider,model,location,capability,payload_digest,status,error_code,expires_at")
     .eq("id", uuid(id)).eq("user_id", userId).maybeSingle();
   if (error || !data || Date.parse(data.expires_at) <= Date.now()) throw new AiTrustError("request_unavailable");
   const a = data as Attempt;
@@ -93,14 +117,24 @@ export async function loadInferenceAttempt(id: unknown) {
     ? "contextual_assistant"
     : "course";
   if (a.capability !== capabilityFor(kind).id) throw new AiTrustError("capability_denied");
-  return { ...a, kind, requestId: a.checklist_request_id ?? a.course_request_id! };
+  return { ...a, kind, requestId: (a.checklist_request_id ?? a.course_request_id ?? a.scoped_request_id)! };
 }
 async function prepareAttempt(kind: RequestKind, requestId: string, provider: InferenceProvider, model: string, location: InferenceLocation, parentId?: string): Promise<RoutedPreparation> {
   const source = await readInferenceSource(kind, requestId, model);
   const id = randomUUID(), capability = capabilityFor(kind);
-  await rpc("prepare_inference", { id, checklist_request_id: kind === "checklist" ? requestId : null,
-    course_request_id: kind !== "checklist" ? requestId : null, parent_id: parentId ?? null, provider, model, location,
-    capability: capability.id, payload_digest: source.digest, text_bytes: source.bytes });
+  await rpc("prepare_inference", {
+    id,
+    checklist_request_id: kind === "checklist" ? requestId : null,
+    course_request_id: kind === "course" ? requestId : null,
+    scoped_request_id: (kind !== "checklist" && kind !== "course") ? requestId : null,
+    parent_id: parentId ?? null,
+    provider,
+    model,
+    location,
+    capability: capability.id,
+    payload_digest: source.digest,
+    text_bytes: source.bytes,
+  });
   return { attemptId: id, requestId, kind, provider, model, location,
     ...(location !== "cloud" ? { inference: source.inference } : {}),
     disclosure: { purpose: capability.id, fields: [...capability.inputFields], sources: 1, bytes: source.bytes, expiresAt: source.expiresAt,

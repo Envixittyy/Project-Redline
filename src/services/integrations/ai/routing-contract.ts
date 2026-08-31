@@ -49,6 +49,15 @@ export type RoutingPreferences = {
   secondaryCloud: boolean;
   checklistCloud: boolean;
   courseImportCloud: boolean;
+  schoolScheduleCloud?: boolean;
+  blackboardCourseCloud?: boolean;
+  academicCalendarCloud?: boolean;
+  assessmentPredictionCloud?: boolean;
+  notesCloud?: boolean;
+  quickCaptureCloud?: boolean;
+  dailyPlanCloud?: boolean;
+  courseMaterialCloud?: boolean;
+  contextualAssistantCloud?: boolean;
 };
 export type InferenceProvenance = {
   provider: InferenceProvider;
@@ -77,7 +86,6 @@ export type RoutedPreparation = {
 };
 
 export function capabilityFor(kind: RequestKind) {
-  if (kind !== "checklist" && kind !== "course") schoolIntelligenceUnavailable();
   if (kind === "checklist") return CHECKLIST_CAPABILITY;
   if (kind === "course") return COURSE_IMPORT_CAPABILITY;
   if (kind === "schedule_image") return SCHEDULE_IMAGE_CAPABILITY;
@@ -102,6 +110,40 @@ export function cloudAllowed(capability: string, prefs: RoutingPreferences): boo
   }
   if (capability === COURSE_IMPORT_CAPABILITY.id) {
     return prefs.courseImportCloud === true;
+  }
+  if (capability === SCHEDULE_IMAGE_CAPABILITY.id) {
+    return prefs.schoolScheduleCloud === true;
+  }
+  if (capability === BLACKBOARD_COURSE_IMAGE_CAPABILITY.id) {
+    return prefs.blackboardCourseCloud === true;
+  }
+  if (capability === ACADEMIC_CALENDAR_CAPABILITY.id) {
+    return prefs.academicCalendarCloud === true;
+  }
+  if (capability === ASSESSMENT_PREDICTION_CAPABILITY.id) {
+    return prefs.assessmentPredictionCloud === true;
+  }
+  if (
+    capability === NOTE_SUMMARY_CAPABILITY.id ||
+    capability === NOTE_REWRITE_CAPABILITY.id ||
+    capability === NOTE_ACTION_ITEMS_CAPABILITY.id
+  ) {
+    return prefs.notesCloud === true;
+  }
+  if (capability === QUICK_CAPTURE_CAPABILITY.id) {
+    return prefs.quickCaptureCloud === true;
+  }
+  if (capability === DAILY_PLAN_ADVICE_CAPABILITY.id) {
+    return prefs.dailyPlanCloud === true;
+  }
+  if (
+    capability === COURSE_MATERIAL_SUMMARY_CAPABILITY.id ||
+    capability === COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.id
+  ) {
+    return prefs.courseMaterialCloud === true;
+  }
+  if (capability === CONTEXTUAL_ASSISTANT_CAPABILITY.id) {
+    return prefs.contextualAssistantCloud === true;
   }
   return false;
 }

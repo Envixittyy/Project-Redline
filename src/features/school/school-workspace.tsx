@@ -26,7 +26,7 @@ import {
   deleteCourseMaterialAction,
   saveCourseMaterialAction,
 } from "./school-material-actions";
-import { SchoolIntelligenceModal } from "./school-intelligence-modal";
+import { CourseImportModal } from "./course-import-modal";
 import { CoursePredictionsPanel } from "./course-predictions-panel";
 import { CourseMaterialIntelligenceModal } from "./course-material-intelligence-modal";
 import { ContextualAssistantModal } from "@/features/ai/contextual-assistant-modal";
@@ -79,8 +79,7 @@ export function SchoolWorkspace({
   return (
     <div className={styles.layout}>
       {showImport ? (
-        <SchoolIntelligenceModal
-          courses={courses}
+        <CourseImportModal
           onClose={() => setShowImport(false)}
         />
       ) : null}
@@ -98,7 +97,7 @@ export function SchoolWorkspace({
             type="button"
             className="motion-interactive"
           >
-            <Sparkles size={16} aria-hidden="true" /> School Intelligence
+            <Sparkles size={16} aria-hidden="true" /> Import Course (Text)
           </button>
           <button
             onClick={() => setShowAddCourse((v) => !v)}

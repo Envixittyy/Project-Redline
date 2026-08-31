@@ -10,11 +10,13 @@ import {
   confirmPredictionAsTaskAction,
 } from "@/features/school/prediction-actions";
 import styles from "./home-dashboard.module.css";
+import { SCHOOL_INTELLIGENCE_UNAVAILABLE } from "@/services/integrations/ai/school-intelligence-policy";
 
 export function PossibleAssessmentsCard() {
   const [predictions, setPredictions] = useState<SchoolAssessmentPrediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -35,19 +37,29 @@ export function PossibleAssessmentsCard() {
 
   function handleDismiss(id: string) {
     startTransition(async () => {
-      await dismissPredictionAction(id);
+      const result = await dismissPredictionAction(id);
+      if (!result.ok) {
+        setError("Prediction could not be dismissed. Refresh and try again.");
+        return;
+      }
+      setError(null);
       setPredictions((prev) => prev.filter((p) => p.id !== id));
     });
   }
 
   function handleConfirm(pred: SchoolAssessmentPrediction) {
     startTransition(async () => {
-      await confirmPredictionAsTaskAction(pred.id, {
+      const result = await confirmPredictionAsTaskAction(pred.id, {
         title: pred.title,
         dueDate: pred.predictedDate,
         dueAt: pred.predictedTime ? `${pred.predictedDate}T${pred.predictedTime}:00Z` : undefined,
         courseId: pred.courseId,
       });
+      if (!result.ok) {
+        setError(SCHOOL_INTELLIGENCE_UNAVAILABLE);
+        return;
+      }
+      setError(null);
       setPredictions((prev) => prev.filter((p) => p.id !== pred.id));
     });
   }
@@ -83,6 +95,7 @@ export function PossibleAssessmentsCard() {
       </div>
 
       <div style={{ padding: "0.25rem 0", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+        {error ? <p role="alert">{error}</p> : null}
         <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
           {topPrediction.courseCode ? (
             <strong style={{ color: "var(--accent-text)", fontSize: "0.95rem" }}>

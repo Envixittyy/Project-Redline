@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
 
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
@@ -18,6 +19,7 @@ export async function prepareQuickCapture(
   provider: string,
   model: string,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const text = String(rawText || "").trim();
   if (!text) throw new AiTrustError("request_unavailable");
@@ -64,6 +66,7 @@ export async function finalizeQuickCapture(
   requestId: string,
   rawOutput: unknown,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client
@@ -106,6 +109,7 @@ export async function finalizeQuickCapture(
 }
 
 export async function applyQuickCaptureTask(draft: ProposedTaskCapture) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   let courseId: string | null = null;
@@ -137,6 +141,7 @@ export async function applyQuickCaptureTask(draft: ProposedTaskCapture) {
 }
 
 export async function applyQuickCaptureEvent(draft: ProposedEventCapture) {
+  schoolIntelligenceUnavailable();
   const start = draft.startTime
     ? `${draft.startDate}T${draft.startTime}:00Z`
     : `${draft.startDate}T00:00:00Z`;

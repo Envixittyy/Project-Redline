@@ -22,8 +22,8 @@ export type LocalInferenceRequest = {
   temperature?: number;
   maxTokens?: number;
   formatJson?: boolean;
+  /** Reserved: all active transports reject binary input pending review. */
   images?: string[];
-  keepAlive?: string;
 };
 
 export type LocalInferenceResponse = {

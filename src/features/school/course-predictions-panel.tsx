@@ -21,6 +21,7 @@ import {
   confirmPredictionAsTaskAction,
   applyAssessmentPredictionsAction,
 } from "./prediction-actions";
+import { SCHOOL_INTELLIGENCE_UNAVAILABLE } from "@/services/integrations/ai/school-intelligence-policy";
 
 type CoursePredictionsPanelProps = {
   courseId: string;
@@ -106,19 +107,29 @@ export function CoursePredictionsPanel({
 
   function handleDismiss(predictionId: string) {
     startTransition(async () => {
-      await dismissPredictionAction(predictionId);
+      const result = await dismissPredictionAction(predictionId);
+      if (!result.ok) {
+        setError("Prediction could not be dismissed. Refresh and try again.");
+        return;
+      }
+      setError(null);
       setPredictions((prev) => prev.filter((p) => p.id !== predictionId));
     });
   }
 
   function handleConfirmTask(p: SchoolAssessmentPrediction) {
     startTransition(async () => {
-      await confirmPredictionAsTaskAction(p.id, {
+      const result = await confirmPredictionAsTaskAction(p.id, {
         title: p.title,
         dueDate: p.predictedDate,
         dueAt: p.predictedTime ? `${p.predictedDate}T${p.predictedTime}:00Z` : undefined,
         courseId: p.courseId,
       });
+      if (!result.ok) {
+        setError(SCHOOL_INTELLIGENCE_UNAVAILABLE);
+        return;
+      }
+      setError(null);
       setPredictions((prev) => prev.filter((item) => item.id !== p.id));
     });
   }

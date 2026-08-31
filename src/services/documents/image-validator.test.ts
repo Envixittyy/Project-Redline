@@ -1,85 +1,59 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-import {
-  validateImageBuffer,
-  MAX_IMAGE_BYTES,
-  ImageValidationError,
-} from "./image-validator";
+import sharp from "sharp";
+import { validateImageBuffer, MAX_IMAGE_BYTES, MAX_IMAGE_DIMENSION } from "./image-validator";
 
-function createFakePng(): Buffer {
-  // Minimal PNG signature: 89 50 4E 47 0D 0A 1A 0A followed by 4 dummy bytes
-  return Buffer.from([
-    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-  ]);
+async function fixture(format: "png" | "jpeg" | "webp", width = 2, height = 2) {
+  return sharp({ create: { width, height, channels: 3, background: "white" } }).toFormat(format).toBuffer();
 }
 
-function createFakeJpeg(): Buffer {
-  // Minimal JPEG signature: FF D8 FF followed by bytes
-  return Buffer.from([
-    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
-  ]);
-}
-
-function createFakeWebp(): Buffer {
-  // Minimal WEBP signature: RIFF....WEBP
-  return Buffer.from([
-    0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
-  ]);
-}
-
-describe("Image Validator (validateImageBuffer)", () => {
-  it("accepts and extracts valid PNG image", () => {
-    const png = createFakePng();
-    const res = validateImageBuffer(png, "schedule.png", "image/png");
-
-    expect(res.mimeType).toBe("image/png");
-    expect(res.fileName).toBe("schedule.png");
-    expect(res.dataUrl.startsWith("data:image/png;base64,")).toBe(true);
-    expect(res.byteLength).toBe(png.length);
+describe("bounded image decoding", () => {
+  it.each(["png", "jpeg", "webp"] as const)("fully decodes %s and returns a metadata-free PNG derivative", async format => {
+    const source = await fixture(format);
+    const result = await validateImageBuffer(source, `image.${format}`, `image/${format}`);
+    expect(result.mimeType).toBe("image/png");
+    expect(result.width).toBe(2);
+    expect(result.height).toBe(2);
+    expect(result.byteLength).toBe(Buffer.from(result.base64, "base64").length);
+    const decoded = await sharp(Buffer.from(result.base64, "base64")).metadata();
+    expect(decoded.format).toBe("png");
+    expect(decoded.exif).toBeUndefined();
   });
-
-  it("accepts and extracts valid JPEG image", () => {
-    const jpeg = createFakeJpeg();
-    const res = validateImageBuffer(jpeg, "blackboard.jpg", "image/jpeg");
-
-    expect(res.mimeType).toBe("image/jpeg");
-    expect(res.fileName).toBe("blackboard.jpg");
-    expect(res.dataUrl.startsWith("data:image/jpeg;base64,")).toBe(true);
+  it.each(["image/jpeg", "image/webp", "image/svg+xml", "text/plain"])("rejects PNG with spoofed MIME %s", async mime => {
+    await expect(validateImageBuffer(await fixture("png"), "image.png", mime)).rejects.toMatchObject({ code: "mime_type_mismatch" });
   });
-
-  it("accepts and extracts valid WEBP image", () => {
-    const webp = createFakeWebp();
-    const res = validateImageBuffer(webp, "calendar.webp", "image/webp");
-
-    expect(res.mimeType).toBe("image/webp");
-    expect(res.fileName).toBe("calendar.webp");
-    expect(res.dataUrl.startsWith("data:image/webp;base64,")).toBe(true);
+  it.each([
+    [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13],
+    [255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 1],
+    [82, 73, 70, 70, 36, 0, 0, 0, 87, 69, 66, 80],
+  ])("rejects signature-only malformed input %j", async (...signature) => {
+    await expect(validateImageBuffer(Buffer.from(signature), "image.png")).rejects.toMatchObject({ code: "invalid_image" });
   });
-
-  it("rejects empty image buffer", () => {
-    expect(() => validateImageBuffer(Buffer.alloc(0), "empty.png")).toThrowError(
-      ImageValidationError,
-    );
+  it("rejects empty, oversized and non-image input", async () => {
+    for (const input of [Buffer.alloc(0), Buffer.alloc(MAX_IMAGE_BYTES + 1), Buffer.from("https://127.0.0.1/private")]) {
+      await expect(validateImageBuffer(input, "image.png")).rejects.toThrow();
+    }
   });
-
-  it("rejects images exceeding MAX_IMAGE_BYTES", () => {
-    const huge = Buffer.alloc(MAX_IMAGE_BYTES + 1);
-    expect(() => validateImageBuffer(huge, "huge.png")).toThrowError(
-      "Image size exceeds maximum limit",
-    );
+  it("rejects oversized dimensions and compressed pixel bombs", async () => {
+    await expect(validateImageBuffer(await fixture("png", MAX_IMAGE_DIMENSION + 1, 1), "wide.png")).rejects.toThrow();
+    await expect(validateImageBuffer(await fixture("png", 5000, 5000), "pixels.png")).rejects.toThrow();
   });
-
-  it("rejects spoofed extension with non-image bytes", () => {
-    const fake = Buffer.from("Hello, this is just plain text masquerading as PNG.");
-    expect(() => validateImageBuffer(fake, "fake.png", "image/png")).toThrowError(
-      "Invalid or unsupported image format",
-    );
+  it("rejects animated WebP rather than silently selecting its first frame", async () => {
+    const source = await sharp(Buffer.from([255, 0, 0, 0, 0, 255]), {
+      raw: { width: 1, height: 2, channels: 3, pageHeight: 1 },
+    }).webp({ loop: 0, delay: [100, 100] }).toBuffer();
+    expect((await sharp(source).metadata()).pages).toBe(2);
+    await expect(validateImageBuffer(source, "animated.webp", "image/webp")).rejects.toMatchObject({ code: "image_dimensions_exceeded" });
   });
-
-  it("sanitizes control characters in filename", () => {
-    const png = createFakePng();
-    const res = validateImageBuffer(png, "sched\u0000ule\n.png");
-    expect(res.fileName).toBe("schedule.png");
+  it("strips EXIF and path components rather than retaining source metadata", async () => {
+    const source = await sharp(await fixture("jpeg")).withMetadata().jpeg().toBuffer();
+    expect((await sharp(source).metadata()).exif).toBeDefined();
+    const result = await validateImageBuffer(source, "../../private/image.jpg", "image/jpeg");
+    expect(result.fileName).toBe("image.png");
+    expect((await sharp(Buffer.from(result.base64, "base64")).metadata()).exif).toBeUndefined();
+  });
+  it("rejects a truncated image after its valid header", async () => {
+    const source = await fixture("jpeg", 100, 100);
+    await expect(validateImageBuffer(source.subarray(0, source.length - 30), "truncated.jpg")).rejects.toThrow();
   });
 });
-

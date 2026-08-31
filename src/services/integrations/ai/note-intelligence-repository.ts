@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
 
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
@@ -22,6 +23,7 @@ export async function prepareNoteIntelligence(
   provider: string,
   model: string,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const validNoteId = uuid(noteId);
 
@@ -88,6 +90,7 @@ export async function finalizeNoteIntelligence(
   kind: "note_summary" | "note_rewrite" | "note_action_items",
   rawOutput: unknown,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client
@@ -142,6 +145,7 @@ export async function applyNoteRewriteAction(
   rewrittenBody: string,
   mode: "replace" | "append",
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const validNoteId = uuid(noteId);
 
@@ -171,6 +175,7 @@ export async function applyNoteActionItemsAction(
   noteId: string,
   items: Array<{ title: string; dueDate?: string; priority?: "low" | "medium" | "high" | "urgent" }>,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const validNoteId = uuid(noteId);
 

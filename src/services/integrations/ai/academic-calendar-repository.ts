@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
 
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
@@ -18,6 +19,7 @@ export async function prepareAcademicCalendarImport(
   provider: string,
   model: string,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const file = formData.get("file") as File | null;
   if (!file) throw new AiTrustError("invalid_request");
@@ -30,7 +32,7 @@ export async function prepareAcademicCalendarImport(
   let payloadBytes = buffer.length;
 
   if (isImage) {
-    const validatedImage = validateImageBuffer(buffer, file.name, file.type);
+    const validatedImage = await validateImageBuffer(buffer, file.name, file.type);
     promptData = academicCalendarPrompt(`acad_img_${randomUUID()}`, {
       image: { base64: validatedImage.base64, mimeType: validatedImage.mimeType },
     });
@@ -84,6 +86,7 @@ export async function finalizeAcademicCalendarImport(
   requestId: string,
   rawOutput: unknown,
 ): Promise<AcademicCalendarReview> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client
@@ -141,6 +144,7 @@ export type AcademicCalendarApplyInput = {
 };
 
 export async function applyAcademicCalendarImport(input: AcademicCalendarApplyInput) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const batchId = uuid(input.batchId);
 

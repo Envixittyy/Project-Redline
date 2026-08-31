@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
 
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
@@ -26,12 +27,13 @@ export async function prepareScheduleImport(
   provider: string,
   model: string,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const file = formData.get("file") as File | null;
   if (!file) throw new AiTrustError("invalid_request");
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const validatedImage = validateImageBuffer(buffer, file.name, file.type);
+  const validatedImage = await validateImageBuffer(buffer, file.name, file.type);
 
   const requestId = randomUUID();
   const handle = `sched_image_${randomUUID()}`;
@@ -74,6 +76,7 @@ export async function finalizeScheduleImport(
   requestId: string,
   rawOutput: unknown,
 ): Promise<ScheduleReview> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client
@@ -144,6 +147,7 @@ export type ScheduleApplyInput = {
 };
 
 export async function applyScheduleImport(input: ScheduleApplyInput) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const batchId = uuid(input.batchId);
 

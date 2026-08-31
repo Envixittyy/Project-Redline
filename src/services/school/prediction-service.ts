@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "@/services/integrations/ai/school-intelligence-policy";
 
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type { ConfidenceLevel, PredictionType } from "@/services/integrations/ai/assessment-prediction-contract";
@@ -101,14 +102,9 @@ export async function listPredictionsForCourse(courseId: string): Promise<School
 }
 
 export async function dismissPrediction(predictionId: string): Promise<boolean> {
-  const { client, userId } = await requireAuthenticatedSupabase();
-  const { error } = await client
-    .from("school_assessment_predictions")
-    .update({ status: "dismissed" })
-    .eq("id", predictionId)
-    .eq("user_id", userId);
-
-  return !error;
+  const { client } = await requireAuthenticatedSupabase();
+  const { data, error } = await client.rpc("dismiss_assessment_prediction", { p_prediction_id: predictionId });
+  return !error && data?.ok === true;
 }
 
 export async function confirmPredictionAsTask(
@@ -121,6 +117,7 @@ export async function confirmPredictionAsTask(
     courseId?: string;
   },
 ): Promise<{ ok: boolean; taskId?: string }> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   // Create task in database
@@ -152,6 +149,7 @@ export async function confirmPredictionAsEvent(
     course?: string;
   },
 ): Promise<{ ok: boolean; eventId?: string }> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const saved = await createCalendarEvent({
@@ -179,6 +177,7 @@ export async function supersedeMatchingPredictions(
   title: string,
   confirmedDate: string,
 ): Promise<number> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   // Find active predictions for this course

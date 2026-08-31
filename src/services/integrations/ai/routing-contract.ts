@@ -1,5 +1,6 @@
 import { AiTrustError, CHECKLIST_CAPABILITY } from "./trust-contract";
 import { COURSE_IMPORT_CAPABILITY } from "./course-import-contract";
+import { schoolIntelligenceUnavailable, SCHOOL_INTELLIGENCE_UNAVAILABLE } from "./school-intelligence-policy";
 import { SCHEDULE_IMAGE_CAPABILITY } from "./school-schedule-contract";
 import { BLACKBOARD_COURSE_IMAGE_CAPABILITY } from "./blackboard-screenshot-contract";
 import { ACADEMIC_CALENDAR_CAPABILITY } from "./academic-calendar-contract";
@@ -76,6 +77,7 @@ export type RoutedPreparation = {
 };
 
 export function capabilityFor(kind: RequestKind) {
+  if (kind !== "checklist" && kind !== "course") schoolIntelligenceUnavailable();
   if (kind === "checklist") return CHECKLIST_CAPABILITY;
   if (kind === "course") return COURSE_IMPORT_CAPABILITY;
   if (kind === "schedule_image") return SCHEDULE_IMAGE_CAPABILITY;
@@ -95,26 +97,10 @@ export function capabilityFor(kind: RequestKind) {
 /** Unknown/future domains (including journals/wellness) fail closed. */
 export function cloudAllowed(capability: string, prefs: RoutingPreferences): boolean {
   if (!prefs.cloudEnabled || prefs.cloudFallbackMode === "off") return false;
-  if (
-    capability === CHECKLIST_CAPABILITY.id ||
-    capability === QUICK_CAPTURE_CAPABILITY.id ||
-    capability === DAILY_PLAN_ADVICE_CAPABILITY.id ||
-    capability === CONTEXTUAL_ASSISTANT_CAPABILITY.id
-  ) {
+  if (capability === CHECKLIST_CAPABILITY.id) {
     return prefs.checklistCloud === true;
   }
-  if (
-    capability === COURSE_IMPORT_CAPABILITY.id ||
-    capability === SCHEDULE_IMAGE_CAPABILITY.id ||
-    capability === BLACKBOARD_COURSE_IMAGE_CAPABILITY.id ||
-    capability === ACADEMIC_CALENDAR_CAPABILITY.id ||
-    capability === ASSESSMENT_PREDICTION_CAPABILITY.id ||
-    capability === NOTE_SUMMARY_CAPABILITY.id ||
-    capability === NOTE_REWRITE_CAPABILITY.id ||
-    capability === NOTE_ACTION_ITEMS_CAPABILITY.id ||
-    capability === COURSE_MATERIAL_SUMMARY_CAPABILITY.id ||
-    capability === COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.id
-  ) {
+  if (capability === COURSE_IMPORT_CAPABILITY.id) {
     return prefs.courseImportCloud === true;
   }
   return false;
@@ -154,6 +140,7 @@ export function mayFallback(code: string, location: InferenceLocation) {
 }
 export function routingMessage(code: string): string {
   const messages: Record<string, string> = {
+    school_intelligence_review_required: SCHOOL_INTELLIGENCE_UNAVAILABLE,
     local_unavailable: "Local AI is unavailable. Check the home PC, private network, Companion and model. No changes were made.",
     pairing_invalid: "Pairing expired or was revoked. Re-pair in AI Settings. Nothing was applied.",
     cloud_disabled: "Cloud AI is disabled. Local inference could not continue.",

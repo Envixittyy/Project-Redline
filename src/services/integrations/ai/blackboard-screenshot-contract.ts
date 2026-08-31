@@ -132,3 +132,4 @@ export function blackboardCoursePrompt(handle: string, imageBase64: string, mime
     formatJson: true,
   };
 }
+

@@ -120,3 +120,4 @@ $$;
 
 grant execute on function public.dismiss_assessment_prediction(uuid) to authenticated;
 grant execute on function public.confirm_assessment_prediction(uuid) to authenticated;
+

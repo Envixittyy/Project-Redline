@@ -112,3 +112,4 @@ describe("School Schedule Contract", () => {
     ).toThrow(AiTrustError);
   });
 });
+

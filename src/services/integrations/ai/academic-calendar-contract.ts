@@ -168,3 +168,4 @@ export function academicCalendarPrompt(
     formatJson: true,
   };
 }
+

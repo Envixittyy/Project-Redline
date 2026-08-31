@@ -83,3 +83,4 @@ export async function confirmPredictionAsEventAction(
     return { ok: false, message: (err as Error).message };
   }
 }
+

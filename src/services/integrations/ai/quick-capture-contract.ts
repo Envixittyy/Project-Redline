@@ -159,3 +159,4 @@ export function quickCapturePrompt(
     formatJson: true,
   };
 }
+

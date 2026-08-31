@@ -185,3 +185,4 @@ export function schedulePrompt(handle: string, imageBase64: string, mimeType: st
     formatJson: true,
   };
 }
+

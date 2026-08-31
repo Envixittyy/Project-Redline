@@ -20,6 +20,10 @@ import { prepareAcademicCalendarImport, finalizeAcademicCalendarImport } from ".
 import { prepareAssessmentPredictions, finalizeAssessmentPredictions } from "./assessment-prediction-repository";
 import { prepareNoteIntelligence, finalizeNoteIntelligence } from "./note-intelligence-repository";
 import { prepareQuickCapture, finalizeQuickCapture } from "./quick-capture-repository";
+import { prepareDailyPlanAdvice, finalizeDailyPlanAdvice } from "./daily-plan-repository";
+import { prepareCourseMaterialIntelligence, finalizeCourseMaterialIntelligence } from "./course-material-intelligence-repository";
+import { prepareContextualAssistant, finalizeContextualAssistant } from "./contextual-assistant-repository";
+
 import { SCHEDULE_IMAGE_CAPABILITY } from "./school-schedule-contract";
 import { BLACKBOARD_COURSE_IMAGE_CAPABILITY } from "./blackboard-screenshot-contract";
 import { ACADEMIC_CALENDAR_CAPABILITY } from "./academic-calendar-contract";
@@ -30,6 +34,12 @@ import {
   NOTE_ACTION_ITEMS_CAPABILITY,
 } from "./note-intelligence-contract";
 import { QUICK_CAPTURE_CAPABILITY } from "./quick-capture-contract";
+import { DAILY_PLAN_ADVICE_CAPABILITY } from "./daily-plan-contract";
+import {
+  COURSE_MATERIAL_SUMMARY_CAPABILITY,
+  COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY,
+} from "./course-material-intelligence-contract";
+import { CONTEXTUAL_ASSISTANT_CAPABILITY } from "./contextual-assistant-contract";
 
 export async function routingPreferences(): Promise<RoutingPreferences> {
   const p = await getAiPreferences();
@@ -73,6 +83,14 @@ export async function loadInferenceAttempt(id: unknown) {
     ? "note_action_items"
     : a.capability === QUICK_CAPTURE_CAPABILITY.id
     ? "quick_capture"
+    : a.capability === DAILY_PLAN_ADVICE_CAPABILITY.id
+    ? "daily_plan_advice"
+    : a.capability === COURSE_MATERIAL_SUMMARY_CAPABILITY.id
+    ? "material_summary"
+    : a.capability === COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.id
+    ? "material_study_questions"
+    : a.capability === CONTEXTUAL_ASSISTANT_CAPABILITY.id
+    ? "contextual_assistant"
     : "course";
   if (a.capability !== capabilityFor(kind).id) throw new AiTrustError("capability_denied");
   return { ...a, kind, requestId: a.checklist_request_id ?? a.course_request_id! };
@@ -111,6 +129,12 @@ export async function prepareRoutedInference(kind: RequestKind, input: unknown, 
       ? await prepareAssessmentPredictions(input as string, provider, model)
       : kind === "quick_capture"
       ? await prepareQuickCapture(input as string, provider, model)
+      : kind === "daily_plan_advice"
+      ? await prepareDailyPlanAdvice(input as string, provider, model)
+      : kind === "material_summary" || kind === "material_study_questions"
+      ? await prepareCourseMaterialIntelligence(input as string, kind, provider, model)
+      : kind === "contextual_assistant"
+      ? await prepareContextualAssistant(input as string, provider, model)
       : await prepareNoteIntelligence(input as string, kind, provider, model);
   return prepareAttempt(kind, prepared.requestId, provider, model, location);
 }
@@ -143,6 +167,12 @@ async function finalize(a: Awaited<ReturnType<typeof loadInferenceAttempt>>, raw
       ? await finalizeAssessmentPredictions(a.requestId, raw)
       : a.kind === "quick_capture"
       ? await finalizeQuickCapture(a.requestId, raw)
+      : a.kind === "daily_plan_advice"
+      ? await finalizeDailyPlanAdvice(a.requestId, raw)
+      : a.kind === "material_summary" || a.kind === "material_study_questions"
+      ? await finalizeCourseMaterialIntelligence(a.requestId, a.kind, raw)
+      : a.kind === "contextual_assistant"
+      ? await finalizeContextualAssistant(a.requestId, raw)
       : await finalizeNoteIntelligence(a.requestId, a.kind, raw);
   await finish(a.id, "succeeded", undefined, review.batchId, latencyMs);
   const provenance: InferenceProvenance = { provider: a.provider, model: a.model, location: a.location,

@@ -19,6 +19,7 @@ import {
   generateDayPlan,
   type DayPlanProposal,
 } from "./planning-domain";
+import { DailyPlanAiPanel } from "./daily-plan-ai-panel";
 import styles from "./plan-my-day-dialog.module.css";
 
 type PlanMyDayDialogProps = {
@@ -169,6 +170,12 @@ export function PlanMyDayDialog({
               <span className={styles.metricValue}>{plan.fixedCommitments.length}</span>
             </div>
           </div>
+
+          <DailyPlanAiPanel
+            tasks={tasks}
+            scheduleItems={scheduleItems}
+            timeZone={timeZone}
+          />
 
           <div className={styles.section}>
             <h3 className={styles.sectionTitle}>Proposed Work Sessions</h3>

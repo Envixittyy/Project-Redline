@@ -51,12 +51,14 @@ function itemTitle(item: CalendarItem): string {
   if (item.kind === "event") return item.event.title;
   if (item.kind === "external_event") return item.externalEvent.title;
   if (item.kind === "course_meeting") return item.meeting.title;
+  if (item.kind === "assessment_prediction") return `◇ Possible ${item.prediction.title}`;
   return item.task.title;
 }
 
 function itemMeta(item: CalendarItem, timeZone: string): string {
   if (item.kind === "deadline") return "Due";
   if (item.kind === "course_meeting") return `${formatTime(item.entry.start!, timeZone)}–${formatTime(item.entry.end!, timeZone)} · ${item.entry.courseLabel}`;
+  if (item.kind === "assessment_prediction") return `Possible · ${item.prediction.confidence}`;
   if (item.kind === "event") {
     if (item.event.allDay) return "All day";
     return `${formatTime(item.event.start, timeZone)}–${formatTime(item.event.end, timeZone)}`;
@@ -75,11 +77,15 @@ function itemMeta(item: CalendarItem, timeZone: string): string {
     return `${formatTime(item.workSession.startsAt, timeZone)}–${formatTime(item.workSession.endsAt, timeZone)}`;
   }
 
-  if (!item.task.scheduledStart) return "Scheduled task";
-  const start = formatTime(item.task.scheduledStart, timeZone);
-  return item.task.scheduledEnd
-    ? `${start}–${formatTime(item.task.scheduledEnd, timeZone)}`
-    : start;
+  if (item.kind === "scheduled_task") {
+    if (!item.task.scheduledStart) return "Scheduled task";
+    const start = formatTime(item.task.scheduledStart, timeZone);
+    return item.task.scheduledEnd
+      ? `${start}–${formatTime(item.task.scheduledEnd, timeZone)}`
+      : start;
+  }
+
+  return "";
 }
 
 function CalendarItemButton({
@@ -109,7 +115,7 @@ function CalendarItemButton({
       onClick={() => {
         if (item.kind === "event") onOpenEvent(item.event);
         else if (item.kind === "work_session") onOpenWorkSession(item.workSession);
-        else if (item.kind !== "course_meeting" && item.kind !== "external_event") onOpenTask(item.task);
+        else if (item.kind === "deadline" || item.kind === "scheduled_task") onOpenTask(item.task);
       }}
       title={`${itemTitle(item)} · ${itemMeta(item, timeZone)}`}
     >

@@ -74,7 +74,7 @@ export async function prepareAcademicCalendarImport(
     requestId,
     handle,
     promptData,
-    payloadDigest,
+    payloadDigest: sourceDigest,
     bytes: payloadBytes,
     expiresAt,
   };

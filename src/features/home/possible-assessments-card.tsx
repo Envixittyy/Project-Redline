@@ -1,7 +1,6 @@
 "use client";
 
-import { AlertCircle, Check, Sparkles, X } from "lucide-react";
-import Link from "next/link";
+import { Check, Sparkles, X } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { Surface } from "@/components/ui/surface";
 import type { SchoolAssessmentPrediction } from "@/services/school/prediction-service";
@@ -101,7 +100,7 @@ export function PossibleAssessmentsCard() {
         </p>
 
         <p style={{ margin: "0.25rem 0 0", fontSize: "0.78rem", color: "var(--text-muted)", fontStyle: "italic" }}>
-          "{topPrediction.rationale}"
+          &ldquo;{topPrediction.rationale}&rdquo;
         </p>
 
         <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.6rem" }}>

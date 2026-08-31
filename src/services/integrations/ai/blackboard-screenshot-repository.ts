@@ -53,7 +53,7 @@ export async function prepareBlackboardScreenshotImport(
     requestId,
     handle,
     promptData,
-    payloadDigest,
+    payloadDigest: sourceDigest,
     bytes: validatedImage.byteLength,
     expiresAt,
   };
@@ -163,7 +163,7 @@ export async function applyBlackboardScreenshotImport(input: BlackboardScreensho
       if (courseErr || !newCourse) {
         throw new Error(`Failed to create course ${item.code}: ${courseErr?.message}`);
       }
-      targetCourseId = newCourse.id;
+      targetCourseId = String(newCourse.id);
       createdCourseIds.push(targetCourseId);
     }
 

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
-import { readStoredCompanionConfig } from "@/services/integrations/ai/companion-client";
+import { getCompanionSession } from "@/services/integrations/ai/companion-session";
 import type {
   NoteSummaryProposal,
   NoteRewriteProposal,
@@ -43,8 +43,10 @@ export function NoteAiDialog({
   const [tab, setTab] = useState<TabMode>(initialTab);
   const controller = useRef<AbortController | null>(null);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(() => Boolean(note.body.trim()));
+  const [error, setError] = useState<string | null>(() =>
+    !note.body.trim() ? "This note is empty. Add some text first." : null,
+  );
   const [applying, startApplyTransition] = useTransition();
   const [copied, setCopied] = useState(false);
 
@@ -56,63 +58,57 @@ export function NoteAiDialog({
   >([]);
 
   useEffect(() => {
-    return () => {
-      controller.current?.abort();
-    };
-  }, []);
+    if (!note.body.trim()) return;
 
-  useEffect(() => {
-    void executeAiTask(tab);
-  }, [tab]);
-
-  async function executeAiTask(currentTab: TabMode) {
-    if (!note.body.trim()) {
-      setError("This note is empty. Add some text first.");
-      return;
-    }
-
-    controller.current?.abort();
+    let active = true;
     const abort = new AbortController();
     controller.current = abort;
 
-    setLoading(true);
-    setError(null);
-    setCopied(false);
-
-    const companionConfig = readStoredCompanionConfig();
+    const companionConfig = getCompanionSession();
     const kind =
-      currentTab === "summary"
+      tab === "summary"
         ? "note_summary"
-        : currentTab === "rewrite"
+        : tab === "rewrite"
         ? "note_rewrite"
         : "note_action_items";
 
-    try {
-      const result = await generateRoutedProposal(kind, note.id, companionConfig, abort.signal);
-
-      if (abort.signal.aborted) return;
-
-      if (!result.ok) {
-        setError(result.message);
+    void generateRoutedProposal(kind, note.id, companionConfig, abort.signal)
+      .then((result) => {
+        if (!active || abort.signal.aborted) return;
+        if (!result.ok) {
+          setError(result.message);
+          setLoading(false);
+          return;
+        }
+        const proposal = (result as { ok: true; review: { proposal: unknown } }).review.proposal;
+        if (tab === "summary") {
+          setSummaryResult(proposal as NoteSummaryProposal);
+        } else if (tab === "rewrite") {
+          setRewriteResult(proposal as NoteRewriteProposal);
+        } else if (tab === "action_items") {
+          const items = (proposal as NoteActionItemsProposal).actionItems;
+          setActionItemsResult(items.map((it) => ({ ...it, selected: true })));
+        }
         setLoading(false);
-        return;
-      }
+      })
+      .catch((err) => {
+        if (active) {
+          setError(err instanceof Error ? err.message : "Failed to process note.");
+          setLoading(false);
+        }
+      });
 
-      const proposal = (result as { ok: true; review: { proposal: unknown } }).review.proposal;
+    return () => {
+      active = false;
+      abort.abort();
+    };
+  }, [tab, note.id, note.body]);
 
-      if (currentTab === "summary") {
-        setSummaryResult(proposal as NoteSummaryProposal);
-      } else if (currentTab === "rewrite") {
-        setRewriteResult(proposal as NoteRewriteProposal);
-      } else if (currentTab === "action_items") {
-        const items = (proposal as NoteActionItemsProposal).actionItems;
-        setActionItemsResult(items.map((it) => ({ ...it, selected: true })));
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to process note.");
-    } finally {
-      setLoading(false);
-    }
+  function handleTabSelect(nextTab: TabMode) {
+    if (loading || applying || nextTab === tab) return;
+    setError(null);
+    setLoading(true);
+    setTab(nextTab);
   }
 
   function handleInsertSummary() {
@@ -193,7 +189,7 @@ export function NoteAiDialog({
             type="button"
             className={styles.tab}
             data-active={tab === "summary"}
-            onClick={() => setTab("summary")}
+            onClick={() => handleTabSelect("summary")}
             disabled={loading || applying}
           >
             <FileText size={15} /> Summarize
@@ -202,7 +198,7 @@ export function NoteAiDialog({
             type="button"
             className={styles.tab}
             data-active={tab === "rewrite"}
-            onClick={() => setTab("rewrite")}
+            onClick={() => handleTabSelect("rewrite")}
             disabled={loading || applying}
           >
             <FileEdit size={15} /> Clean Up & Organize
@@ -211,7 +207,7 @@ export function NoteAiDialog({
             type="button"
             className={styles.tab}
             data-active={tab === "action_items"}
-            onClick={() => setTab("action_items")}
+            onClick={() => handleTabSelect("action_items")}
             disabled={loading || applying}
           >
             <CheckSquare size={15} /> Extract Action Items

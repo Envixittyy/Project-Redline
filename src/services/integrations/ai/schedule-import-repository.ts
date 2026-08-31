@@ -7,8 +7,6 @@ import {
   parseScheduleOutput,
   schedulePrompt,
   SCHEDULE_IMAGE_CAPABILITY,
-  type ProposedCourseSchedule,
-  type ScheduleProposal,
   type ScheduleReview,
 } from "./school-schedule-contract";
 import { AiTrustError, uuid } from "./trust-contract";
@@ -36,7 +34,7 @@ export async function prepareScheduleImport(
   const validatedImage = validateImageBuffer(buffer, file.name, file.type);
 
   const requestId = randomUUID();
-  const handle = `schedule_image_${randomUUID()}`;
+  const handle = `sched_image_${randomUUID()}`;
   const sourceText = validatedImage.dataUrl;
   const sourceDigest = createHash("sha256").update(sourceText).digest("hex");
   const promptData = schedulePrompt(handle, validatedImage.base64, validatedImage.mimeType);
@@ -66,7 +64,7 @@ export async function prepareScheduleImport(
     requestId,
     handle,
     promptData,
-    payloadDigest,
+    payloadDigest: sourceDigest,
     bytes: validatedImage.byteLength,
     expiresAt,
   };
@@ -182,7 +180,7 @@ export async function applyScheduleImport(input: ScheduleApplyInput) {
       if (courseErr || !newCourse) {
         throw new Error(`Failed to create course ${courseItem.code}: ${courseErr?.message}`);
       }
-      courseId = newCourse.id;
+      courseId = String(newCourse.id);
       createdCourseIds.push(courseId);
     }
 

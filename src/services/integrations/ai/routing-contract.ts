@@ -18,6 +18,12 @@ import {
   NOTE_ACTION_ITEMS_CAPABILITY,
 } from "./note-intelligence-contract";
 import { QUICK_CAPTURE_CAPABILITY } from "./quick-capture-contract";
+import { DAILY_PLAN_ADVICE_CAPABILITY } from "./daily-plan-contract";
+import {
+  COURSE_MATERIAL_SUMMARY_CAPABILITY,
+  COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY,
+} from "./course-material-intelligence-contract";
+import { CONTEXTUAL_ASSISTANT_CAPABILITY } from "./contextual-assistant-contract";
 
 export type RequestKind =
   | "checklist"
@@ -29,7 +35,11 @@ export type RequestKind =
   | "note_summary"
   | "note_rewrite"
   | "note_action_items"
-  | "quick_capture";
+  | "quick_capture"
+  | "daily_plan_advice"
+  | "material_summary"
+  | "material_study_questions"
+  | "contextual_assistant";
 export type RoutingPreferences = {
   aiMode: AiMode;
   cloudEnabled: boolean;
@@ -76,12 +86,21 @@ export function capabilityFor(kind: RequestKind) {
   if (kind === "note_rewrite") return NOTE_REWRITE_CAPABILITY;
   if (kind === "note_action_items") return NOTE_ACTION_ITEMS_CAPABILITY;
   if (kind === "quick_capture") return QUICK_CAPTURE_CAPABILITY;
+  if (kind === "daily_plan_advice") return DAILY_PLAN_ADVICE_CAPABILITY;
+  if (kind === "material_summary") return COURSE_MATERIAL_SUMMARY_CAPABILITY;
+  if (kind === "material_study_questions") return COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY;
+  if (kind === "contextual_assistant") return CONTEXTUAL_ASSISTANT_CAPABILITY;
   throw new AiTrustError("capability_denied");
 }
 /** Unknown/future domains (including journals/wellness) fail closed. */
 export function cloudAllowed(capability: string, prefs: RoutingPreferences): boolean {
   if (!prefs.cloudEnabled || prefs.cloudFallbackMode === "off") return false;
-  if (capability === CHECKLIST_CAPABILITY.id || capability === QUICK_CAPTURE_CAPABILITY.id) {
+  if (
+    capability === CHECKLIST_CAPABILITY.id ||
+    capability === QUICK_CAPTURE_CAPABILITY.id ||
+    capability === DAILY_PLAN_ADVICE_CAPABILITY.id ||
+    capability === CONTEXTUAL_ASSISTANT_CAPABILITY.id
+  ) {
     return prefs.checklistCloud === true;
   }
   if (
@@ -92,7 +111,9 @@ export function cloudAllowed(capability: string, prefs: RoutingPreferences): boo
     capability === ASSESSMENT_PREDICTION_CAPABILITY.id ||
     capability === NOTE_SUMMARY_CAPABILITY.id ||
     capability === NOTE_REWRITE_CAPABILITY.id ||
-    capability === NOTE_ACTION_ITEMS_CAPABILITY.id
+    capability === NOTE_ACTION_ITEMS_CAPABILITY.id ||
+    capability === COURSE_MATERIAL_SUMMARY_CAPABILITY.id ||
+    capability === COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.id
   ) {
     return prefs.courseImportCloud === true;
   }

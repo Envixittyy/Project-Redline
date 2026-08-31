@@ -28,6 +28,8 @@ import {
 } from "./school-material-actions";
 import { SchoolIntelligenceModal } from "./school-intelligence-modal";
 import { CoursePredictionsPanel } from "./course-predictions-panel";
+import { CourseMaterialIntelligenceModal } from "./course-material-intelligence-modal";
+import { ContextualAssistantModal } from "@/features/ai/contextual-assistant-modal";
 import styles from "./school-workspace.module.css";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -52,6 +54,12 @@ export function SchoolWorkspace({
   const [showImport, setShowImport] = useState(false);
   const [activeMeetingCourseId, setActiveMeetingCourseId] = useState<string | null>(null);
   const [activeMaterialCourseId, setActiveMaterialCourseId] = useState<string | null>(null);
+  const [aiStudyMaterials, setAiStudyMaterials] = useState<CourseMaterial[] | null>(null);
+  const [contextualEntity, setContextualEntity] = useState<{
+    type: "course" | "course_material";
+    id: string;
+    title: string;
+  } | null>(null);
 
   const run = (
     work: () => Promise<{ ok: true; message?: string } | { ok: false; message: string }>,
@@ -209,6 +217,19 @@ export function SchoolWorkspace({
                       }
                     >
                       <FileText size={15} aria-hidden="true" /> Material
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`AI Assistant for ${course.code}`}
+                      onClick={() =>
+                        setContextualEntity({
+                          type: "course",
+                          id: course.id,
+                          title: `${course.code} - ${course.name}`,
+                        })
+                      }
+                    >
+                      <Sparkles size={14} aria-hidden="true" /> AI Assistant
                     </button>
                   </div>
                 </header>
@@ -384,10 +405,29 @@ export function SchoolWorkspace({
 
                 {/* Materials List */}
                 <div className={styles.subSection}>
-                  <div className={styles.sectionHeader}>
+                  <div className={styles.sectionHeader} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span className={styles.sectionTitle}>
                       Materials ({courseMaterials.length})
                     </span>
+                    {courseMaterials.length > 0 ? (
+                      <button
+                        type="button"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.3rem",
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--accent-text)",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                        onClick={() => setAiStudyMaterials(courseMaterials)}
+                      >
+                        <Sparkles size={12} /> Study & Summarize
+                      </button>
+                    ) : null}
                   </div>
                   {courseMaterials.length > 0 ? (
                     <ul className={styles.materials}>
@@ -449,6 +489,26 @@ export function SchoolWorkspace({
           })}
         </div>
       )}
+
+      {aiStudyMaterials ? (
+        <CourseMaterialIntelligenceModal
+          materials={aiStudyMaterials.map((m) => ({
+            id: m.id,
+            title: m.title,
+            materialType: m.type,
+          }))}
+          onClose={() => setAiStudyMaterials(null)}
+        />
+      ) : null}
+
+      {contextualEntity ? (
+        <ContextualAssistantModal
+          entityType={contextualEntity.type}
+          entityId={contextualEntity.id}
+          entityTitle={contextualEntity.title}
+          onClose={() => setContextualEntity(null)}
+        />
+      ) : null}
     </div>
   );
 }

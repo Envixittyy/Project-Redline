@@ -121,12 +121,19 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
       if (request.systemPrompt) {
         messages.push({ role: "system", content: request.systemPrompt });
       }
-      messages.push({ role: "user", content: request.prompt });
+      const userMessage: Record<string, unknown> = { role: "user", content: request.prompt };
+      if (request.images && request.images.length > 0) {
+        userMessage.images = request.images.map((img) =>
+          img.replace(/^data:image\/[a-z]+;base64,/, ""),
+        );
+      }
+      messages.push(userMessage);
 
       const payload: Record<string, unknown> = {
         model: request.model,
         messages,
         stream: false,
+        keep_alive: request.keepAlive ?? "5m",
       };
 
       if (request.formatJson) {

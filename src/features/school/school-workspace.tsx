@@ -26,7 +26,7 @@ import {
   deleteCourseMaterialAction,
   saveCourseMaterialAction,
 } from "./school-material-actions";
-import { CourseImportModal } from "./course-import-modal";
+import { SchoolIntelligenceModal } from "./school-intelligence-modal";
 import styles from "./school-workspace.module.css";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -70,7 +70,8 @@ export function SchoolWorkspace({
   return (
     <div className={styles.layout}>
       {showImport ? (
-        <CourseImportModal
+        <SchoolIntelligenceModal
+          courses={courses}
           onClose={() => setShowImport(false)}
         />
       ) : null}
@@ -88,7 +89,7 @@ export function SchoolWorkspace({
             type="button"
             className="motion-interactive"
           >
-            <Sparkles size={16} aria-hidden="true" /> Import Syllabus
+            <Sparkles size={16} aria-hidden="true" /> School Intelligence
           </button>
           <button
             onClick={() => setShowAddCourse((v) => !v)}

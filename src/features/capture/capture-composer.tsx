@@ -1,11 +1,22 @@
 "use client";
 
-import { Inbox, Send } from "lucide-react";
+import { Check, Inbox, Loader2, Send, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { Surface } from "@/components/ui/surface";
 import { createCaptureAction } from "@/features/capture/capture-actions";
+import { generateRoutedProposal } from "@/features/ai/routing-client";
+import { readStoredCompanionConfig } from "@/services/integrations/ai/companion-client";
+import type {
+  QuickCaptureProposal,
+  ProposedTaskCapture,
+  ProposedEventCapture,
+} from "@/services/integrations/ai/quick-capture-contract";
+import {
+  applyQuickCaptureTaskAction,
+  applyQuickCaptureEventAction,
+} from "@/features/capture/quick-capture-actions";
 
 import styles from "./capture.module.css";
 
@@ -20,6 +31,9 @@ export function CaptureComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const [aiParsing, setAiParsing] = useState(false);
+  const [aiProposal, setAiProposal] = useState<QuickCaptureProposal | null>(null);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,9 +52,73 @@ export function CaptureComposer({
         return;
       }
       form.reset();
+      setAiProposal(null);
       setMessage(null);
       router.refresh();
       onCaptured?.();
+    });
+  }
+
+  async function handleAiParse() {
+    const text = textareaRef.current?.value.trim();
+    if (!text) {
+      setMessage("Write something to parse first.");
+      textareaRef.current?.focus();
+      return;
+    }
+
+    setAiParsing(true);
+    setMessage(null);
+    const companionConfig = readStoredCompanionConfig();
+
+    try {
+      const result = await generateRoutedProposal(
+        "quick_capture",
+        text,
+        companionConfig,
+      );
+
+      if (!result.ok) {
+        setMessage(result.message);
+        setAiParsing(false);
+        return;
+      }
+
+      const proposal = (result as { ok: true; review: { proposal: QuickCaptureProposal } }).review.proposal;
+      setAiProposal(proposal);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to parse with AI.");
+    } finally {
+      setAiParsing(false);
+    }
+  }
+
+  function handleCreateFromProposal() {
+    if (!aiProposal) return;
+    startTransition(async () => {
+      if (aiProposal.captured.entityType === "task") {
+        const res = await applyQuickCaptureTaskAction(aiProposal.captured as ProposedTaskCapture);
+        if (res.ok) {
+          if (textareaRef.current) textareaRef.current.value = "";
+          setAiProposal(null);
+          setMessage("Task created successfully.");
+          router.refresh();
+          onCaptured?.();
+        } else {
+          setMessage("Failed to create task.");
+        }
+      } else {
+        const res = await applyQuickCaptureEventAction(aiProposal.captured as ProposedEventCapture);
+        if (res.ok) {
+          if (textareaRef.current) textareaRef.current.value = "";
+          setAiProposal(null);
+          setMessage("Calendar event created successfully.");
+          router.refresh();
+          onCaptured?.();
+        } else {
+          setMessage("Failed to create calendar event.");
+        }
+      }
     });
   }
 
@@ -53,19 +131,128 @@ export function CaptureComposer({
           name="capture"
           rows={compact ? 5 : 4}
           maxLength={10000}
-          placeholder="Drop a thought, reminder, or pasted text here…"
-          disabled={pending}
+          placeholder="Drop a thought, reminder, or pasted text here… (e.g. 'Submit Physics lab report by Friday 5pm')"
+          disabled={pending || aiParsing}
           aria-describedby={message ? "capture-message" : "capture-help"}
         />
       </label>
+
+      {/* AI Parsed Proposal Preview Card */}
+      {aiProposal ? (
+        <div
+          style={{
+            padding: "0.85rem",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--accent-border, var(--border-strong))",
+            background: "var(--surface)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.45rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <Sparkles size={14} color="var(--accent-text)" />
+              <strong style={{ fontSize: "0.82rem", color: "var(--accent-text)", textTransform: "uppercase" }}>
+                Parsed as {aiProposal.captured.entityType === "task" ? "Task" : "Calendar Event"}
+              </strong>
+            </div>
+            <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "var(--text-secondary)" }}>
+              [{aiProposal.confidence} CONFIDENCE]
+            </span>
+          </div>
+
+          <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            {aiProposal.captured.title}
+          </div>
+
+          {aiProposal.captured.entityType === "task" ? (
+            <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "flex", gap: "0.6rem" }}>
+              {(aiProposal.captured as ProposedTaskCapture).dueDate ? (
+                <span>Due: {(aiProposal.captured as ProposedTaskCapture).dueDate} {(aiProposal.captured as ProposedTaskCapture).dueTime || ""}</span>
+              ) : null}
+              <span>Priority: {(aiProposal.captured as ProposedTaskCapture).priority || "medium"}</span>
+              {(aiProposal.captured as ProposedTaskCapture).courseCode ? (
+                <span>Course: {(aiProposal.captured as ProposedTaskCapture).courseCode}</span>
+              ) : null}
+            </div>
+          ) : (
+            <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "flex", gap: "0.6rem" }}>
+              <span>
+                Date: {(aiProposal.captured as ProposedEventCapture).startDate}
+                {(aiProposal.captured as ProposedEventCapture).startTime ? ` ${(aiProposal.captured as ProposedEventCapture).startTime}–${(aiProposal.captured as ProposedEventCapture).endTime || ""}` : " (All Day)"}
+              </span>
+              {(aiProposal.captured as ProposedEventCapture).location ? (
+                <span>Location: {(aiProposal.captured as ProposedEventCapture).location}</span>
+              ) : null}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.4rem" }}>
+            <button
+              type="button"
+              className="motion-tactile"
+              disabled={pending}
+              onClick={handleCreateFromProposal}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                padding: "0.35rem 0.75rem",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--accent)",
+                color: "var(--accent-foreground)",
+                border: "none",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              <Check size={13} /> Create {aiProposal.captured.entityType === "task" ? "Task" : "Event"}
+            </button>
+            <button
+              type="button"
+              className="motion-tactile"
+              disabled={pending}
+              onClick={() => setAiProposal(null)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                padding: "0.35rem 0.65rem",
+                borderRadius: "var(--radius-sm)",
+                background: "transparent",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border-subtle)",
+                fontSize: "0.78rem",
+                cursor: "pointer",
+              }}
+            >
+              <X size={13} /> Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className={styles.composerFooter}>
         <p id={message ? "capture-message" : "capture-help"} role={message ? "alert" : undefined}>
           {message ?? "Saved as immutable evidence. You decide what it becomes next."}
         </p>
-        <button className={`${styles.primaryButton} motion-interactive`} type="submit" disabled={pending}>
-          <Send size={17} aria-hidden="true" />
-          {pending ? "Saving…" : "Send to Inbox"}
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button
+            className={`${styles.secondaryButton} motion-interactive`}
+            type="button"
+            onClick={handleAiParse}
+            disabled={pending || aiParsing}
+          >
+            {aiParsing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+            {aiParsing ? "Parsing…" : "Parse with AI"}
+          </button>
+          <button className={`${styles.primaryButton} motion-interactive`} type="submit" disabled={pending || aiParsing}>
+            <Send size={17} aria-hidden="true" />
+            {pending ? "Saving…" : "Send to Inbox"}
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -85,3 +272,4 @@ export function CaptureComposer({
     </Surface>
   );
 }
+

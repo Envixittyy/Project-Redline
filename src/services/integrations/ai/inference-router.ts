@@ -19,6 +19,7 @@ import { prepareBlackboardScreenshotImport, finalizeBlackboardScreenshotImport }
 import { prepareAcademicCalendarImport, finalizeAcademicCalendarImport } from "./academic-calendar-repository";
 import { prepareAssessmentPredictions, finalizeAssessmentPredictions } from "./assessment-prediction-repository";
 import { prepareNoteIntelligence, finalizeNoteIntelligence } from "./note-intelligence-repository";
+import { prepareQuickCapture, finalizeQuickCapture } from "./quick-capture-repository";
 import { SCHEDULE_IMAGE_CAPABILITY } from "./school-schedule-contract";
 import { BLACKBOARD_COURSE_IMAGE_CAPABILITY } from "./blackboard-screenshot-contract";
 import { ACADEMIC_CALENDAR_CAPABILITY } from "./academic-calendar-contract";
@@ -28,6 +29,7 @@ import {
   NOTE_REWRITE_CAPABILITY,
   NOTE_ACTION_ITEMS_CAPABILITY,
 } from "./note-intelligence-contract";
+import { QUICK_CAPTURE_CAPABILITY } from "./quick-capture-contract";
 
 export async function routingPreferences(): Promise<RoutingPreferences> {
   const p = await getAiPreferences();
@@ -69,6 +71,8 @@ export async function loadInferenceAttempt(id: unknown) {
     ? "note_rewrite"
     : a.capability === NOTE_ACTION_ITEMS_CAPABILITY.id
     ? "note_action_items"
+    : a.capability === QUICK_CAPTURE_CAPABILITY.id
+    ? "quick_capture"
     : "course";
   if (a.capability !== capabilityFor(kind).id) throw new AiTrustError("capability_denied");
   return { ...a, kind, requestId: a.checklist_request_id ?? a.course_request_id! };
@@ -105,6 +109,8 @@ export async function prepareRoutedInference(kind: RequestKind, input: unknown, 
       ? await prepareAcademicCalendarImport(input as FormData, provider, model)
       : kind === "assessment_prediction"
       ? await prepareAssessmentPredictions(input as string, provider, model)
+      : kind === "quick_capture"
+      ? await prepareQuickCapture(input as string, provider, model)
       : await prepareNoteIntelligence(input as string, kind, provider, model);
   return prepareAttempt(kind, prepared.requestId, provider, model, location);
 }
@@ -135,6 +141,8 @@ async function finalize(a: Awaited<ReturnType<typeof loadInferenceAttempt>>, raw
       ? await finalizeAcademicCalendarImport(a.requestId, raw)
       : a.kind === "assessment_prediction"
       ? await finalizeAssessmentPredictions(a.requestId, raw)
+      : a.kind === "quick_capture"
+      ? await finalizeQuickCapture(a.requestId, raw)
       : await finalizeNoteIntelligence(a.requestId, a.kind, raw);
   await finish(a.id, "succeeded", undefined, review.batchId, latencyMs);
   const provenance: InferenceProvenance = { provider: a.provider, model: a.model, location: a.location,

@@ -17,6 +17,7 @@ import {
   NOTE_REWRITE_CAPABILITY,
   NOTE_ACTION_ITEMS_CAPABILITY,
 } from "./note-intelligence-contract";
+import { QUICK_CAPTURE_CAPABILITY } from "./quick-capture-contract";
 
 export type RequestKind =
   | "checklist"
@@ -27,7 +28,8 @@ export type RequestKind =
   | "assessment_prediction"
   | "note_summary"
   | "note_rewrite"
-  | "note_action_items";
+  | "note_action_items"
+  | "quick_capture";
 export type RoutingPreferences = {
   aiMode: AiMode;
   cloudEnabled: boolean;
@@ -73,12 +75,15 @@ export function capabilityFor(kind: RequestKind) {
   if (kind === "note_summary") return NOTE_SUMMARY_CAPABILITY;
   if (kind === "note_rewrite") return NOTE_REWRITE_CAPABILITY;
   if (kind === "note_action_items") return NOTE_ACTION_ITEMS_CAPABILITY;
+  if (kind === "quick_capture") return QUICK_CAPTURE_CAPABILITY;
   throw new AiTrustError("capability_denied");
 }
 /** Unknown/future domains (including journals/wellness) fail closed. */
 export function cloudAllowed(capability: string, prefs: RoutingPreferences): boolean {
   if (!prefs.cloudEnabled || prefs.cloudFallbackMode === "off") return false;
-  if (capability === CHECKLIST_CAPABILITY.id) return prefs.checklistCloud === true;
+  if (capability === CHECKLIST_CAPABILITY.id || capability === QUICK_CAPTURE_CAPABILITY.id) {
+    return prefs.checklistCloud === true;
+  }
   if (
     capability === COURSE_IMPORT_CAPABILITY.id ||
     capability === SCHEDULE_IMAGE_CAPABILITY.id ||

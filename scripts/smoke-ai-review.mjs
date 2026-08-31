@@ -10,8 +10,18 @@ let checklist = {batchId:'checklist-1',taskTitle:'Canonical saved essay',items:[
 let course = {batchId:'course-1',fileName:'course-smoke.txt',startDate:'2026-08-31',timeZone:'Asia/Manila',status:'proposed',proposal:{code:'CS101',name:'Computer science',instructor:null,location:'Hall A',meetings:[{title:'Lecture',weekdays:[1,3],startTime:'09:00',endTime:'10:00',location:null}]}};
 let attempts=0;
 function log(s) { const node=document.getElementById('calls'); node.textContent += '\\n'+s; }
-export function getCompanionSession(){return {provider:'ollama',model:'fixture'}};
+export function getCompanionSession(){return {provider:'ollama',model:'fixture',companionUrl:'http://127.0.0.1:41400'}};
 export async function inferLocalContent(config, request){ log('inference: '+request.prompt); return '{}'; }
+export async function prepareRoutedInferenceAction(kind,input){log(kind==='course'?'course selected file: '+input.get('file').name:'checklist prepare ID only: '+input);return {ok:true,prepared:{attemptId:kind,location:'local',provider:'ollama',model:'fixture'}};}
+export async function claimLocalInferenceAction(id){return {ok:true,inference:{prompt:id==='checklist'?'canonical task fixture':'canonical document fixture',model:'fixture'}};}
+export async function finalizeLocalInferenceAction(id){log(id+' finalized, no apply');return {ok:true,review:id==='checklist'?checklist:course};}
+export async function sendCloudInferenceAction(){throw Error('No cloud in local fixture');}
+export async function failLocalInferenceAction(){return {ok:true};}
+export async function cancelInferenceAction(){return {ok:true};}
+export async function prepareFallbackAction(){return {ok:false,code:'cloud_disabled'};}
+export async function remoteInferenceTicketAction(){throw Error('No remote auth in local fixture');}
+export function companionDeviceId(){return 'fixture-device';}
+export class LocalCompanionClientError extends Error{}
 export async function prepareTaskChecklistAction(id){log('checklist prepare ID only: '+id);return {ok:true,prepared:{requestId:'task-request',inference:{prompt:'canonical task fixture',model:'fixture'}}}};
 export async function finalizeTaskChecklistAction(){ log('checklist finalized, no apply'); return {ok:true,review:checklist}; }
 export async function reviseTaskChecklistAction(id,items){log('checklist revision, no apply'); checklist={...checklist,batchId:'checklist-2',items}; return {ok:true,review:checklist};}
@@ -50,7 +60,7 @@ const bundle = await build({
         b.onResolve(
           {
             filter:
-              /checklist-actions$|ai-actions$|course-import-actions$|personality-actions$|companion-session$|companion-client$|^next\/navigation$/,
+              /routing-actions$|remote-companion-actions$|checklist-actions$|ai-actions$|course-import-actions$|personality-actions$|companion-session$|companion-client$|^next\/navigation$/,
           },
           () => ({ path: "fixtures", namespace: "synthetic" }),
         );

@@ -1,6 +1,6 @@
 # Local AI Companion and Proposal Trust Boundary
 
-Authoritative Phase 10A implementation contract, updated 2026-08-31. This supersedes the earlier broad AI dispatcher description. No Phase 10B or later feature is implemented here.
+Phase 10A trust foundation, updated 2026-08-31. This supersedes the earlier broad AI dispatcher description. **Phase 10B addendum:** `docs/REMOTE_HYBRID_AI.md` is authoritative for the additive remote transport and narrow Gemini/OpenRouter router. Below, claims that all cloud routing is disabled or remote access is unsupported describe the original 10A boundary. The old generic cloud executor is still disabled; review/apply security below remains authoritative.
 
 ## Supported scope
 

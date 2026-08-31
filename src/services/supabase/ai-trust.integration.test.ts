@@ -226,6 +226,100 @@ describe("AI trust boundary in PostgreSQL (actual migrations, authenticated role
       rpc("ai_create_checklist_request", ["{}", "0".repeat(64)]),
     ).rejects.toThrow(/authorization_denied/);
   });
+
+  async function routePrefs() {
+    await db.query("insert into ai_preferences(user_id,cloud_enabled,checklist_cloud,course_import_cloud,ai_mode,secondary_cloud) values($1,true,true,true,'auto',true)", [owner]);
+  }
+  async function attempt(requestId: string, provider = "gemini", parentId: string | null = null, kind = "checklist", location = provider === "ollama" ? "local" : "cloud") {
+    const id = randomUUID();
+    await rpc("ai_prepare_inference", proof("prepare_inference", {
+      id, checklist_request_id: kind === "checklist" ? requestId : null, course_request_id: kind === "course" ? requestId : null,
+      parent_id: parentId, provider, model: "test-model", location, capability: kind === "checklist" ? "taskChecklist.propose" : "courseImport.propose",
+      payload_digest: "b".repeat(64), text_bytes: 100,
+    }));
+    return id;
+  }
+  async function claim(id: string, consent = true, digest = "b".repeat(64)) {
+    return rpc("ai_claim_inference", proof("claim_inference", { id, consent, payload_digest: digest }));
+  }
+  async function failAttempt(id: string, code: string) {
+    return rpc("ai_finish_inference", proof("finish_inference", { id, status: "failed", error_code: code }));
+  }
+  it("cloud claim requires scoped privacy and one-use exact consent, not just a preference", async () => {
+    const r = await prepare();
+    await expect(attempt(r.id)).rejects.toThrow(/cloud_denied/);
+    await routePrefs();
+    const a = await attempt(r.id);
+    await expect(claim(a, false)).rejects.toThrow(/cloud_denied/);
+    await expect(claim(a, true, "c".repeat(64))).rejects.toThrow(/transfer_unavailable/);
+    await claim(a);
+    await expect(claim(a)).rejects.toThrow(/transfer_unavailable/);
+    expect(await childCount()).toBe(0);
+  });
+  it("revoked cloud privacy, stale task or cancelled request prevents egress claim", async () => {
+    await routePrefs(); const r = await prepare(), a = await attempt(r.id);
+    await db.exec("update ai_preferences set checklist_cloud=false");
+    await expect(claim(a)).rejects.toThrow(/cloud_denied/);
+    await db.exec("update ai_preferences set checklist_cloud=true");
+    await db.query("update tasks set title='Changed' where id=$1", [task]);
+    await expect(claim(a)).rejects.toThrow(/source_changed/);
+    await rpc("ai_finish_inference", proof("finish_inference", { id: a, status: "cancelled" }));
+    await expect(claim(a)).rejects.toThrow(/transfer_unavailable/);
+  });
+  it("mode changes and expiry invalidate pending cloud consent at the atomic claim", async () => {
+    await routePrefs(); const r = await prepare(), a = await attempt(r.id);
+    await db.exec("update ai_preferences set ai_mode='local'");
+    await expect(claim(a)).rejects.toThrow(/cloud_denied/);
+    await db.exec("update ai_preferences set ai_mode='openrouter'");
+    await expect(claim(a)).rejects.toThrow(/cloud_denied/);
+    await db.exec("update ai_preferences set ai_mode='auto'");
+    await db.exec("reset role");
+    await db.query("update ai_inference_attempts set expires_at=now()-interval '1 second' where id=$1", [a]);
+    await db.exec("set role authenticated");
+    await expect(claim(a)).rejects.toThrow(/transfer_unavailable/);
+  });
+  it("direct authenticated clients cannot forge inference records, claims or foreign-owner links", async () => {
+    await routePrefs(); const r = await prepare(), a = await attempt(r.id);
+    await expect(db.query("update ai_inference_attempts set status='dispatching' where id=$1", [a])).rejects.toThrow(/permission denied/);
+    await expect(db.query("delete from ai_inference_attempts where id=$1", [a])).rejects.toThrow(/permission denied/);
+    await expect(rpc("ai_claim_inference", ["{}", "0".repeat(64)])).rejects.toThrow(/authorization_denied/);
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [foreign]);
+    expect((await db.query("select * from ai_inference_attempts")).rows).toHaveLength(0);
+    await expect(rpc("ai_claim_inference", proof("claim_inference", { id: a, consent: true, payload_digest: "b".repeat(64) }, foreign))).rejects.toThrow(/transfer_unavailable/);
+  });
+  it.each(["invalid_output", "pairing_invalid", "provider_rejected"])("SQL rejects fallback on %s even with signed request", async code => {
+    await routePrefs(); const r = await prepare(), a = await attempt(r.id, "ollama"); await claim(a, false); await failAttempt(a, code);
+    await expect(attempt(r.id, "gemini", a)).rejects.toThrow(/fallback_denied/);
+  });
+  it("allows a bounded local -> Gemini -> OpenRouter chain, but never replays or retries cloud timeouts", async () => {
+    await routePrefs(); const r = await prepare(), a = await attempt(r.id, "ollama");
+    await claim(a, false); await failAttempt(a, "provider_unavailable");
+    const b = await attempt(r.id, "gemini", a); await claim(b); await failAttempt(b, "rate_limited");
+    const c = await attempt(r.id, "openrouter", b); await claim(c); await failAttempt(c, "timeout");
+    await expect(attempt(r.id, "gemini", c)).rejects.toThrow(/fallback_denied/);
+    await expect(claim(c)).rejects.toThrow(/transfer_unavailable/);
+  });
+  it("persists cloud provenance through immutable edited reviews; consent itself never applies", async () => {
+    await routePrefs(); const r = await prepare(), a = await attempt(r.id, "openrouter"); await claim(a);
+    const batch = await rpc("ai_record_checklist_proposal", proof("record_checklist", { request_id: r.id, proposal: { schema_version: 1, type: "add_task_checklist", task_handle: r.handle, items: ["Read"] } })) as string;
+    await rpc("ai_finish_inference", proof("finish_inference", { id: a, status: "succeeded", batch_id: batch, latency_ms: 25 }));
+    expect(await rpc("ai_read_inference_provenance", [batch])).toMatchObject({ provider: "openrouter", location: "cloud", evidence: "server_response", latencyMs: 25 });
+    const revised = await rpc("ai_revise_checklist", proof("revise_checklist", { batch_id: batch, proposal: { schema_version: 1, type: "add_task_checklist", task_handle: r.handle, items: ["Read carefully"] } }));
+    expect(await rpc("ai_read_inference_provenance", [revised])).toMatchObject({ provider: "openrouter" });
+    expect(await childCount()).toBe(0);
+    expect(await approve(revised as string)).toMatchObject({ ok: true });
+  });
+  it("course routing uses the same consent checks and cannot claim task authority", async () => {
+    await routePrefs(); const r = await courseRequest(), a = await attempt(r.id, "gemini", null, "course");
+    await expect(claim(a, false)).rejects.toThrow(/cloud_denied/); await claim(a);
+    await expect(attempt(r.id, "ollama", null, "checklist")).rejects.toThrow(/request_unavailable/);
+    expect(await courseCounts()).toEqual({ courses: 0, meetings: 0 });
+  });
+  it("remote inference issues only one ticket per claimed request", async () => {
+    const r = await prepare(), a = await attempt(r.id, "ollama", null, "checklist", "remote_local"); await claim(a, false);
+    await rpc("ai_claim_remote_ticket", proof("claim_remote_ticket", { id: a }));
+    await expect(rpc("ai_claim_remote_ticket", proof("claim_remote_ticket", { id: a }))).rejects.toThrow(/request_unavailable/);
+  });
   it("rejects forged ownership, expired proof and wrong operation even with a valid MAC", async () => {
     await expect(
       rpc(

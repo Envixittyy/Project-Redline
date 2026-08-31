@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   revise: vi.fn(),
   session: vi.fn(),
   infer: vi.fn(),
+  route: vi.fn(),
 }));
 vi.mock("@/services/integrations/ai/course-import-repository", () => ({
   approveCourseImport: mocks.apply,
@@ -22,12 +23,14 @@ vi.mock("@/services/integrations/ai/companion-session", () => ({
 vi.mock("@/services/integrations/ai/companion-client", () => ({
   inferLocalContent: mocks.infer,
 }));
+vi.mock("./routing-client", () => ({ generateRoutedProposal: mocks.route }));
 import { applyCourseImportAction } from "./course-import-actions";
 import { generateCourseImport } from "./course-import-client";
 describe("course browser orchestration and approval", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.session.mockReturnValue({ provider: "ollama", model: "test" });
+    mocks.route.mockResolvedValue({ ok: false, code: "local_unavailable", message: "Local AI unavailable." });
   });
   it("approval accepts only a persisted ID and ignores extra browser actions", async () => {
     mocks.apply.mockResolvedValue({ ok: true });
@@ -40,19 +43,15 @@ describe("course browser orchestration and approval", () => {
     expect(mocks.apply).toHaveBeenCalledWith("batch");
   });
   it("generation uploads selected bytes and runs only the server-produced inference request, then persists untrusted output without applying", async () => {
-    const inference = { prompt: "canonical", model: "test" };
-    mocks.prepare.mockResolvedValue({ requestId: "request", inference });
+    mocks.route.mockResolvedValue({ ok: true, review: { batchId: "review" } });
     mocks.infer.mockResolvedValue("untrusted output");
     mocks.finalize.mockResolvedValue({ batchId: "review" });
     const file = new File(["CS101"], "course.txt");
     expect((await generateCourseImport(file)).ok).toBe(true);
-    expect(mocks.prepare.mock.calls[0][0].get("file")).toBe(file);
-    expect(mocks.infer).toHaveBeenCalledWith(
-      { provider: "ollama", model: "test" },
-      inference,
-      undefined,
-    );
-    expect(mocks.finalize).toHaveBeenCalledWith("request", "untrusted output");
+    expect(mocks.route.mock.calls[0][0]).toBe("course");
+    expect(mocks.route.mock.calls[0][1].get("file")).toBe(file);
+    expect(mocks.route.mock.calls[0][2]).toEqual({ provider: "ollama", model: "test" });
+    expect(mocks.prepare).not.toHaveBeenCalled();
     expect(mocks.apply).not.toHaveBeenCalled();
   });
   it("unpaired, cancelled, and disconnected requests cannot reach application mutation", async () => {

@@ -33,7 +33,17 @@ export function validateLoopbackUrl(value: string): URL {
   return url;
 }
 
+export function validatePrivateCompanionOrigin(value: string): URL {
+  const url = new URL(value);
+  if (value.length > 200 || url.protocol !== "https:" || url.origin !== value || url.port ||
+      !/^[a-z0-9][a-z0-9-]{0,62}\.[a-z0-9][a-z0-9-]{0,62}\.ts\.net$/.test(url.hostname))
+    throw new Error("A private Tailscale HTTPS origin is required.");
+  return url;
+}
 export function validateCompanionUrl(value: string): URL {
+  // Build-time operator configuration, not a browser-configurable endpoint.
+  const remote = process.env.NEXT_PUBLIC_COMPANION_REMOTE_ORIGIN;
+  if (remote && value === remote) return validatePrivateCompanionOrigin(remote);
   const url = validateLoopbackUrl(value);
   if (
     url.pathname !== "/" ||

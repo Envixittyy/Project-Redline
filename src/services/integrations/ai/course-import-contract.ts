@@ -37,6 +37,7 @@ export type CourseImportProposal = {
   course: CourseProposal;
 };
 export type CourseImportReview = {
+  provenance?: import("./routing-contract").InferenceProvenance | null;
   batchId: string;
   proposal: CourseProposal;
   fileName: string;

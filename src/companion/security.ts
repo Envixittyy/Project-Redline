@@ -28,7 +28,7 @@ export function validateConfiguredOrigin(origin: string): boolean {
 }
 
 export class CompanionTokenManager {
-  private active: { token: string; origin: string; expires: number } | null =
+  private active: { token: string; origin: string; expires: number; identity?: string } | null =
     null;
   private readonly secret: string;
   private readonly secretExpires: number;
@@ -43,7 +43,7 @@ export class CompanionTokenManager {
   getPairingSecret() {
     return this.secret;
   }
-  pair(secret: unknown, origin: string) {
+  pair(secret: unknown, origin: string, identity?: string) {
     const provided = Buffer.from(typeof secret === "string" ? secret : "");
     const expected = Buffer.from(this.secret);
     if (
@@ -58,19 +58,19 @@ export class CompanionTokenManager {
       };
     }
     const token = `fwd_comp_${crypto.randomBytes(32).toString("hex")}`;
-    this.active = { token, origin, expires: Date.now() + this.ttl };
+    this.active = { token, origin, expires: Date.now() + this.ttl, identity };
     return {
       ok: true as const,
       token,
       expiresAt: new Date(this.active.expires).toISOString(),
     };
   }
-  verify(token: string | undefined, origin?: string): boolean {
+  verify(token: string | undefined, origin?: string, identity?: string): boolean {
     this.purgeExpired();
     return (
       !!this.active &&
       token === this.active.token &&
-      origin === this.active.origin
+      origin === this.active.origin && identity === this.active.identity
     );
   }
   revoke(token: string | undefined): boolean {

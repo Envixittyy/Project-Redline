@@ -11,6 +11,11 @@ export class AiRepositoryError extends Error {
 }
 
 type PreferencesRow = {
+  ai_mode?: import("./routing-contract").AiMode;
+  preferred_cloud?: import("./routing-contract").CloudProvider;
+  secondary_cloud?: boolean;
+  checklist_cloud?: boolean;
+  course_import_cloud?: boolean;
   id: string;
   user_id: string;
   cloud_enabled: boolean;
@@ -26,6 +31,11 @@ type PreferencesRow = {
 
 function toAiPreferences(row: PreferencesRow): AiPreferences {
   return {
+    aiMode: row.ai_mode ?? "auto",
+    preferredCloud: row.preferred_cloud ?? "gemini",
+    secondaryCloud: row.secondary_cloud ?? false,
+    checklistCloud: row.checklist_cloud ?? false,
+    courseImportCloud: row.course_import_cloud ?? false,
     id: row.id,
     userId: row.user_id,
     cloudEnabled: row.cloud_enabled,
@@ -82,12 +92,15 @@ export async function getAiPreferences(): Promise<AiPreferences> {
 
 /** Updates user AI preferences. */
 export async function updateAiPreferences(
-  patch: Partial<Pick<AiPreferences, "cloudEnabled" | "defaultProvider" | "textModel" | "cloudFallbackMode" | "permissionMode">>,
+  patch: Partial<Pick<AiPreferences, "cloudEnabled" | "defaultProvider" | "textModel" | "cloudFallbackMode" | "permissionMode" | "aiMode" | "preferredCloud" | "secondaryCloud" | "checklistCloud" | "courseImportCloud">>,
 ): Promise<{ ok: boolean; message: string }> {
   const { client, userId } = await requireAuthenticatedSupabase();
 
   if (!patch || typeof patch !== "object" || Array.isArray(patch)
-    || Object.keys(patch).some(k => !["cloudEnabled","defaultProvider","textModel","cloudFallbackMode","permissionMode"].includes(k))
+    || Object.keys(patch).some(k => !["cloudEnabled","defaultProvider","textModel","cloudFallbackMode","permissionMode","aiMode","preferredCloud","secondaryCloud","checklistCloud","courseImportCloud"].includes(k))
+    || (patch.aiMode !== undefined && !["auto","local","gemini","openrouter"].includes(patch.aiMode))
+    || (patch.preferredCloud !== undefined && !["gemini","openrouter"].includes(patch.preferredCloud))
+    || [patch.secondaryCloud,patch.checklistCloud,patch.courseImportCloud].some(v => v !== undefined && typeof v !== "boolean")
     || (patch.cloudEnabled !== undefined && typeof patch.cloudEnabled !== "boolean")
     || (patch.defaultProvider != null && !["anthropic","gemini","openai"].includes(patch.defaultProvider))
     || (patch.textModel != null && (typeof patch.textModel !== "string" || patch.textModel.length > 200))
@@ -104,6 +117,11 @@ export async function updateAiPreferences(
   if (patch.textModel !== undefined) updatePayload.text_model = patch.textModel;
   if (patch.cloudFallbackMode !== undefined) updatePayload.cloud_fallback_mode = patch.cloudFallbackMode;
   if (patch.permissionMode !== undefined) updatePayload.permission_mode = patch.permissionMode;
+  if (patch.aiMode !== undefined) updatePayload.ai_mode = patch.aiMode;
+  if (patch.preferredCloud !== undefined) updatePayload.preferred_cloud = patch.preferredCloud;
+  if (patch.secondaryCloud !== undefined) updatePayload.secondary_cloud = patch.secondaryCloud;
+  if (patch.checklistCloud !== undefined) updatePayload.checklist_cloud = patch.checklistCloud;
+  if (patch.courseImportCloud !== undefined) updatePayload.course_import_cloud = patch.courseImportCloud;
 
   const { error } = await client
     .from("ai_preferences")

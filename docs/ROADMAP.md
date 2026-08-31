@@ -153,7 +153,9 @@ graph TD
 - **9B: Cloud Privacy Consent Gate [`COMPLETE` | Architecture gate approved | Medium | Risk: High | Reviewer: Codex | Model: Gemini 3.7 Flash]**
   - Implemented owner-scoped `ai_preferences` and metadata-only `ai_transfer_requests` state machine with 5-minute consent expiration, 30-day audit retention, canonical SHA-256 payload digest binding, interactive disclosure UI (`AiDisclosureModal`), entity handle translation, and Propose → Review → Commit boundary via `operation_batches`.
 
-### Phase 10: Local AI Companion & Vision Ingestion (P6/P7)
+### Phase 10: Local AI Companion & Remote/Hybrid Routing (P6/P7)
+
+**Explicit scope update (2026-08-31):** The user's Phase 10B assignment is remote + hybrid routing. The previously numbered image/screenshot ingestion work remains deferred and was not implemented. Historical Phase 10A limitations below describe its original deployment boundary; see 10B for the additive current transport.
 - **10A: Local Companion Transport & Security Architecture [`IMPLEMENTED — DEPLOYMENT VERIFICATION PENDING` | Large | Risk: High | Reviewer: Codex]**
   - Direct desktop-browser transport to fixed `127.0.0.1:41400`; hosted servers never route to the PC. Exact origin, expiring pairing, fixed runtime destinations/routes, bounded responses, cancellation, and no redirect following.
   - Three adapters: Ollama, llama.cpp, and local OpenAI-compatible. Real-model and hosted-origin permission checks remain deployment prerequisites; iPhone-to-PC transport is unsupported.
@@ -161,8 +163,13 @@ graph TD
   - Server-authenticated proposal provenance under restrictive RLS; ID-only approval through the task repository; domain-specific atomic task/checklist/audit and course/meetings/audit SQL transactions. No service-role AI client, deletion, generic action executor, existing-course edits, or automation.
   - Gemini checkpoint `15493bc` was selectively integrated under the explicit security-review correction: checklist review, text course import (TXT/MD/CSV/ICS only), personalized Home, truthful telemetry, hidden commands, and motion/accessibility. Edited proposals require a new immutable review before approval. This does not start Phase 10B; settings redesign and additional document formats remain separate work.
   - Normal application features remain independent of AI. Key/migration provisioning and manual target-browser validation are documented in `docs/LOCAL_COMPANION_ARCHITECTURE.md`.
-- **10B: Image & Screenshot Ingestion Pipeline [`PLANNED` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
-  - Universal Capture image upload, lightweight local vision worker on-demand lifecycle (60–180s idle unload), and proposal generation.
+- **10B: Remote + Hybrid AI Routing [`IMPLEMENTED — DEPLOYMENT VERIFICATION PENDING` | Large | Risk: High | Reviewer: Codex]**
+  - Provider-neutral Auto/Local/Gemini/OpenRouter routing for the two existing capabilities only; canonical source reconstruction, per-domain cloud opt-in, one-use disclosed consent, infrastructure-only bounded fallback, and persisted informational provenance.
+  - Same-PC loopback preserved. Separate loopback-only remote backend behind private Tailscale Serve; authenticated server-signed, one-use request tickets and owner/device-bound pairing. No public listener, runtime exposure, generic proxy, or relay service.
+  - Server-only Gemini/OpenRouter keys, fixed endpoints, configured model IDs, bounded structured responses. Old generic cloud paths remain disabled; review/apply/atomic audit contracts are unchanged.
+  - Synthetic database, server, adapter, transport, and browser checks pass. Physical iPhone/PWA, outside-home and other-laptop verification, real models/provider accounts, keys, and deployed migrations remain operator prerequisites. See `docs/REMOTE_HYBRID_AI.md` and `docs/PHASE10B_REMOTE_HYBRID_REPORT.md`.
+- **Image & Screenshot Ingestion Pipeline [`DEFERRED — NOT PART OF 10B`]**
+  - Universal Capture image upload and local vision worker remain unimplemented pending an explicit later assignment; no OCR or vision work is included here.
 
 ### Phase 11: Recurring Tasks & Targeted Automation
 - **11A: Recurring Task Data Model & Recurrence Engine [`ARCHITECTURE REVIEW REQUIRED` | Medium | Risk: High | Reviewer: Codex / Claude Sonnet]**

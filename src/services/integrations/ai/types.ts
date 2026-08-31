@@ -78,6 +78,11 @@ export type TaskChecklist = {
 };
 
 export type AiPreferences = {
+  aiMode?: import("./routing-contract").AiMode;
+  preferredCloud?: import("./routing-contract").CloudProvider;
+  secondaryCloud?: boolean;
+  checklistCloud?: boolean;
+  courseImportCloud?: boolean;
   id: string;
   userId: string;
   cloudEnabled: boolean;

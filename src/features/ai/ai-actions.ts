@@ -48,6 +48,7 @@ export async function updateAiPreferencesAction(
       | "textModel"
       | "cloudFallbackMode"
       | "permissionMode"
+      | "aiMode" | "preferredCloud" | "secondaryCloud" | "checklistCloud" | "courseImportCloud"
     >
   >,
 ) {

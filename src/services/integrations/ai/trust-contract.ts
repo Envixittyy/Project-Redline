@@ -28,6 +28,7 @@ export type ChecklistContext = {
   revision: string;
 };
 export type ChecklistReview = {
+  provenance?: import("./routing-contract").InferenceProvenance | null;
   batchId: string;
   taskTitle: string;
   items: string[];

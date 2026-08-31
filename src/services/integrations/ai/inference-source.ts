@@ -4,6 +4,9 @@ import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import { readTaskChecklistContext } from "@/services/tasks/task-repository";
 import { AiTrustError, checklistPrompt, uuid } from "./trust-contract";
 import { courseImportPrompt } from "./course-import-contract";
+import { schedulePrompt } from "./school-schedule-contract";
+import { blackboardCoursePrompt } from "./blackboard-screenshot-contract";
+import { academicCalendarPrompt } from "./academic-calendar-contract";
 import { capabilityFor, type RequestKind } from "./routing-contract";
 
 export async function readInferenceSource(kind: RequestKind, requestId: unknown, model: string) {
@@ -19,10 +22,32 @@ export async function readInferenceSource(kind: RequestKind, requestId: unknown,
     const context = await readTaskChecklistContext(r.task_id);
     if (context.revision !== r.source_revision) throw new AiTrustError("source_changed");
     prompt = checklistPrompt(context, r.task_handle);
-  } else {
+  } else if (kind === "course") {
     if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
     prompt = courseImportPrompt(r.source_text, r.source_handle);
+  } else if (kind === "schedule_image") {
+    if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
+    const match = r.source_text.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+    if (!match) throw new AiTrustError("source_changed");
+    prompt = schedulePrompt(r.source_handle, match[2], match[1]);
+  } else if (kind === "blackboard_image") {
+    if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
+    const match = r.source_text.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+    if (!match) throw new AiTrustError("source_changed");
+    prompt = blackboardCoursePrompt(r.source_handle, match[2], match[1]);
+  } else if (kind === "academic_calendar") {
+    if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
+    if (r.source_text.startsWith("data:image/")) {
+      const match = r.source_text.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+      if (!match) throw new AiTrustError("source_changed");
+      prompt = academicCalendarPrompt(r.source_handle, { image: { base64: match[2], mimeType: match[1] } });
+    } else {
+      prompt = academicCalendarPrompt(r.source_handle, { text: r.source_text });
+    }
+  } else {
+    throw new AiTrustError("capability_denied");
   }
+
   const inference = { ...prompt, model };
   // Stable insertion order, versioned and fixture-tested. Provider and capability are
   // separately immutable columns; the digest binds every transmitted inference field.

@@ -1,5 +1,8 @@
 import { AiTrustError, CHECKLIST_CAPABILITY } from "./trust-contract";
 import { COURSE_IMPORT_CAPABILITY } from "./course-import-contract";
+import { SCHEDULE_IMAGE_CAPABILITY } from "./school-schedule-contract";
+import { BLACKBOARD_COURSE_IMAGE_CAPABILITY } from "./blackboard-screenshot-contract";
+import { ACADEMIC_CALENDAR_CAPABILITY } from "./academic-calendar-contract";
 import { isModelId } from "@/companion/network-policy";
 import type { LocalInferenceRequest } from "@/companion/types";
 import type { LocalProviderType } from "./types";
@@ -8,7 +11,12 @@ export type AiMode = "auto" | "local" | "gemini" | "openrouter";
 export type CloudProvider = "gemini" | "openrouter";
 export type InferenceProvider = LocalProviderType | CloudProvider;
 export type InferenceLocation = "local" | "remote_local" | "cloud";
-export type RequestKind = "checklist" | "course";
+export type RequestKind =
+  | "checklist"
+  | "course"
+  | "schedule_image"
+  | "blackboard_image"
+  | "academic_calendar";
 export type RoutingPreferences = {
   aiMode: AiMode;
   cloudEnabled: boolean;
@@ -47,13 +55,23 @@ export type RoutedPreparation = {
 export function capabilityFor(kind: RequestKind) {
   if (kind === "checklist") return CHECKLIST_CAPABILITY;
   if (kind === "course") return COURSE_IMPORT_CAPABILITY;
+  if (kind === "schedule_image") return SCHEDULE_IMAGE_CAPABILITY;
+  if (kind === "blackboard_image") return BLACKBOARD_COURSE_IMAGE_CAPABILITY;
+  if (kind === "academic_calendar") return ACADEMIC_CALENDAR_CAPABILITY;
   throw new AiTrustError("capability_denied");
 }
 /** Unknown/future domains (including journals/wellness) fail closed. */
 export function cloudAllowed(capability: string, prefs: RoutingPreferences): boolean {
   if (!prefs.cloudEnabled || prefs.cloudFallbackMode === "off") return false;
   if (capability === CHECKLIST_CAPABILITY.id) return prefs.checklistCloud === true;
-  if (capability === COURSE_IMPORT_CAPABILITY.id) return prefs.courseImportCloud === true;
+  if (
+    capability === COURSE_IMPORT_CAPABILITY.id ||
+    capability === SCHEDULE_IMAGE_CAPABILITY.id ||
+    capability === BLACKBOARD_COURSE_IMAGE_CAPABILITY.id ||
+    capability === ACADEMIC_CALENDAR_CAPABILITY.id
+  ) {
+    return prefs.courseImportCloud === true;
+  }
   return false;
 }
 export function isCloud(provider: string): provider is CloudProvider {

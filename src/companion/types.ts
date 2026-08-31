@@ -22,6 +22,8 @@ export type LocalInferenceRequest = {
   temperature?: number;
   maxTokens?: number;
   formatJson?: boolean;
+  images?: string[];
+  keepAlive?: string;
 };
 
 export type LocalInferenceResponse = {

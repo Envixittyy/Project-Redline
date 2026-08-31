@@ -14,6 +14,13 @@ import {
   type RoutedPreparation, type RoutingPreferences,
 } from "./routing-contract";
 
+import { prepareScheduleImport, finalizeScheduleImport } from "./schedule-import-repository";
+import { prepareBlackboardScreenshotImport, finalizeBlackboardScreenshotImport } from "./blackboard-screenshot-repository";
+import { prepareAcademicCalendarImport, finalizeAcademicCalendarImport } from "./academic-calendar-repository";
+import { SCHEDULE_IMAGE_CAPABILITY } from "./school-schedule-contract";
+import { BLACKBOARD_COURSE_IMAGE_CAPABILITY } from "./blackboard-screenshot-contract";
+import { ACADEMIC_CALENDAR_CAPABILITY } from "./academic-calendar-contract";
+
 export async function routingPreferences(): Promise<RoutingPreferences> {
   const p = await getAiPreferences();
   return { aiMode: p.aiMode ?? "auto", preferredCloud: p.preferredCloud ?? "gemini", secondaryCloud: p.secondaryCloud ?? false,
@@ -38,7 +45,15 @@ export async function loadInferenceAttempt(id: unknown) {
     .eq("id", uuid(id)).eq("user_id", userId).maybeSingle();
   if (error || !data || Date.parse(data.expires_at) <= Date.now()) throw new AiTrustError("request_unavailable");
   const a = data as Attempt;
-  const kind: RequestKind = a.checklist_request_id ? "checklist" : "course";
+  const kind: RequestKind = a.checklist_request_id
+    ? "checklist"
+    : a.capability === SCHEDULE_IMAGE_CAPABILITY.id
+    ? "schedule_image"
+    : a.capability === BLACKBOARD_COURSE_IMAGE_CAPABILITY.id
+    ? "blackboard_image"
+    : a.capability === ACADEMIC_CALENDAR_CAPABILITY.id
+    ? "academic_calendar"
+    : "course";
   if (a.capability !== capabilityFor(kind).id) throw new AiTrustError("capability_denied");
   return { ...a, kind, requestId: a.checklist_request_id ?? a.course_request_id! };
 }
@@ -46,7 +61,7 @@ async function prepareAttempt(kind: RequestKind, requestId: string, provider: In
   const source = await readInferenceSource(kind, requestId, model);
   const id = randomUUID(), capability = capabilityFor(kind);
   await rpc("prepare_inference", { id, checklist_request_id: kind === "checklist" ? requestId : null,
-    course_request_id: kind === "course" ? requestId : null, parent_id: parentId ?? null, provider, model, location,
+    course_request_id: kind !== "checklist" ? requestId : null, parent_id: parentId ?? null, provider, model, location,
     capability: capability.id, payload_digest: source.digest, text_bytes: source.bytes });
   return { attemptId: id, requestId, kind, provider, model, location,
     ...(location !== "cloud" ? { inference: source.inference } : {}),
@@ -61,7 +76,16 @@ export async function prepareRoutedInference(kind: RequestKind, input: unknown, 
   const provider = first === "local" ? selected?.provider ?? "ollama" : first;
   const model = first === "local" ? selected?.model ?? "unconfigured" : cloudAvailability(first).model ?? "unconfigured";
   const location = first === "local" ? selected?.location ?? "local" : "cloud";
-  const prepared = kind === "checklist" ? await prepareTaskChecklist(input, provider, model) : await prepareCourseImport(input as FormData, provider, model);
+  const prepared =
+    kind === "checklist"
+      ? await prepareTaskChecklist(input, provider, model)
+      : kind === "course"
+      ? await prepareCourseImport(input as FormData, provider, model)
+      : kind === "schedule_image"
+      ? await prepareScheduleImport(input as FormData, provider, model)
+      : kind === "blackboard_image"
+      ? await prepareBlackboardScreenshotImport(input as FormData, provider, model)
+      : await prepareAcademicCalendarImport(input as FormData, provider, model);
   return prepareAttempt(kind, prepared.requestId, provider, model, location);
 }
 export async function claimLocalInference(id: unknown) {
@@ -78,7 +102,16 @@ async function finish(id: string, status: "failed" | "succeeded" | "cancelled", 
 }
 async function finalize(a: Awaited<ReturnType<typeof loadInferenceAttempt>>, raw: unknown, latencyMs?: number) {
   if (a.status !== "dispatching") throw new AiTrustError("request_unavailable");
-  const review = a.kind === "checklist" ? await finalizeTaskChecklist(a.requestId, raw, true) : await finalizeCourseImport(a.requestId, raw, true);
+  const review =
+    a.kind === "checklist"
+      ? await finalizeTaskChecklist(a.requestId, raw, true)
+      : a.kind === "course"
+      ? await finalizeCourseImport(a.requestId, raw, true)
+      : a.kind === "schedule_image"
+      ? await finalizeScheduleImport(a.requestId, raw)
+      : a.kind === "blackboard_image"
+      ? await finalizeBlackboardScreenshotImport(a.requestId, raw)
+      : await finalizeAcademicCalendarImport(a.requestId, raw);
   await finish(a.id, "succeeded", undefined, review.batchId, latencyMs);
   const provenance: InferenceProvenance = { provider: a.provider, model: a.model, location: a.location,
     evidence: a.location === "cloud" ? "server_response" : "browser_relay", latencyMs: latencyMs ?? null };

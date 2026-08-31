@@ -125,7 +125,23 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
       if (request.systemPrompt) {
         messages.push({ role: "system", content: request.systemPrompt });
       }
-      messages.push({ role: "user", content: request.prompt });
+
+      if (request.images && request.images.length > 0) {
+        messages.push({
+          role: "user",
+          content: [
+            { type: "text", text: request.prompt },
+            ...request.images.map((img) => ({
+              type: "image_url",
+              image_url: {
+                url: img.startsWith("data:") ? img : `data:image/png;base64,${img}`,
+              },
+            })),
+          ],
+        });
+      } else {
+        messages.push({ role: "user", content: request.prompt });
+      }
 
       const payload: Record<string, unknown> = {
         model: request.model,

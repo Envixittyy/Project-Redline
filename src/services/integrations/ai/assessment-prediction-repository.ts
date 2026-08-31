@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
 
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
@@ -18,6 +19,7 @@ export async function prepareAssessmentPredictions(
   provider: string,
   model: string,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const validCourseId = uuid(courseId);
 
@@ -132,6 +134,7 @@ export async function finalizeAssessmentPredictions(
   requestId: string,
   rawOutput: unknown,
 ): Promise<AssessmentPredictionReview> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client
@@ -188,6 +191,7 @@ export type AssessmentPredictionApplyInput = {
 };
 
 export async function applyAssessmentPredictions(input: AssessmentPredictionApplyInput) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const batchId = uuid(input.batchId);
 

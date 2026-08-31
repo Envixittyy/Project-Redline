@@ -119,6 +119,9 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
     signal?: AbortSignal,
   ): Promise<LocalInferenceResponse> {
     try {
+      if (request.images !== undefined) {
+        throw new LocalAdapterError("Vision is not enabled for this capability.", "unsupported_modality");
+      }
       const chatUrl = this.resolveUrl(endpoint, "/v1/chat/completions");
 
       const messages = [];
@@ -126,22 +129,7 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
         messages.push({ role: "system", content: request.systemPrompt });
       }
 
-      if (request.images && request.images.length > 0) {
-        messages.push({
-          role: "user",
-          content: [
-            { type: "text", text: request.prompt },
-            ...request.images.map((img) => ({
-              type: "image_url",
-              image_url: {
-                url: img.startsWith("data:") ? img : `data:image/png;base64,${img}`,
-              },
-            })),
-          ],
-        });
-      } else {
-        messages.push({ role: "user", content: request.prompt });
-      }
+      messages.push({ role: "user", content: request.prompt });
 
       const payload: Record<string, unknown> = {
         model: request.model,

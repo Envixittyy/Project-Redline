@@ -213,6 +213,75 @@ describe("AI trust boundary in PostgreSQL (actual migrations, authenticated role
     await db.query("delete from ai_preferences where user_id=$1", [owner]);
   });
 
+  async function seedPrediction(user = owner) {
+    await db.exec("reset role");
+    const courseId = (await db.query<{ id: string }>(
+      "insert into courses(user_id,code,name) values($1,$2,'Review fixture') returning id", [user, randomUUID()],
+    )).rows[0].id;
+    const predictionId = (await db.query<{ id: string }>(
+      "insert into school_assessment_predictions(user_id,course_id,prediction_type,title,predicted_date,confidence,rationale) values($1,$2,'quiz','Possible quiz','2026-09-10','MEDIUM','Fixture only') returning id", [user, courseId],
+    )).rows[0].id;
+    await db.exec("set role authenticated");
+    return { courseId, predictionId };
+  }
+
+  it("prediction quarantine denies direct content, status and deletion authority", async () => {
+    const { courseId, predictionId } = await seedPrediction();
+    await expect(db.query("insert into school_assessment_predictions(course_id,prediction_type,title,predicted_date,confidence,rationale) values($1,'quiz','Forged','2026-09-10','HIGH','Forged')", [courseId])).rejects.toThrow(/permission denied/);
+    await expect(db.query("update school_assessment_predictions set status='confirmed' where id=$1", [predictionId])).rejects.toThrow(/permission denied/);
+    await expect(db.query("delete from school_assessment_predictions where id=$1", [predictionId])).rejects.toThrow(/permission denied/);
+    await expect(rpc("confirm_assessment_prediction", [predictionId])).rejects.toThrow(/permission denied/);
+    expect((await db.query("select id from school_assessment_predictions")).rows).toHaveLength(1);
+  });
+
+  it("prediction reads and atomic dismissal remain owner scoped and replay safe", async () => {
+    const mine = await seedPrediction();
+    const theirs = await seedPrediction(foreign);
+    expect((await db.query("select id from school_assessment_predictions")).rows).toEqual([{ id: mine.predictionId }]);
+    expect(await rpc("dismiss_assessment_prediction", [theirs.predictionId])).toEqual({ ok: false });
+    expect(await rpc("dismiss_assessment_prediction", [randomUUID()])).toEqual({ ok: false });
+    expect(await rpc("dismiss_assessment_prediction", [mine.predictionId])).toEqual({ ok: true });
+    expect(await rpc("dismiss_assessment_prediction", [mine.predictionId])).toEqual({ ok: false });
+    expect((await db.query("select id from tasks")).rows).toHaveLength(1);
+    await db.exec("set role anon");
+    await expect(rpc("dismiss_assessment_prediction", [mine.predictionId])).rejects.toThrow(/permission denied/);
+    await expect(rpc("confirm_assessment_prediction", [mine.predictionId])).rejects.toThrow(/permission denied/);
+    await expect(db.query("select * from school_assessment_predictions")).rejects.toThrow(/permission denied/);
+  });
+
+  it("prediction terminal states cannot reopen or confirm without a reviewed conversion", async () => {
+    const { predictionId } = await seedPrediction();
+    await db.exec("reset role");
+    await expect(db.query("update school_assessment_predictions set status='confirmed' where id=$1", [predictionId])).rejects.toThrow(/transition unavailable/);
+    await db.query("update school_assessment_predictions set status='superseded' where id=$1", [predictionId]);
+    await expect(db.query("update school_assessment_predictions set status='active' where id=$1", [predictionId])).rejects.toThrow(/transition unavailable/);
+    await db.exec("set role authenticated");
+    expect(await rpc("dismiss_assessment_prediction", [predictionId])).toEqual({ ok: false });
+  });
+
+  it("prediction owner and every source relationship are checked even for privileged writes", async () => {
+    const mine = await seedPrediction();
+    const theirs = await seedPrediction(foreign);
+    await db.exec("reset role");
+    const event = (await db.query<{ id: string }>("insert into calendar_events(user_id,title,starts_at,ends_at) values($1,'Foreign event','2026-09-10T00:00Z','2026-09-11T00:00Z') returning id", [foreign])).rows[0].id;
+    const material = (await db.query<{ id: string }>("insert into course_materials(user_id,course_id,title,type) values($1,$2,'Foreign syllabus','syllabus') returning id", [foreign, theirs.courseId])).rows[0].id;
+    const account = (await db.query<{ id: string }>("insert into integration_accounts(user_id,provider,encrypted_credential) values($1,'blackboard','fixture') returning id", [foreign])).rows[0].id;
+    const record = (await db.query<{ id: string }>("insert into external_records(user_id,account_id,provider,external_uid,normalized_title,content_hash,course_id) values($1,$2,'blackboard','fixture','Quiz','fixture',$3) returning id", [foreign, account, theirs.courseId])).rows[0].id;
+    for (const [column, id] of [["course_id", theirs.courseId], ["academic_calendar_id", event], ["syllabus_material_id", material], ["blackboard_record_id", record]]) {
+      await expect(db.query(`update school_assessment_predictions set ${column}=$1 where id=$2`, [id, mine.predictionId])).rejects.toThrow(/must belong/);
+    }
+    await expect(db.query("update school_assessment_predictions set user_id=$1,course_id=$2 where id=$3", [foreign, theirs.courseId, mine.predictionId])).rejects.toThrow(/ownership is immutable/);
+  });
+
+  it("new capability names cannot be smuggled into signed course source persistence", async () => {
+    for (const capability of ["schoolScheduleImage.propose", "blackboardCourseImage.propose", "academicCalendarImport.propose", "schoolAssessmentPrediction.propose", "noteSummary.propose", "noteRewrite.propose", "noteActionItems.propose", "quickCapture.propose", "dailyPlanAdvice.propose", "courseMaterialSummary.propose", "courseMaterialStudyQuestions.propose", "contextualAssistant.propose"]) {
+      await expect(rpc("ai_create_course_request", proof("prepare_course", {
+        id: randomUUID(), source_handle: "document_fixture", source_text: "source", source_digest: createHash("sha256").update("source").digest("hex"), file_name: "source.txt", capability, provider: "ollama", model: "test-model", start_date: "2026-08-31", time_zone: "Asia/Manila",
+      }))).rejects.toThrow();
+    }
+    expect((await db.query("select * from ai_course_requests")).rows).toHaveLength(0);
+  });
+
   it("cannot read the signing secret or call its private verifier", async () => {
     await expect(
       db.query("select * from ai_private.signing_key"),

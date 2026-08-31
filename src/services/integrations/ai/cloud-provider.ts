@@ -28,6 +28,8 @@ export const CLOUD_PRIVACY_URLS = {
 
 /** Fixed destinations. Caller must claim an exact persisted transfer first. */
 export async function inferCloud(provider: CloudProvider, input: LocalInferenceRequest): Promise<string> {
+  // No reviewed binary-transfer manifest or provider modality catalog exists yet.
+  if (input.images !== undefined) throw new AiTrustError("capability_denied");
   const key = credential(provider);
   if (input.model !== cloudModel(provider)) throw new AiTrustError("provider_configuration_changed");
   if (Buffer.byteLength(input.prompt) > 32768 || Buffer.byteLength(input.systemPrompt ?? "") > 8192 ||
@@ -37,33 +39,13 @@ export async function inferCloud(provider: CloudProvider, input: LocalInferenceR
     ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`
     : "https://openrouter.ai/api/v1/chat/completions";
 
-  const geminiUserParts: Array<Record<string, unknown>> = [{ text: input.prompt }];
-  if (input.images && input.images.length > 0) {
-    for (const img of input.images) {
-      const match = img.match(/^data:(image\/[a-z]+);base64,(.+)$/);
-      const mimeType = match ? match[1] : "image/png";
-      const data = match ? match[2] : img;
-      geminiUserParts.push({ inlineData: { mimeType, data } });
-    }
-  }
-
-  const openRouterUserContent = input.images && input.images.length > 0
-    ? [
-        { type: "text", text: input.prompt },
-        ...input.images.map((img) => ({
-          type: "image_url",
-          image_url: { url: img.startsWith("data:") ? img : `data:image/png;base64,${img}` },
-        })),
-      ]
-    : input.prompt;
-
   const body = gemini ? {
     systemInstruction: { parts: [{ text: input.systemPrompt }] },
-    contents: [{ role: "user", parts: geminiUserParts }],
+    contents: [{ role: "user", parts: [{ text: input.prompt }] }],
     generationConfig: { responseMimeType: "application/json", temperature: 0.2, maxOutputTokens: input.maxTokens ?? 2048, candidateCount: 1 },
   } : {
     model: input.model,
-    messages: [{ role: "system", content: input.systemPrompt }, { role: "user", content: openRouterUserContent }],
+    messages: [{ role: "system", content: input.systemPrompt }, { role: "user", content: input.prompt }],
     stream: false, temperature: 0.2, max_tokens: input.maxTokens ?? 2048,
     response_format: { type: "json_object" },
     provider: { allow_fallbacks: false, require_parameters: true, data_collection: "deny", zdr: true },

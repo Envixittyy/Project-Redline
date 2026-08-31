@@ -109,6 +109,9 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
     signal?: AbortSignal,
   ): Promise<LocalInferenceResponse> {
     try {
+      if (request.images !== undefined) {
+        throw new LocalAdapterError("Vision is not enabled for this capability.", "unsupported_modality");
+      }
       const url = validateLoopbackUrl(endpoint);
       if (url.pathname !== "/")
         throw new LocalAdapterError(
@@ -121,19 +124,12 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
       if (request.systemPrompt) {
         messages.push({ role: "system", content: request.systemPrompt });
       }
-      const userMessage: Record<string, unknown> = { role: "user", content: request.prompt };
-      if (request.images && request.images.length > 0) {
-        userMessage.images = request.images.map((img) =>
-          img.replace(/^data:image\/[a-z]+;base64,/, ""),
-        );
-      }
-      messages.push(userMessage);
+      messages.push({ role: "user", content: request.prompt });
 
       const payload: Record<string, unknown> = {
         model: request.model,
         messages,
         stream: false,
-        keep_alive: request.keepAlive ?? "5m",
       };
 
       if (request.formatJson) {

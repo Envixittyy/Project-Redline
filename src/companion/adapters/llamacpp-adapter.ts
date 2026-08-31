@@ -125,6 +125,9 @@ export class LlamaCppAdapter implements LocalRuntimeAdapter {
     signal?: AbortSignal,
   ): Promise<LocalInferenceResponse> {
     try {
+      if (request.images !== undefined) {
+        throw new LocalAdapterError("Vision is not enabled for this capability.", "unsupported_modality");
+      }
       const url = validateLoopbackUrl(endpoint);
       if (url.pathname !== "/")
         throw new LocalAdapterError(

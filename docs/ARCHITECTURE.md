@@ -4,6 +4,48 @@
 
 The repository is a deliberately small foundation for Forward, a personal, single-user application. It separates framework concerns, reusable interface code, feature ownership, and external systems without introducing speculative layers. Project Redline and existing `life_os` identifiers are historical/internal names, not architectural namespaces. Cross-phase contracts are indexed in `docs/FORWARD_ARCHITECTURE.md`.
 
+## School Intelligence security review (2026-08-31)
+
+The `agent/gemini-school-intelligence` checkpoint `a873906` does **not** satisfy the
+Phase 10 trust contract and is not approved for activation. The security review
+branch preserves the implementation for repair but quarantines its twelve new
+capabilities before source preparation, finalization, Apply, or provider egress.
+`school-intelligence-policy.ts` is a code-level denial, not a preference or an
+environment toggle. Existing signed checklist and text course-import workflows
+remain active. The School entry point again uses the existing course review UI,
+including immutable edited reviews and separate ID-only approval.
+
+The new repositories require incompatible direct writes to protected source and
+proposal tables, lack canonical source revision contracts, and accept browser
+Apply payloads. They must not be activated by relaxing RLS or widening existing
+course-import/checklist consent flags. Each needs a compatible narrow signed
+source/review lifecycle and atomic canonical-domain mutation/audit before its
+denial can be removed. Prediction conversion is also disabled; it is not an
+implemented atomic Task/Event confirmation flow.
+
+Migration `20260831140000_school_intelligence_quarantine.sql` preserves prediction
+data and owner-scoped SELECT, revokes client writes and the confirmation RPC,
+and leaves only authenticated owner-scoped active-to-dismissed dismissal. It
+checks all prediction foreign-key owners/course relationships and prevents
+terminal-state reopening. Existing prediction rows are not retroactively attested
+as server-generated or current. No production database was changed by this review.
+
+The image validator now fully decodes PNG/JPEG/WEBP, enforces a 5 MiB input/output
+limit, 8192-pixel dimensions, 16,777,216 pixels, a single frame and a five-second
+decoder timeout, then emits a PNG derivative without EXIF/XMP/IPTC metadata.
+Sharp `0.35.3`, already a Next.js transitive dependency, is declared directly.
+Validation alone does not authorize transfer: all cloud and Companion adapters
+reject image-bearing requests until modality metadata, immutable derivative
+storage and exact binary disclosure/consent are implemented.
+
+Document extraction again accepts only complete UTF-8 TXT/MD/CSV/ICS: 256 KiB
+input, 25,000 characters and 32 KiB UTF-8 text. Oversized sources fail rather than
+truncate. PDF/DOCX parsing is disabled pending resource-bounded extraction;
+undeclared parser/test dependencies were removed from the lockfile. No source
+retention job, alternate calendar store, generic executor, or future phase was
+introduced. See `docs/SCHOOL_INTELLIGENCE_SECURITY_REVIEW.md` for findings and
+verification.
+
 ## Directory structure
 
 ```text

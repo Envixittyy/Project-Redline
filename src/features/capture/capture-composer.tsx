@@ -14,8 +14,7 @@ import type {
   ProposedEventCapture,
 } from "@/services/integrations/ai/quick-capture-contract";
 import {
-  applyQuickCaptureTaskAction,
-  applyQuickCaptureEventAction,
+  applyQuickCaptureAction,
 } from "@/features/capture/quick-capture-actions";
 
 import styles from "./capture.module.css";
@@ -34,6 +33,7 @@ export function CaptureComposer({
 
   const [aiParsing, setAiParsing] = useState(false);
   const [aiProposal, setAiProposal] = useState<QuickCaptureProposal | null>(null);
+  const [aiBatchId, setAiBatchId] = useState<string | null>(null);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,7 +44,7 @@ export function CaptureComposer({
       textareaRef.current?.focus();
       return;
     }
-
+    setMessage(null);
     startTransition(async () => {
       const result = await createCaptureAction(text);
       if (!result.ok) {
@@ -53,8 +53,7 @@ export function CaptureComposer({
       }
       form.reset();
       setAiProposal(null);
-      setMessage(null);
-      router.refresh();
+      setAiBatchId(null);
       onCaptured?.();
     });
   }
@@ -84,8 +83,9 @@ export function CaptureComposer({
         return;
       }
 
-      const proposal = (result as { ok: true; review: { proposal: QuickCaptureProposal } }).review.proposal;
-      setAiProposal(proposal);
+      const rev = (result as { ok: true; review: { batchId: string; proposal: QuickCaptureProposal } }).review;
+      setAiBatchId(rev.batchId);
+      setAiProposal(rev.proposal);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to parse with AI.");
     } finally {
@@ -94,30 +94,18 @@ export function CaptureComposer({
   }
 
   function handleCreateFromProposal() {
-    if (!aiProposal) return;
+    if (!aiProposal || !aiBatchId) return;
     startTransition(async () => {
-      if (aiProposal.captured.entityType === "task") {
-        const res = await applyQuickCaptureTaskAction(aiProposal.captured as ProposedTaskCapture);
-        if (res.ok) {
-          if (textareaRef.current) textareaRef.current.value = "";
-          setAiProposal(null);
-          setMessage("Task created successfully.");
-          router.refresh();
-          onCaptured?.();
-        } else {
-          setMessage("Failed to create task.");
-        }
+      const res = await applyQuickCaptureAction(aiBatchId);
+      if (res.ok) {
+        if (textareaRef.current) textareaRef.current.value = "";
+        setAiProposal(null);
+        setAiBatchId(null);
+        setMessage(aiProposal.captured.entityType === "task" ? "Task created successfully." : "Calendar event created successfully.");
+        router.refresh();
+        onCaptured?.();
       } else {
-        const res = await applyQuickCaptureEventAction(aiProposal.captured as ProposedEventCapture);
-        if (res.ok) {
-          if (textareaRef.current) textareaRef.current.value = "";
-          setAiProposal(null);
-          setMessage("Calendar event created successfully.");
-          router.refresh();
-          onCaptured?.();
-        } else {
-          setMessage("Failed to create calendar event.");
-        }
+        setMessage("Failed to create item.");
       }
     });
   }

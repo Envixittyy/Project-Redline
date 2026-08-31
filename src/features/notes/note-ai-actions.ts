@@ -2,8 +2,8 @@
 
 import { prepareRoutedInference } from "@/services/integrations/ai/inference-router";
 import {
-  applyNoteRewriteAction as applyRewriteRepo,
-  applyNoteActionItemsAction as applyActionItemsRepo,
+  applyNoteRewrite,
+  applyNoteActionItems,
 } from "@/services/integrations/ai/note-intelligence-repository";
 
 export async function prepareNoteSummaryAction(noteId: string, local: unknown) {
@@ -19,17 +19,15 @@ export async function prepareNoteActionItemsAction(noteId: string, local: unknow
 }
 
 export async function applyNoteRewriteAction(
+  batchId: string,
   noteId: string,
-  rewrittenBody: string,
-  mode: "replace" | "append",
 ) {
-  return applyRewriteRepo(noteId, rewrittenBody, mode);
+  return applyNoteRewrite(batchId, noteId);
 }
 
 export async function applyNoteActionItemsAction(
+  batchId: string,
   noteId: string,
-  items: Array<{ title: string; dueDate?: string; priority?: "low" | "medium" | "high" | "urgent" }>,
 ) {
-  return applyActionItemsRepo(noteId, items);
+  return applyNoteActionItems(batchId, noteId);
 }
-

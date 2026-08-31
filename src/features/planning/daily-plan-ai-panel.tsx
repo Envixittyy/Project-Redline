@@ -56,7 +56,7 @@ export function DailyPlanAiPanel({
         return;
       }
 
-      const proposal = (result as { ok: true; review: { proposal: DailyPlanAdviceProposal } }).review.proposal;
+      const proposal = ((result as unknown) as { ok: true; review: { advice: DailyPlanAdviceProposal } }).review.advice;
       setAdvice(proposal);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load advice.");

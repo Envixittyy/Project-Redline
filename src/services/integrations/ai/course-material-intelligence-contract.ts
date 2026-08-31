@@ -38,6 +38,16 @@ export type CourseMaterialSummaryProposal = {
   practicalTakeaways: string[];
 };
 
+export type CourseMaterialSummaryReview = {
+  batchId: string;
+  overview: string;
+  keyConcepts: Array<{ term: string; definition: string }>;
+  practicalTakeaways: string[];
+  status: string;
+  sourceHandle: string;
+  provenance: unknown;
+};
+
 export type StudyQuestion = {
   question: string;
   answer: string;
@@ -50,6 +60,14 @@ export type CourseMaterialStudyQuestionsProposal = {
   type: "propose_course_material_study_questions";
   source_handle: string;
   questions: StudyQuestion[];
+};
+
+export type CourseMaterialStudyQuestionsReview = {
+  batchId: string;
+  questions: StudyQuestion[];
+  status: string;
+  sourceHandle: string;
+  provenance: unknown;
 };
 
 export function parseCourseMaterialSummaryOutput(

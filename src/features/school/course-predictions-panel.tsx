@@ -19,6 +19,7 @@ import {
   getCoursePredictionsAction,
   dismissPredictionAction,
   confirmPredictionAsTaskAction,
+  reviseAssessmentPredictionsAction,
   applyAssessmentPredictionsAction,
 } from "./prediction-actions";
 import { SCHOOL_INTELLIGENCE_UNAVAILABLE } from "@/services/integrations/ai/school-intelligence-policy";
@@ -85,10 +86,10 @@ export function CoursePredictionsPanel({
     if (!review) return;
     startTransition(async () => {
       try {
-        const res = await applyAssessmentPredictionsAction({
-          batchId: review.batchId,
-          predictions: proposedList,
-        });
+        let batchId = review.batchId;
+        const revised = await reviseAssessmentPredictionsAction(batchId, proposedList);
+        batchId = revised.batchId;
+        const res = await applyAssessmentPredictionsAction(batchId);
         if (res.ok) {
           setReview(null);
           setProposedList([]);

@@ -1,56 +1,56 @@
 import "server-only";
-import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
-
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
+import { resolveTimeZone, todayIn } from "@/lib/date/day";
 import {
   QUICK_CAPTURE_CAPABILITY,
   quickCapturePrompt,
   parseQuickCaptureOutput,
-  type ProposedTaskCapture,
-  type ProposedEventCapture,
+  type QuickCaptureReview,
 } from "./quick-capture-contract";
 import { AiTrustError, uuid } from "./trust-contract";
-import { createTask } from "@/services/tasks/task-repository";
-import { createCalendarEvent } from "@/services/calendar-events/calendar-event-repository";
+import { validInferenceProvider } from "./routing-contract";
+import { signAiCommand } from "./trust-signing";
 
 export async function prepareQuickCapture(
   rawText: string,
-  provider: string,
-  model: string,
+  provider: unknown,
+  model: unknown,
 ) {
-  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
+  if (!validInferenceProvider(provider, model) || typeof model !== "string") {
+    throw new AiTrustError("invalid_provider");
+  }
   const text = String(rawText || "").trim();
   if (!text) throw new AiTrustError("request_unavailable");
 
   const requestId = randomUUID();
-  const handle = `qc_${randomUUID()}`;
-  const today = new Date().toISOString().slice(0, 10);
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const handle = `qc_${randomUUID().replaceAll("-", "")}`;
+  const timeZone = resolveTimeZone();
+  const today = todayIn(timeZone);
 
   const promptData = quickCapturePrompt(handle, text, today, timeZone);
   const sourceText = JSON.stringify(promptData);
   const sourceDigest = createHash("sha256").update(sourceText).digest("hex");
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-  const { error } = await client.from("ai_course_requests").insert({
-    id: requestId,
-    user_id: userId,
-    capability: QUICK_CAPTURE_CAPABILITY.id,
-    source_handle: handle,
-    file_name: "quick_capture.json",
-    source_text: sourceText,
-    source_digest: sourceDigest,
-    start_date: today,
-    timeZone,
-    provider,
-    model,
-    status: "prepared",
-    expires_at: expiresAt,
-  });
+  const { error } = await client.rpc(
+    "ai_create_scoped_request",
+    signAiCommand(userId, "prepare_scoped_request", {
+      id: requestId,
+      capability: QUICK_CAPTURE_CAPABILITY.id,
+      source_handle: handle,
+      source_digest: sourceDigest,
+      source_text: sourceText,
+      file_name: "quick_capture.json",
+      start_date: today,
+      time_zone: timeZone,
+      provider,
+      model,
+    }),
+  );
 
-  if (error) throw new AiTrustError("request_unavailable");
+  if (error) throw new AiTrustError("request_not_prepared");
 
   return {
     requestId,
@@ -58,108 +58,111 @@ export async function prepareQuickCapture(
     promptData,
     payloadDigest: sourceDigest,
     bytes: Buffer.byteLength(sourceText),
-    expiresAt,
+  };
+}
+
+async function loadReview(batchId: unknown) {
+  const { client } = await requireAuthenticatedSupabase();
+  const { data, error } = await client.rpc("ai_read_scoped_review", {
+    p_batch_id: uuid(batchId),
+  });
+  if (error || !data) throw new AiTrustError("untrusted_proposal");
+  const proposal = parseQuickCaptureOutput(
+    JSON.stringify(data.input),
+    data.capability,
+    data.sourceHandle,
+  );
+  if (!/^[a-f0-9]{64}$/.test(data.proposalDigest)) {
+    throw new AiTrustError("untrusted_proposal");
+  }
+  return { ...data, proposal } as QuickCaptureReview & {
+    proposalDigest: string;
+    sourceHandle: string;
+  };
+}
+
+export async function readQuickCaptureReview(
+  batchId: unknown,
+): Promise<QuickCaptureReview> {
+  const r = await loadReview(batchId);
+  return {
+    batchId: r.batchId,
+    proposal: r.proposal,
+    status: r.status,
+    sourceHandle: r.sourceHandle,
+    provenance: r.provenance,
   };
 }
 
 export async function finalizeQuickCapture(
   requestId: string,
   rawOutput: unknown,
-) {
-  schoolIntelligenceUnavailable();
+): Promise<QuickCaptureReview> {
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client
-    .from("ai_course_requests")
-    .select("id,source_handle,file_name,status,expires_at,capability")
+    .from("ai_scoped_requests")
+    .select("id,source_handle,file_name,status,source_text,source_digest,capability,expires_at")
     .eq("id", uuid(requestId))
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (reqError || !request || request.status !== "prepared") {
+  if (
+    reqError ||
+    !request ||
+    request.status !== "prepared" ||
+    Date.parse(request.expires_at) <= Date.now()
+  ) {
     throw new AiTrustError("request_unavailable");
   }
 
+  if (createHash("sha256").update(request.source_text).digest("hex") !== request.source_digest) {
+    throw new AiTrustError("source_changed");
+  }
+
   const proposal = parseQuickCaptureOutput(rawOutput, request.capability, request.source_handle);
-  const batchId = randomUUID();
 
-  await client.from("operation_batches").insert({
-    id: batchId,
-    user_id: userId,
-    source: "ai",
-    status: "proposed",
-    ai_course_request_id: request.id,
-  });
+  const result = await client.rpc(
+    "ai_record_scoped_proposal",
+    signAiCommand(userId, "record_scoped_proposal", {
+      request_id: request.id,
+      proposal,
+      summary: `Quick Capture: ${proposal.captured.entityType}`,
+      target_entity: proposal.captured.entityType === "task" ? "task" : "event",
+    }),
+  );
 
-  await client.from("operation_steps").insert({
-    id: randomUUID(),
-    batch_id: batchId,
-    user_id: userId,
-    position: 0,
-    action_type: request.capability,
-    input: proposal as Record<string, unknown>,
-  });
+  if (result.error || typeof result.data !== "string") {
+    throw new AiTrustError("proposal_not_recorded");
+  }
 
-  return {
-    batchId,
-    proposal,
-    status: "proposed",
-    sourceHandle: request.source_handle,
-  };
+  return readQuickCaptureReview(result.data);
 }
 
-export async function applyQuickCaptureTask(draft: ProposedTaskCapture) {
-  schoolIntelligenceUnavailable();
+export async function applyQuickCapture(batchId: unknown) {
   const { client, userId } = await requireAuthenticatedSupabase();
+  const review = await loadReview(batchId);
 
-  let courseId: string | null = null;
-  if (draft.courseCode) {
-    const { data: course } = await client
-      .from("courses")
-      .select("id")
-      .ilike("code", draft.courseCode.trim())
-      .eq("user_id", userId)
-      .maybeSingle();
+  const { data, error } = await client.rpc(
+    "apply_ai_quick_capture",
+    signAiCommand(userId, "approve_quick_capture", {
+      batch_id: review.batchId,
+      proposal_digest: review.proposalDigest,
+    }),
+  );
 
-    if (course) courseId = course.id;
+  if (error || !data) {
+    throw new AiTrustError("request_unavailable");
   }
 
-  let dueAt: string | null = null;
-  if (draft.dueDate && draft.dueTime) {
-    dueAt = `${draft.dueDate}T${draft.dueTime}:00Z`;
-  }
-
-  const task = await createTask({
-    title: draft.title,
-    dueDate: draft.dueDate || null,
-    dueAt,
-    priority: draft.priority || "medium",
-    courseId,
-  });
-
-  return { ok: true, task };
+  return { ok: true, ...data };
 }
 
-export async function applyQuickCaptureEvent(draft: ProposedEventCapture) {
-  schoolIntelligenceUnavailable();
-  const start = draft.startTime
-    ? `${draft.startDate}T${draft.startTime}:00Z`
-    : `${draft.startDate}T00:00:00Z`;
-  const end = draft.endTime
-    ? `${draft.endDate || draft.startDate}T${draft.endTime}:00Z`
-    : draft.allDay
-    ? `${draft.endDate || draft.startDate}T23:59:59Z`
-    : start;
-
-  const event = await createCalendarEvent({
-    title: draft.title,
-    start,
-    end,
-    allDay: draft.allDay,
-    eventType: "event",
-    source: "life_os",
-    description: draft.location ? `Location: ${draft.location}` : null,
-  });
-
-  return { ok: true, event };
+export async function rejectQuickCapture(batchId: unknown) {
+  const { client, userId } = await requireAuthenticatedSupabase();
+  const { error } = await client.rpc(
+    "ai_reject_scoped_proposal",
+    signAiCommand(userId, "reject_scoped_proposal", { batch_id: uuid(batchId) }),
+  );
+  if (error) throw new AiTrustError("proposal_unavailable");
 }

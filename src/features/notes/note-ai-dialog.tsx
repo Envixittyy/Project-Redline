@@ -53,9 +53,11 @@ export function NoteAiDialog({
   // Proposal results
   const [summaryResult, setSummaryResult] = useState<NoteSummaryProposal | null>(null);
   const [rewriteResult, setRewriteResult] = useState<NoteRewriteProposal | null>(null);
+  const [rewriteBatchId, setRewriteBatchId] = useState<string | null>(null);
   const [actionItemsResult, setActionItemsResult] = useState<
     Array<NoteActionItem & { selected: boolean }>
   >([]);
+  const [actionItemsBatchId, setActionItemsBatchId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!note.body.trim()) return;
@@ -80,13 +82,27 @@ export function NoteAiDialog({
           setLoading(false);
           return;
         }
-        const proposal = (result as { ok: true; review: { proposal: unknown } }).review.proposal;
+        const rev = (result as { ok: true; review: { batchId: string; summary?: string; keyPoints?: string[]; rewrittenBody?: string; changesExplanation?: string; items?: NoteActionItem[]; proposal?: unknown } }).review;
         if (tab === "summary") {
-          setSummaryResult(proposal as NoteSummaryProposal);
+          setSummaryResult({
+            schema_version: 1,
+            type: "propose_note_summary",
+            source_handle: "",
+            summary: rev.summary || (rev.proposal as NoteSummaryProposal)?.summary || "",
+            keyPoints: rev.keyPoints || (rev.proposal as NoteSummaryProposal)?.keyPoints || [],
+          });
         } else if (tab === "rewrite") {
-          setRewriteResult(proposal as NoteRewriteProposal);
+          setRewriteBatchId(rev.batchId);
+          setRewriteResult({
+            schema_version: 1,
+            type: "propose_note_rewrite",
+            source_handle: "",
+            rewrittenBody: rev.rewrittenBody || (rev.proposal as NoteRewriteProposal)?.rewrittenBody || "",
+            changesExplanation: rev.changesExplanation || (rev.proposal as NoteRewriteProposal)?.changesExplanation || "Polished note structure",
+          });
         } else if (tab === "action_items") {
-          const items = (proposal as NoteActionItemsProposal).actionItems;
+          setActionItemsBatchId(rev.batchId);
+          const items = rev.items || (rev.proposal as NoteActionItemsProposal)?.actionItems || [];
           setActionItemsResult(items.map((it) => ({ ...it, selected: true })));
         }
         setLoading(false);
@@ -115,15 +131,8 @@ export function NoteAiDialog({
     if (!summaryResult) return;
     const bullets = summaryResult.keyPoints.map((p) => `- ${p}`).join("\n");
     const block = `## Summary\n${summaryResult.summary}\n\n### Key Points\n${bullets}\n\n---\n\n${note.body}`;
-    startApplyTransition(async () => {
-      const res = await applyNoteRewriteAction(note.id, block, "replace");
-      if (res.ok && res.newBody) {
-        onNoteUpdated(res.newBody);
-        onClose();
-      } else {
-        setError(res.message || "Failed to update note.");
-      }
-    });
+    onNoteUpdated(block);
+    onClose();
   }
 
   function handleCopySummary() {
@@ -134,10 +143,10 @@ export function NoteAiDialog({
     setTimeout(() => setCopied(false), 2000);
   }
 
-  function handleApplyRewrite(mode: "replace" | "append") {
-    if (!rewriteResult) return;
+  function handleApplyRewrite(_mode: "replace" | "append") {
+    if (!rewriteBatchId) return;
     startApplyTransition(async () => {
-      const res = await applyNoteRewriteAction(note.id, rewriteResult.rewrittenBody, mode);
+      const res = await applyNoteRewriteAction(rewriteBatchId, note.id);
       if (res.ok && res.newBody) {
         onNoteUpdated(res.newBody);
         onClose();
@@ -148,10 +157,9 @@ export function NoteAiDialog({
   }
 
   function handleApplyActionItems() {
-    const selected = actionItemsResult.filter((it) => it.selected);
-    if (selected.length === 0) return;
+    if (!actionItemsBatchId) return;
     startApplyTransition(async () => {
-      const res = await applyNoteActionItemsAction(note.id, selected);
+      const res = await applyNoteActionItemsAction(actionItemsBatchId, note.id);
       if (res.ok) {
         onClose();
       } else {

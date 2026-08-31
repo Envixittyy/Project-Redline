@@ -12,7 +12,8 @@ import { capabilityFor, type RequestKind } from "./routing-contract";
 export async function readInferenceSource(kind: RequestKind, requestId: unknown, model: string) {
   const capability = capabilityFor(kind);
   const { client, userId } = await requireAuthenticatedSupabase();
-  const { data, error } = await client.from(kind === "checklist" ? "ai_requests" : "ai_course_requests")
+  const tableName = kind === "checklist" ? "ai_requests" : kind === "course" ? "ai_course_requests" : "ai_scoped_requests";
+  const { data, error } = await client.from(tableName)
     .select(kind === "checklist" ? "task_id,task_handle,source_revision,capability,status,expires_at" : "source_text,source_digest,source_handle,capability,status,expires_at")
     .eq("id", uuid(requestId)).eq("user_id", userId).maybeSingle();
   const r = data as Record<string, string> | null;

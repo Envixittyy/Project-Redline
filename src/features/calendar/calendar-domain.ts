@@ -69,18 +69,35 @@ export type CourseMeetingCalendarEntry = CalendarEntryBase & {
   occurrenceDate: string;
 };
 
+export type AssessmentPredictionCalendarEntry = CalendarEntryBase & {
+  kind: "assessment_prediction";
+  prediction: {
+    id: string;
+    courseId: string;
+    title: string;
+    predictionType: string;
+    predictedDate: string;
+    predictedTime: string | null;
+    confidence: "HIGH" | "MEDIUM" | "LOW";
+    rationale: string;
+    sourceReference: string | null;
+  };
+};
+
 export type CalendarEntry =
   | TaskDeadlineCalendarEntry
   | TaskScheduleCalendarEntry
   | TaskWorkSessionCalendarEntry
   | NativeCalendarEntry
   | ExternalCalendarEntry
-  | CourseMeetingCalendarEntry;
+  | CourseMeetingCalendarEntry
+  | AssessmentPredictionCalendarEntry;
 
 export type CalendarFilters = {
   showCalendarEvents: boolean;
   showTasks: boolean;
   showCourseMeetings: boolean;
+  showPredictions: boolean;
   showDone: boolean;
   showSubmitted: boolean;
   showAllDay: boolean;
@@ -94,6 +111,7 @@ export const defaultCalendarFilters: CalendarFilters = {
   showCalendarEvents: true,
   showTasks: true,
   showCourseMeetings: true,
+  showPredictions: true,
   showDone: false,
   showSubmitted: true,
   showAllDay: true,
@@ -354,6 +372,62 @@ export function courseMeetingToCalendarEntries(
   return entries;
 }
 
+/** Convert an active assessment prediction into a calendar projection. */
+export function predictionToCalendarEntry(
+  prediction: {
+    id: string;
+    courseId: string;
+    courseCode?: string;
+    courseName?: string;
+    courseColor?: string;
+    title: string;
+    predictionType: string;
+    predictedDate: string;
+    predictedTime: string | null;
+    confidence: "HIGH" | "MEDIUM" | "LOW";
+    status: string;
+    rationale: string;
+    sourceReference: string | null;
+  },
+  timeZone: string,
+): AssessmentPredictionCalendarEntry | null {
+  if (prediction.status !== "active") return null;
+  if (prediction.confidence !== "HIGH" && prediction.confidence !== "MEDIUM") return null;
+
+  const date = prediction.predictedDate;
+  const start = prediction.predictedTime
+    ? fromZonedInputValue(`${date}T${prediction.predictedTime}`, timeZone)
+    : `${date}T00:00:00Z`;
+  const end = prediction.predictedTime
+    ? fromZonedInputValue(`${date}T${prediction.predictedTime}`, timeZone)
+    : `${date}T23:59:59Z`;
+
+  return {
+    key: `assessment-prediction:${prediction.id}`,
+    kind: "assessment_prediction",
+    title: `◇ Possible ${prediction.title}`,
+    date,
+    start,
+    end,
+    allDay: !prediction.predictedTime,
+    courseKey: prediction.courseId,
+    courseLabel: prediction.courseCode ?? null,
+    courseColor: prediction.courseColor ?? null,
+    prediction: {
+      id: prediction.id,
+      courseId: prediction.courseId,
+      title: prediction.title,
+      predictionType: prediction.predictionType,
+      predictedDate: prediction.predictedDate,
+      predictedTime: prediction.predictedTime,
+      confidence: prediction.confidence,
+      rationale: prediction.rationale,
+      sourceReference: prediction.sourceReference,
+    },
+    issues: [],
+  };
+}
+
 function taskStatusFor(entry: CalendarEntry): Task["status"] | null {
   return entry.kind === "task_deadline" || entry.kind === "task_schedule" || entry.kind === "task_work_session"
     ? entry.task.status
@@ -367,6 +441,7 @@ export function matchesCalendarFilters(
   if (entry.kind === "calendar_event" && !filters.showCalendarEvents) return false;
   if (entry.kind === "external_calendar_event" && !filters.showCalendarEvents) return false;
   if (entry.kind === "course_meeting" && !filters.showCourseMeetings) return false;
+  if (entry.kind === "assessment_prediction" && !filters.showPredictions) return false;
   if ((entry.kind === "task_deadline" || entry.kind === "task_schedule" || entry.kind === "task_work_session") && !filters.showTasks) {
     return false;
   }

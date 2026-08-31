@@ -17,9 +17,11 @@ import {
 import { prepareScheduleImport, finalizeScheduleImport } from "./schedule-import-repository";
 import { prepareBlackboardScreenshotImport, finalizeBlackboardScreenshotImport } from "./blackboard-screenshot-repository";
 import { prepareAcademicCalendarImport, finalizeAcademicCalendarImport } from "./academic-calendar-repository";
+import { prepareAssessmentPredictions, finalizeAssessmentPredictions } from "./assessment-prediction-repository";
 import { SCHEDULE_IMAGE_CAPABILITY } from "./school-schedule-contract";
 import { BLACKBOARD_COURSE_IMAGE_CAPABILITY } from "./blackboard-screenshot-contract";
 import { ACADEMIC_CALENDAR_CAPABILITY } from "./academic-calendar-contract";
+import { ASSESSMENT_PREDICTION_CAPABILITY } from "./assessment-prediction-contract";
 
 export async function routingPreferences(): Promise<RoutingPreferences> {
   const p = await getAiPreferences();
@@ -53,6 +55,8 @@ export async function loadInferenceAttempt(id: unknown) {
     ? "blackboard_image"
     : a.capability === ACADEMIC_CALENDAR_CAPABILITY.id
     ? "academic_calendar"
+    : a.capability === ASSESSMENT_PREDICTION_CAPABILITY.id
+    ? "assessment_prediction"
     : "course";
   if (a.capability !== capabilityFor(kind).id) throw new AiTrustError("capability_denied");
   return { ...a, kind, requestId: a.checklist_request_id ?? a.course_request_id! };
@@ -85,7 +89,9 @@ export async function prepareRoutedInference(kind: RequestKind, input: unknown, 
       ? await prepareScheduleImport(input as FormData, provider, model)
       : kind === "blackboard_image"
       ? await prepareBlackboardScreenshotImport(input as FormData, provider, model)
-      : await prepareAcademicCalendarImport(input as FormData, provider, model);
+      : kind === "academic_calendar"
+      ? await prepareAcademicCalendarImport(input as FormData, provider, model)
+      : await prepareAssessmentPredictions(input as string, provider, model);
   return prepareAttempt(kind, prepared.requestId, provider, model, location);
 }
 export async function claimLocalInference(id: unknown) {
@@ -111,7 +117,9 @@ async function finalize(a: Awaited<ReturnType<typeof loadInferenceAttempt>>, raw
       ? await finalizeScheduleImport(a.requestId, raw)
       : a.kind === "blackboard_image"
       ? await finalizeBlackboardScreenshotImport(a.requestId, raw)
-      : await finalizeAcademicCalendarImport(a.requestId, raw);
+      : a.kind === "academic_calendar"
+      ? await finalizeAcademicCalendarImport(a.requestId, raw)
+      : await finalizeAssessmentPredictions(a.requestId, raw);
   await finish(a.id, "succeeded", undefined, review.batchId, latencyMs);
   const provenance: InferenceProvenance = { provider: a.provider, model: a.model, location: a.location,
     evidence: a.location === "cloud" ? "server_response" : "browser_relay", latencyMs: latencyMs ?? null };

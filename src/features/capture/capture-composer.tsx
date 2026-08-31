@@ -7,7 +7,7 @@ import { useRef, useState, useTransition } from "react";
 import { Surface } from "@/components/ui/surface";
 import { createCaptureAction } from "@/features/capture/capture-actions";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
-import { readStoredCompanionConfig } from "@/services/integrations/ai/companion-client";
+import { getCompanionSession } from "@/services/integrations/ai/companion-session";
 import type {
   QuickCaptureProposal,
   ProposedTaskCapture,
@@ -69,7 +69,7 @@ export function CaptureComposer({
 
     setAiParsing(true);
     setMessage(null);
-    const companionConfig = readStoredCompanionConfig();
+    const companionConfig = getCompanionSession();
 
     try {
       const result = await generateRoutedProposal(

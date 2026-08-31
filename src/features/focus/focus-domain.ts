@@ -145,10 +145,14 @@ function extractItemTitle(item: CalendarItem): string {
   if (item.kind === "event") return item.event.title;
   if (item.kind === "external_event") return item.externalEvent.title;
   if (item.kind === "course_meeting") return item.meeting.title;
+  if (item.kind === "assessment_prediction") return `◇ Possible ${item.prediction.title}`;
   return item.task.title;
 }
 
 function extractItemMeta(item: CalendarItem): string | undefined {
+  if (item.kind === "assessment_prediction") {
+    return item.prediction.courseCode ? `${item.prediction.courseCode} · Possible assessment` : "Possible assessment";
+  }
   if (item.kind === "course_meeting") {
     return item.entry.courseLabel ?? item.meeting.course.label ?? "Course";
   }

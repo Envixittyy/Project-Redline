@@ -1,18 +1,15 @@
 "use client";
 
 import {
-  AlertCircle,
-  Calendar,
   Check,
   Loader2,
   RefreshCw,
   Sparkles,
-  Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
-import { readStoredCompanionConfig } from "@/services/integrations/ai/companion-client";
+import { getCompanionSession } from "@/services/integrations/ai/companion-session";
 import type { SchoolAssessmentPrediction } from "@/services/school/prediction-service";
 import type {
   AssessmentPredictionReview,
@@ -27,12 +24,12 @@ import {
 
 type CoursePredictionsPanelProps = {
   courseId: string;
-  courseCode: string;
+  courseCode?: string;
 };
 
 export function CoursePredictionsPanel({
   courseId,
-  courseCode,
+  courseCode: _courseCode,
 }: CoursePredictionsPanelProps) {
   const [predictions, setPredictions] = useState<SchoolAssessmentPrediction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,7 +55,7 @@ export function CoursePredictionsPanel({
   async function handlePredict() {
     setLoading(true);
     setError(null);
-    const companionConfig = readStoredCompanionConfig();
+    const companionConfig = getCompanionSession();
 
     try {
       const result = await generateRoutedProposal(
@@ -294,7 +291,7 @@ export function CoursePredictionsPanel({
         </div>
       ) : (
         <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--text-muted)", fontStyle: "italic" }}>
-          No predictions calculated. Click "Predict Assessments" to analyze syllabus rules and meetings.
+          No predictions calculated. Click &quot;Predict Assessments&quot; to analyze syllabus rules and meetings.
         </p>
       )}
     </div>

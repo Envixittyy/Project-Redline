@@ -49,7 +49,11 @@ export async function readInferenceSource(kind: RequestKind, requestId: unknown,
     kind === "note_summary" ||
     kind === "note_rewrite" ||
     kind === "note_action_items" ||
-    kind === "quick_capture"
+    kind === "quick_capture" ||
+    kind === "daily_plan_advice" ||
+    kind === "material_summary" ||
+    kind === "material_study_questions" ||
+    kind === "contextual_assistant"
   ) {
     if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
     try {

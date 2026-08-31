@@ -3,21 +3,18 @@
 import {
   Calendar,
   Check,
-  FileSpreadsheet,
   FileText,
   FileUp,
   GraduationCap,
   Image as ImageIcon,
   Loader2,
-  Plus,
-  Radio,
   Sparkles,
   Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
-import { readStoredCompanionConfig } from "@/services/integrations/ai/companion-client";
+import { getCompanionSession } from "@/services/integrations/ai/companion-session";
 import type { CourseWithMeetings } from "@/types/course";
 import type {
   ScheduleReview,
@@ -116,7 +113,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     const formData = new FormData();
     formData.append("file", file);
 
-    const companionConfig = readStoredCompanionConfig();
+    const companionConfig = getCompanionSession();
     const kind = tab === "syllabus" ? "course" : tab;
 
     try {

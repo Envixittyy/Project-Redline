@@ -16,23 +16,6 @@ import {
 import type { NotionPageLink } from "@/services/integrations/notion/types";
 import { ExternalLink, Layers, RefreshCw, Sparkles } from "lucide-react";
 
-import {
-  applyAiProposalAction,
-  cancelAiTransferAction,
-  dispatchAiTransferAction,
-  grantAiTransferConsentAction,
-  prepareAiTransferAction,
-  rejectAiProposalAction,
-} from "@/features/ai/ai-actions";
-import { AiDisclosureModal } from "@/features/ai/ai-disclosure-modal";
-import { AiProposalView } from "@/features/ai/ai-proposal-view";
-import type {
-  AiContextEnvelope,
-  AiTransferManifest,
-  ValidatedAiProposalResult,
-} from "@/services/integrations/ai/types";
-import type { EntityHandleMap } from "@/services/integrations/ai/entity-handles";
-
 import { archiveNoteAction, saveNoteAction } from "./note-actions";
 import { MarkdownPreview } from "./markdown-preview";
 import { NoteAiDialog } from "./note-ai-dialog";
@@ -66,11 +49,6 @@ export function NoteWorkspace({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const [showAiModal, setShowAiModal] = useState(false);
-
-  const [aiManifest, setAiManifest] = useState<AiTransferManifest | null>(null);
-  const [aiEnvelope, setAiEnvelope] = useState<AiContextEnvelope | null>(null);
-  const [aiHandleMap, setAiHandleMap] = useState<EntityHandleMap | null>(null);
-  const [aiProposal, setAiProposal] = useState<ValidatedAiProposalResult | null>(null);
   useEffect(() => {
     if (!selectedId) return;
     const timer = window.setTimeout(async () => {
@@ -217,93 +195,6 @@ export function NoteWorkspace({
   };
   const activeLink = selectedId ? notionLinks.find((l) => l.noteId === selectedId) ?? null : null;
 
-  const handleAiAssist = () => {
-    if (!selected) return;
-    startTransition(async () => {
-      setMessage(null);
-      const res = await prepareAiTransferAction({
-        purpose: "Summarize and Extract Action Items",
-        prompt: "Analyze this note, summarize key points, and propose actionable tasks if applicable.",
-        notes: [{ id: selected.id, title: draft.title, body: draft.body }],
-      });
-
-      if (!res.ok) {
-        setMessage(res.message);
-        return;
-      }
-
-      if (res.mode === "needs_transfer_consent") {
-        setAiManifest(res.manifest);
-        setAiEnvelope(res.envelope);
-        setAiHandleMap(res.handleMap);
-      } else {
-        const dispatchRes = await dispatchAiTransferAction(
-          res.manifest.transferId,
-          res.envelope,
-          res.handleMap,
-        );
-        if (dispatchRes.ok) {
-          setAiProposal(dispatchRes.result);
-        } else {
-          setMessage(dispatchRes.message);
-        }
-      }
-    });
-  };
-
-  const handleConsentAndSend = () => {
-    if (!aiManifest || !aiEnvelope || !aiHandleMap) return;
-    startTransition(async () => {
-      const consentRes = await grantAiTransferConsentAction(aiManifest.transferId);
-      if (!consentRes.ok) {
-        setMessage(consentRes.message);
-        setAiManifest(null);
-        return;
-      }
-
-      const dispatchRes = await dispatchAiTransferAction(
-        aiManifest.transferId,
-        aiEnvelope,
-        aiHandleMap,
-      );
-
-      setAiManifest(null);
-      if (dispatchRes.ok) {
-        setAiProposal(dispatchRes.result);
-      } else {
-        setMessage(dispatchRes.message);
-      }
-    });
-  };
-
-  const handleCancelAiTransfer = () => {
-    if (aiManifest) {
-      void cancelAiTransferAction(aiManifest.transferId);
-    }
-    setAiManifest(null);
-    setAiEnvelope(null);
-    setAiHandleMap(null);
-  };
-
-  const handleApplyAiProposal = () => {
-    if (!aiProposal) return;
-    startTransition(async () => {
-      const res = await applyAiProposalAction(
-        aiProposal.operationBatchId,
-      );
-      setMessage(res.message);
-      setAiProposal(null);
-      router.refresh();
-    });
-  };
-
-  const handleDismissAiProposal = () => {
-    if (aiProposal?.operationBatchId) {
-      void rejectAiProposalAction(aiProposal.operationBatchId);
-    }
-    setAiProposal(null);
-  };
-
   return <div className={styles.layout}>
     <aside className={styles.sidebar}>
       <form action="/notes" className={styles.search}>
@@ -364,27 +255,6 @@ export function NoteWorkspace({
             setDraft((prev) => ({ ...prev, body: newBody }));
             router.refresh();
           }}
-        />
-      ) : null}
-
-      {aiProposal ? (
-        <div style={{ marginTop: "1rem" }}>
-          <AiProposalView
-            batchId={aiProposal.operationBatchId}
-            actions={aiProposal.proposal.actions}
-            onApply={handleApplyAiProposal}
-            onDismiss={handleDismissAiProposal}
-            pending={pending}
-          />
-        </div>
-      ) : null}
-
-      {aiManifest ? (
-        <AiDisclosureModal
-          manifest={aiManifest}
-          onConsentAndSend={handleConsentAndSend}
-          onCancel={handleCancelAiTransfer}
-          pending={pending}
         />
       ) : null}
 

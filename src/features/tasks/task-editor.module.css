@@ -8,25 +8,34 @@
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-highlight);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  background: var(--surface-elevated);
-  box-shadow: var(--shadow-elevated);
+  background: var(--surface-modal, oklch(19.5% 0.03 255 / 92%));
+  backdrop-filter: blur(var(--blur-surface, 16px));
+  -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
+  box-shadow: var(--shadow-modal);
   color: var(--text-primary);
   flex-direction: column;
 }
 
 .dialog::backdrop {
-  background: var(--scrim);
+  background: var(--scrim, oklch(8% 0.02 255 / 55%));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .dialog[open] {
-  animation: sheet-in var(--motion-standard) var(--motion-ease);
+  animation: sheet-in var(--motion-standard) var(--motion-spring);
 }
 
 @keyframes sheet-in {
   from {
-    translate: 0 1.5rem;
+    transform: translate3d(0, 1.5rem, 0);
     opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
   }
 }
 
@@ -42,29 +51,49 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1rem 0.75rem;
+  padding: 1rem 1.25rem 0.75rem;
   border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
 }
 
 .heading {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 720;
+  font-size: 1.15rem;
+  font-weight: 750;
   letter-spacing: -0.025em;
+  color: var(--text-primary);
 }
 
 .iconButton {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.25rem;
+  height: 2.25rem;
   flex: none;
   place-items: center;
-  margin-right: -0.6rem;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm, 0.6rem);
+  background: var(--surface);
   color: var(--text-secondary);
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+.iconButton:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  transform: scale(1.05) rotate(4deg);
+}
+
+.iconButton:active {
+  transform: scale(0.95);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .body {
@@ -359,29 +388,36 @@
 }
 
 .primaryButton {
-  border-color: var(--accent-border);
-  background: var(--accent-muted);
-  color: var(--accent-text);
+  border: 1px solid color-mix(in oklch, var(--accent) 80%, white 20%);
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-weight: 750;
+  box-shadow: 0 1px 3px oklch(0% 0 0 / 20%), 0 4px 12px var(--accent-muted);
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent);
 }
 
 .dangerButton {
-  border-color: var(--accent-border);
-  color: var(--accent-text);
+  border-color: var(--destructive);
+  color: var(--destructive);
 }
 
 .primaryButton:disabled,
 .secondaryButton:disabled,
 .subtleButton:disabled,
 .dangerButton:disabled {
-  cursor: progress;
-  opacity: 0.7;
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .primaryButton:not(:disabled):active,
 .secondaryButton:not(:disabled):active,
 .subtleButton:not(:disabled):active,
 .dangerButton:not(:disabled):active {
-  scale: 0.97;
+  transform: translateY(1px) scale(0.985);
 }
 
 @media (prefers-reduced-motion: reduce) {

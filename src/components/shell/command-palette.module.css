@@ -80,9 +80,12 @@
   max-height: min(42rem, calc(100svh - 6rem));
   overflow: hidden;
   border: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-highlight);
   border-radius: var(--radius-xl);
-  background: var(--surface-elevated);
-  box-shadow: var(--shadow-elevated);
+  background: var(--surface-modal, oklch(19.5% 0.03 255 / 92%));
+  backdrop-filter: blur(var(--blur-surface, 16px));
+  -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
+  box-shadow: var(--shadow-modal);
 }
 
 .heading {

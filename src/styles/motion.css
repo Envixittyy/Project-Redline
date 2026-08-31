@@ -6,8 +6,41 @@
   }
 }
 
+/* Dropdown/Popover enter primitive */
+@keyframes forward-dropdown-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* Modal dialog enter primitive */
+@keyframes forward-modal-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
 .motion-enter {
   animation: forward-enter var(--motion-standard) var(--motion-spring) both;
+}
+
+.motion-dropdown-enter {
+  animation: forward-dropdown-enter var(--motion-fast) var(--motion-ease) both;
+  transform-origin: top center;
+}
+
+.motion-modal-enter {
+  animation: forward-modal-enter var(--motion-standard) var(--motion-spring) both;
 }
 
 .motion-interactive {
@@ -32,11 +65,24 @@
 }
 
 .motion-tactile {
-  transition: transform var(--motion-fast) var(--motion-spring);
+  transition:
+    transform var(--motion-fast) var(--motion-spring),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
 }
 
-.motion-tactile:active {
-  transform: scale(0.98);
+.motion-tactile:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.motion-tactile:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+.motion-focus-ring:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 :root[data-motion="reduced"] {

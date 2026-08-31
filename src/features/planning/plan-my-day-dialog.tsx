@@ -233,8 +233,11 @@ export function PlanMyDayDialog({
               </ul>
             ) : (
               <div className={styles.emptyState}>
-                <Clock size={32} aria-hidden="true" />
-                <p>No work sessions could be scheduled with current tasks and commitments.</p>
+                <Clock size={28} className={styles.emptyIcon} aria-hidden="true" />
+                <h4 className={styles.emptyHeadline}>Nothing to schedule.</h4>
+                <p className={styles.emptySubtext}>
+                  Your current tasks and commitments don’t leave anything useful to place.
+                </p>
               </div>
             )}
           </div>

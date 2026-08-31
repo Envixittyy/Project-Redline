@@ -3,7 +3,7 @@ import "server-only";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type { ConfidenceLevel, PredictionType } from "@/services/integrations/ai/assessment-prediction-contract";
 import { createTask } from "@/services/tasks/task-repository";
-import { saveCalendarEvent } from "@/services/calendar/calendar-repository";
+import { createCalendarEvent } from "@/services/calendar-events/calendar-event-repository";
 
 export type SchoolAssessmentPrediction = {
   id: string;
@@ -154,10 +154,10 @@ export async function confirmPredictionAsEvent(
 ): Promise<{ ok: boolean; eventId?: string }> {
   const { client, userId } = await requireAuthenticatedSupabase();
 
-  const saved = await saveCalendarEvent({
+  const saved = await createCalendarEvent({
     title: draft.title,
-    startsAt: draft.startsAt,
-    endsAt: draft.endsAt,
+    start: draft.startsAt,
+    end: draft.endsAt,
     allDay: draft.allDay,
     eventType: "assessment",
     source: "life_os",

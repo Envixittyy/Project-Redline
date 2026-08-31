@@ -116,3 +116,11 @@ export async function deleteMeeting(id: string): Promise<void> {
   if (error) fail("delete the meeting", error);
   if (!data) throw new CourseRepositoryError("That meeting no longer exists.");
 }
+
+/** A reviewed AI import creates its course, meetings, and audit in one transaction. */
+export async function applyReviewedCourseImport(proof: { p_message: string; p_mac: string }) {
+  const { client } = await requireAuthenticatedSupabase();
+  const { data, error } = await client.rpc("apply_ai_course_import", proof);
+  if (error || !data) throw new CourseRepositoryError("The reviewed course import could not be applied.");
+  return data as { ok: boolean; code?: string; alreadyApplied?: boolean; courseId?: string };
+}

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -366,6 +366,8 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
     } as unknown as AuthenticatedClient;
   }
 
+  afterEach(() => vi.useRealTimers());
+
   beforeEach(() => {
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = testVapidPublicKey;
     process.env.VAPID_PRIVATE_KEY = testVapidPrivateKey;
@@ -509,6 +511,9 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
 
   it("defers push deliveries during quiet hours while still generating in-app events", async () => {
     const client = createMockSupabaseClient();
+    // Force a different wall clock: delivery creation must use the supplied instant.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-31T04:00:00Z"));
     // 23:00 Manila (15:00 UTC) is inside quiet hours 22:00 - 07:00
     const currentInstant = new Date("2026-08-30T15:00:00Z");
 
@@ -533,6 +538,7 @@ describe("Notification Dispatcher Engine (Phase 4D)", () => {
     const webPushDeliveries = mockDeliveries.filter((d) => d.channel === "web_push");
     expect(webPushDeliveries).toHaveLength(1);
     expect(webPushDeliveries.every((d) => d.status === "deferred")).toBe(true);
+    expect(mockDeliveries.find((d) => d.channel === "in_app")?.delivered_at).toBe(currentInstant.toISOString());
   });
 
   it("reconciles deferred deliveries when quiet hours end, sending fresh and expiring stale ones", async () => {

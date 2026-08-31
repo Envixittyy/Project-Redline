@@ -7,6 +7,10 @@ import {
   sortCalendarItemsChronologically,
   type CalendarItem,
 } from "@/features/calendar/calendar-items";
+import {
+  getSystemLoadTelemetry,
+  getTimeAwareGreeting,
+} from "@/features/home/personality-greeting";
 import { HomeDashboard } from "@/features/home/home-dashboard";
 import { addDays, dayRangeIn, resolveTimeZone, todayIn } from "@/lib/date/day";
 import { listCalendarEventsInRange } from "@/services/calendar-events/calendar-event-repository";
@@ -17,6 +21,7 @@ import {
 import { listExternalCalendarEventsInRange } from "@/services/external-calendars/external-calendar-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
 import {
+  readTaskWorkloadCounts,
   listTasksByIds,
   listTasksForView,
 } from "@/services/tasks/task-repository";
@@ -38,6 +43,8 @@ export default async function HomePage() {
   let upcomingTasks: Awaited<ReturnType<typeof listTasksForView>> = [];
   let courses: Awaited<ReturnType<typeof listCourses>> = [];
   let schedule: CalendarItem[] = [];
+  let workload: Awaited<ReturnType<typeof readTaskWorkloadCounts>> | null =
+    null;
 
   if (configured) {
     const [
@@ -49,6 +56,7 @@ export default async function HomePage() {
       externalEvents,
       meetings,
       workSessions,
+      workloadResult,
     ] = await Promise.all([
       listTasksForView("today"),
       listTasksForView("overdue"),
@@ -58,18 +66,22 @@ export default async function HomePage() {
       listExternalCalendarEventsInRange(range.start, range.end),
       listCourseMeetingsForCalendar(),
       listWorkSessionsInRange(range.start, range.end),
+      readTaskWorkloadCounts().catch(() => null),
     ]);
 
     todayTasks = todayResult;
     overdueTasks = overdueResult;
     upcomingTasks = upcomingResult;
     courses = coursesResult;
+    workload = workloadResult;
 
     const workSessionTasks =
       workSessions.length > 0
         ? await listTasksByIds(workSessions.map((session) => session.taskId))
         : [];
-    const scheduledTasks = todayTasks.filter((task) => Boolean(task.scheduledStart));
+    const scheduledTasks = todayTasks.filter((task) =>
+      Boolean(task.scheduledStart),
+    );
 
     const scheduleItems = buildCalendarItems(
       events,
@@ -87,12 +99,25 @@ export default async function HomePage() {
     schedule = sortCalendarItemsChronologically(scheduleItems);
   }
 
+  const greeting = getTimeAwareGreeting("Kyle", new Date(), timeZone);
+  const todayClassesCount = schedule.filter(
+    (item) => item.kind === "course_meeting",
+  ).length;
+  const telemetry = workload
+    ? getSystemLoadTelemetry({
+        openTaskCount: workload.remainingTasks,
+        dueSoonCount: workload.dueToday,
+        overdueCount: workload.overdue,
+        todayClassCount: todayClassesCount,
+      }).telemetryText
+    : "Workload unavailable";
+
   return (
     <>
       <PageHeader
-        eyebrow="Your space"
-        title="A calmer place for everything."
-        description="Today’s commitments, overdue work, upcoming deadlines, courses, and notes—drawn from your private workspace data."
+        eyebrow={greeting.eyebrow}
+        title={`${greeting.greeting} ${greeting.subtext}`}
+        description={`${telemetry} — Classes, deadlines, notes, unfinished business, and whatever else has made its way into the system.`}
       />
       {configured ? (
         <HomeDashboard
@@ -115,4 +140,3 @@ export default async function HomePage() {
     </>
   );
 }
-

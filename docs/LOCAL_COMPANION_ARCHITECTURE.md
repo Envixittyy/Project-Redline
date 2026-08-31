@@ -4,7 +4,7 @@ Authoritative Phase 10A implementation contract, updated 2026-08-31. This supers
 
 ## Supported scope
 
-The only active AI write proposal is **add 1–20 checklist subtasks to one selected owner task**. Inference is optional. The model cannot call repositories, delete records, edit other tasks, change a course, execute code, fetch URLs, or use tools. Existing cloud dispatch is paused before egress; Notes AI assistance consequently returns an unavailable message, while ordinary Notes functionality remains unchanged. Cloud adapters and their historical consent schema remain available for a future reviewed integration, not as an alternate executor.
+Active AI write proposals are **add 1-20 checklist subtasks to one selected owner task** and **create one new course with up to seven weekly meetings from a selected UTF-8 TXT/MD/CSV/ICS upload**. Inference is optional. The model cannot call repositories, delete records, edit other tasks, change an existing course, execute code, fetch URLs, or use tools. Existing cloud dispatch is paused before egress; Notes AI assistance consequently returns an unavailable message, while ordinary Notes functionality remains unchanged. Cloud adapters and their historical consent schema remain available for a future reviewed integration, not as an alternate executor.
 
 ```text
 Browser: explicit Generate(task ID, local provider/model)
@@ -67,7 +67,7 @@ Origin is a browser isolation check, not proof of identity for arbitrary local p
 Migration `20260831100000_ai_trust_boundary.sql` introduces:
 
 - Owner-readable `ai_requests`, with no direct authenticated INSERT/UPDATE/DELETE.
-- A unique request link on `operation_batches` and restrictive AI batch/step RLS policies. Browsers cannot create, alter, move, delete, or relabel trusted AI rows; non-AI capture operations retain their existing rules.
+- A protected request link on `operation_batches` and restrictive AI batch/step RLS policies. Browsers cannot create, alter, move, delete, or relabel trusted AI rows; non-AI capture operations retain their existing rules.
 - Private `ai_private.signing_key` and verifier, inaccessible to `anon`/`authenticated`/PUBLIC.
 - Narrow signed prepare, record, approve, and reject RPCs. Security-definer functions pin an empty search path and require both server HMAC authentication and matching `auth.uid()`.
 
@@ -120,7 +120,7 @@ No AI undo is implemented: audit metadata explicitly records `undo_supported: fa
 - For a custom flow use `prepareTaskChecklistAction`, browser `inferLocalContent`, and `finalizeTaskChecklistAction`. Do not manufacture context/handles or persist the pairing token. Disclose the exact fields/provider before sending; no implicit background generation.
 - Show the persisted `ChecklistReview` as plain text. Reload with `reviewTaskChecklistAction`. A separate explicit Apply passes **only `batchId`** to `applyAiProposalAction`; Reject uses `rejectAiProposalAction`. Handle unavailable/conflict/expiry without automatic regeneration or application.
 - Abort before finalization cancels transport; abandoned metadata expires. Do not claim cancellation revoked an already finalized proposal: reject it explicitly if needed.
-- Course-document import, cloud dispatch, checklist edits, and other mutation types need a new narrow capability, canonical source/revision read, strict proposal schema, and a domain-specific atomic approval transaction. Do not reuse the legacy generic action dispatcher. No broad permissions are implied by this foundation.
+- Course import now uses `generateCourseImport(file)` and `prepareCourseImportAction` / `finalizeCourseImportAction`; its final mutation is `applyCourseImportAction(batchId)` through the course repository. `reviseCourseImportAction` and `reviseTaskChecklistAction` create successor immutable reviews; a separate approval must use the new batch ID. Cloud dispatch and additional mutation types still need their own narrow capability, canonical source/revision read, strict proposal schema, and domain-specific atomic approval transaction. Do not reuse the legacy generic action dispatcher. No broad permissions are implied by this foundation.
 
 ## Verification and remaining deployment checks
 
@@ -137,9 +137,9 @@ Browser mode requires free ports 3000 and 41400, serves a temporary synthetic pa
 
 Before activating production AI, verify the actual hosted HTTPS origin on the intended desktop browser, permission grant/denial, blocked origin, pairing/re-pair/unpair, real runtime offline/timeout behavior, and a real model producing a valid checklist. Use a disposable task to check separate review/Apply, source conflict, duplicate Apply, and direct authenticated REST/RPC forgery denial in the deployed database. Denied/unsupported browsers must remain unavailable; do not weaken their policy. Production secrets, hosted-browser permission flow, real models, and live Supabase were not tested here.
 
-Validated proposal text and result IDs remain in the protected audit. Abandoned request metadata currently has no automatic retention job; existing cloud-history clearing does not clear it. No raw model envelopes, prompts, documents, pairing tokens, signing keys, or Supabase credentials are logged/persisted by this pipeline. These limitations do not authorize later roadmap features.
+Validated proposal text and result IDs remain in the protected audit. Abandoned request metadata currently has no automatic retention job; existing cloud-history clearing does not clear it. No raw model envelopes, prompts, pairing tokens, signing keys, or Supabase credentials are logged/persisted by this pipeline. Course import deliberately persists normalized selected document text in owner-readable `ai_course_requests`; expiry does not erase it. It is not logged or cleared by legacy cloud-history deletion. These limitations do not authorize later roadmap features.
 
-## Validation record (2026-08-31)
+## Initial trust-foundation validation record (44f1b89, 2026-08-31)
 
 - `pnpm lint`: passed.
 - `pnpm typecheck`: passed (`next typegen` and `tsc --noEmit`).
@@ -152,3 +152,13 @@ Validated proposal text and result IDs remain in the protected audit. Abandoned 
 - `git diff --check`: passed. No production migration or secrets were installed.
 
 One pre-existing notification test expected the dispatcher to count deliveries already created as deferred by its repository. Its assertion now checks zero newly deferred deliveries and exactly one persisted deferred push. Notification production code was unchanged.
+
+## Reviewed Gemini course/checklist integration
+
+Checkpoint `15493bc` is preserved independently; see `GEMINI_INTEGRATION_REVIEW.md` for per-file dispositions and final validation. New migration `20260831110000_ai_reviewed_course_import.sql` adds immutable course source provenance and revised proposal batches. Source bytes are selected by the user and always untrusted; server-side strict UTF-8 extraction accepts only TXT/MD/CSV/ICS. Files over 256 KiB, normalized text over 25,000 characters, or JSON-encoded context over 32 KiB fail before inference (no silent truncation). Course output is limited to 16 KiB, exact keys, bounded strings, valid unique weekdays and same-day HH:MM ranges. No `section`, color, arbitrary IDs, task actions, tools, or existing-course update fields are accepted. Dates/time zone come from the server and are disclosed in review; meetings start on preparation day with no end date, editable later through normal School controls.
+
+A signed request binds normalized source text/digest, random document handle, owner, capability, provider/model, date/time zone, and expiry. Preparation rereads persisted source before constructing the model prompt. Finalization and Apply independently check the digest; clients cannot edit/delete source rows. Replacing a file requires a new request. User edits are untrusted field input: strict validation plus a new immutable review is required. Previous batch IDs become rejected atomically. AI Apply receives only a persisted batch ID, never the browser's editable object. Only explicit `ask_before_changing` mode may commit. Course insertion, every meeting, result IDs, and committed audit share one transaction; duplicate case-insensitive course codes conflict without modifying existing rows. Course-owner advisory locking serializes concurrent inserts and code updates against duplicate checking. PGlite verifies transactional behavior, but concurrent live-session stress remains a deployment check.
+
+All sources and proposals are plain text, never rendered HTML. A compromised authenticated browser can fabricate valid suggested text or invoke its owner's explicit approval endpoint; this architecture does not attest human attention or model authorship. It does enforce separate server review persistence and approval with exact capability/provenance checks. Source instructions cannot acquire tools or additional domain permissions.
+
+Reproduce real-component UI verification with `pnpm exec tsx scripts/smoke-ai-review.mjs`. This serves a labelled synthetic fixture on 127.0.0.1:3000 for ten minutes: actual checklist/course/palette components and client orchestration, stubbed server/model boundaries, no account or database. Use `scripts/fixtures/course-smoke.txt`; verify edited reviews do not apply, a stale checklist failure stays open, course Apply sends the successor batch ID, exact hidden commands, keyboard dismissal, and 390px layout. This is UI evidence, not a live-model/database end-to-end claim. Never host the fixture publicly.

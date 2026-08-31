@@ -7,6 +7,7 @@ import {
   FileText,
   MapPin,
   Plus,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { useState, useTransition } from "react";
@@ -25,6 +26,7 @@ import {
   deleteCourseMaterialAction,
   saveCourseMaterialAction,
 } from "./school-material-actions";
+import { CourseImportModal } from "./course-import-modal";
 import styles from "./school-workspace.module.css";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -46,6 +48,7 @@ export function SchoolWorkspace({
   const [pending, startTransition] = useTransition();
 
   const [showAddCourse, setShowAddCourse] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [activeMeetingCourseId, setActiveMeetingCourseId] = useState<string | null>(null);
   const [activeMaterialCourseId, setActiveMaterialCourseId] = useState<string | null>(null);
 
@@ -66,6 +69,12 @@ export function SchoolWorkspace({
 
   return (
     <div className={styles.layout}>
+      {showImport ? (
+        <CourseImportModal
+          onClose={() => setShowImport(false)}
+        />
+      ) : null}
+
       <div className={styles.toolbar}>
         <div>
           <p className={styles.kicker}>Academic Timetable & Materials</p>
@@ -73,13 +82,23 @@ export function SchoolWorkspace({
             {courses.length} active {courses.length === 1 ? "course" : "courses"}
           </h2>
         </div>
-        <button
-          onClick={() => setShowAddCourse((v) => !v)}
-          type="button"
-          aria-expanded={showAddCourse}
-        >
-          <Plus size={17} aria-hidden="true" /> Add course
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button
+            onClick={() => setShowImport(true)}
+            type="button"
+            className="motion-interactive"
+          >
+            <Sparkles size={16} aria-hidden="true" /> Import Syllabus
+          </button>
+          <button
+            onClick={() => setShowAddCourse((v) => !v)}
+            type="button"
+            aria-expanded={showAddCourse}
+            className="motion-interactive"
+          >
+            <Plus size={17} aria-hidden="true" /> Add course
+          </button>
+        </div>
       </div>
 
       {error ? (

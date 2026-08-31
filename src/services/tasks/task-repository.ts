@@ -497,6 +497,25 @@ export async function readTaskChecklistContext(id: string) {
   return data as import("@/services/integrations/ai/trust-contract").ChecklistContext;
 }
 
+/** Exact owner-scoped counts; no task content is exposed to telemetry. */
+export async function readTaskWorkloadCounts(now = new Date()) {
+  const { client, userId } = await requireAuthenticatedSupabase();
+  const timeZone = resolveTimeZone();
+  const today = todayIn(timeZone, now);
+  const { start, end } = dayRangeIn(today, addDays(today, 1), timeZone);
+  const base = () => client.from(TABLE).select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", openTaskStatuses);
+  const results = await Promise.all([
+    base(),
+    base().or(`and(due_at.gte.${quote(start)},due_at.lt.${quote(end)}),and(due_at.is.null,due_date.eq.${today})`),
+    base().or(`due_at.lt.${quote(now.toISOString())},and(due_at.is.null,due_date.lt.${today})`),
+  ]);
+  for (const result of results) {
+    if (result.error) fail("load workload counts", result.error);
+    if (result.count === null) throw new TaskRepositoryError("Workload counts unavailable.");
+  }
+  return { remainingTasks: results[0].count!, dueToday: results[1].count!, overdue: results[2].count! };
+}
+
 /** Task additions and AI audit share one DB transaction. Proof stays server-only. */
 export async function applyReviewedTaskChecklist(proof: { p_message: string; p_mac: string }) {
   const { client } = await requireAuthenticatedSupabase();

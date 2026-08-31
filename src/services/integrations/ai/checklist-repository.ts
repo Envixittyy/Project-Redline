@@ -154,3 +154,29 @@ export async function rejectTaskChecklist(batchId: unknown) {
   );
   if (error) throw new AiTrustError("proposal_unavailable");
 }
+
+/** Edits never alter an existing reviewed batch; the DB rejects its old ID. */
+export async function reviseTaskChecklist(batchId: unknown, items: unknown) {
+  const { client, userId } = await requireAuthenticatedSupabase();
+  const review = await loadReview(batchId);
+  const proposal = parseChecklistOutput(
+    JSON.stringify({
+      schema_version: 1,
+      type: "add_task_checklist",
+      task_handle: review.taskHandle,
+      items,
+    }),
+    review.capability,
+    review.taskHandle,
+  );
+  const result = await client.rpc(
+    "ai_revise_checklist",
+    signAiCommand(userId, "revise_checklist", {
+      batch_id: review.batchId,
+      proposal,
+    }),
+  );
+  if (result.error || typeof result.data !== "string")
+    throw new AiTrustError("proposal_unavailable");
+  return readChecklistReview(result.data);
+}

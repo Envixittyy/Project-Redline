@@ -174,9 +174,10 @@ export async function createNotificationEvent(
     process.env.APP_TIME_ZONE ||
     "Asia/Manila";
 
+  const now = input.currentInstant ?? new Date();
   const quietPref = prefRows.find((p) => p.quiet_start && p.quiet_end) ?? activePref;
   const inQuiet = isQuietHours(
-    new Date(),
+    now,
     timeZone,
     quietPref?.quiet_start ?? null,
     quietPref?.quiet_end ?? null,
@@ -226,7 +227,7 @@ export async function createNotificationEvent(
     push_subscription_id: null,
     channel: "in_app",
     status: "sent",
-    delivered_at: new Date().toISOString(),
+    delivered_at: now.toISOString(),
   });
 
   if (inAppDelivery.error) {
@@ -246,7 +247,7 @@ export async function createNotificationEvent(
 
   const activeSubs = ((subscriptions ?? []) as PushSubscriptionRow[]).filter((sub) => {
     if (!sub.expires_at) return true;
-    return new Date(sub.expires_at) > new Date();
+    return new Date(sub.expires_at) > now;
   });
 
   if (activeSubs.length > 0) {

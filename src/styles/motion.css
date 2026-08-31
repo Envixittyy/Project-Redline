@@ -23,6 +23,22 @@
   transform: scale(0.985);
 }
 
+.motion-snap {
+  transition:
+    transform var(--motion-fast) var(--motion-spring),
+    opacity var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+.motion-tactile {
+  transition: transform var(--motion-fast) var(--motion-spring);
+}
+
+.motion-tactile:active {
+  transform: scale(0.98);
+}
+
 :root[data-motion="reduced"] {
   --motion-distance: 0.125rem;
   --motion-instant: 1ms;
@@ -49,5 +65,40 @@
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+:root[data-motion="reduced"] .motion-snap,
+:root[data-motion="off"] .motion-snap,
+:root[data-motion="reduced"] .motion-tactile:active,
+:root[data-motion="off"] .motion-tactile:active {
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .motion-snap,
+  .motion-tactile:active {
+    transform: none;
+  }
+}
+
+:root[data-motion="reduced"] .motion-enter,
+:root[data-motion="off"] .motion-enter {
+  animation-name: forward-fade;
+}
+:root[data-motion="reduced"] .motion-interactive:active,
+:root[data-motion="off"] .motion-interactive:active {
+  transform: none;
+}
+@keyframes forward-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .motion-enter {
+    animation-name: forward-fade;
+  }
+  .motion-interactive:active {
+    transform: none;
   }
 }

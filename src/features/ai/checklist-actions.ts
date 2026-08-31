@@ -4,6 +4,7 @@ import {
   finalizeTaskChecklist,
   prepareTaskChecklist,
   readChecklistReview,
+  reviseTaskChecklist,
 } from "@/services/integrations/ai/checklist-repository";
 import { AiTrustError } from "@/services/integrations/ai/trust-contract";
 
@@ -44,6 +45,20 @@ export async function finalizeTaskChecklistAction(
 export async function reviewTaskChecklistAction(batchId: unknown) {
   try {
     return { ok: true as const, review: await readChecklistReview(batchId) };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function reviseTaskChecklistAction(
+  batchId: unknown,
+  items: unknown,
+) {
+  try {
+    return {
+      ok: true as const,
+      review: await reviseTaskChecklist(batchId, items),
+    };
   } catch (error) {
     return failure(error);
   }

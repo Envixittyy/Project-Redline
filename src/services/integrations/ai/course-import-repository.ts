@@ -31,7 +31,7 @@ export async function prepareCourseImport(
   const file = form instanceof FormData ? form.get("file") : null;
   if (!(file instanceof File) || !file.size || file.size > MAX_DOCUMENT_BYTES)
     throw new AiTrustError("invalid_document");
-  const source = extractTextFromBuffer(await file.arrayBuffer(), file.name);
+  const source = await extractTextFromBuffer(await file.arrayBuffer(), file.name);
   const handle = `document_${randomUUID().replaceAll("-", "")}`;
   courseImportPrompt(source.text, handle); // Reject excessive encoded context before persistence.
   const timeZone = resolveTimeZone(),

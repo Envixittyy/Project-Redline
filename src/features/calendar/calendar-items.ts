@@ -20,7 +20,10 @@ import {
   workSessionToCalendarEntry,
   externalCalendarEventToEntry,
   type ExternalCalendarEntry,
+  predictionToCalendarEntry,
+  type AssessmentPredictionCalendarEntry,
 } from "./calendar-domain";
+import type { SchoolAssessmentPrediction } from "@/services/school/prediction-service";
 
 export type CalendarItem =
   | { key: string; kind: "event"; date: string; event: CalendarEvent; entry: NativeCalendarEntry }
@@ -28,7 +31,8 @@ export type CalendarItem =
   | { key: string; kind: "scheduled_task"; date: string; task: Task; entry: TaskScheduleCalendarEntry }
   | { key: string; kind: "work_session"; date: string; task: Task; workSession: WorkSession; entry: TaskWorkSessionCalendarEntry }
   | { key: string; kind: "deadline"; date: string; task: Task; entry: TaskDeadlineCalendarEntry }
-  | { key: string; kind: "course_meeting"; date: string; meeting: CourseMeeting; entry: CourseMeetingCalendarEntry };
+  | { key: string; kind: "course_meeting"; date: string; meeting: CourseMeeting; entry: CourseMeetingCalendarEntry }
+  | { key: string; kind: "assessment_prediction"; date: string; prediction: SchoolAssessmentPrediction; entry: AssessmentPredictionCalendarEntry };
 
 function occupiedDates(start: string, end: string | null, timeZone: string): string[] {
   const first = dateForInstant(start, timeZone);
@@ -54,6 +58,7 @@ export function buildCalendarItems(
   workSessions: WorkSession[] = [],
   workSessionTasks: Task[] = [],
   externalEvents: ExternalCalendarProjection[] = [],
+  predictions: SchoolAssessmentPrediction[] = [],
 ): CalendarItem[] {
   const items: CalendarItem[] = [];
 
@@ -130,10 +135,30 @@ export function buildCalendarItems(
     }
   }
 
+  for (const prediction of predictions) {
+    const entry = predictionToCalendarEntry(prediction, timeZone);
+    if (!entry || !matchesCalendarFilters(entry, defaultCalendarFilters)) continue;
+    items.push({
+      key: `${entry.key}:${entry.date}`,
+      kind: "assessment_prediction",
+      date: entry.date,
+      prediction,
+      entry,
+    });
+  }
+
   return items.sort((left, right) => {
     const byDate = left.date.localeCompare(right.date);
     if (byDate !== 0) return byDate;
-    const rank = { course_meeting: 0, event: 1, external_event: 2, work_session: 3, scheduled_task: 4, deadline: 5 } as const;
+    const rank = {
+      course_meeting: 0,
+      event: 1,
+      external_event: 2,
+      assessment_prediction: 3,
+      work_session: 4,
+      scheduled_task: 5,
+      deadline: 6,
+    } as const;
     return rank[left.kind] - rank[right.kind];
   });
 }
@@ -174,9 +199,10 @@ export function sortCalendarItemsChronologically(
       course_meeting: 0,
       event: 1,
       external_event: 2,
-      work_session: 3,
-      scheduled_task: 4,
-      deadline: 5,
+      assessment_prediction: 3,
+      work_session: 4,
+      scheduled_task: 5,
+      deadline: 6,
     } as const;
     const byRank = rank[left.kind] - rank[right.kind];
     if (byRank !== 0) return byRank;

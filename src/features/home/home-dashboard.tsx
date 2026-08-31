@@ -18,6 +18,7 @@ import { DashboardCustomizer } from "./dashboard-customizer";
 import { HomeScheduleList } from "./home-schedule";
 import { NextClassCard } from "./next-class-card";
 import { TodayClassesCard } from "./today-classes-card";
+import { PossibleAssessmentsCard } from "./possible-assessments-card";
 import styles from "./home-dashboard.module.css";
 
 function taskTiming(task: Task) {
@@ -93,6 +94,8 @@ export function HomeDashboard({
         courses={courses}
         timeZone={timeZone}
       />
+
+      <PossibleAssessmentsCard />
 
       <Surface
         variant="glass"

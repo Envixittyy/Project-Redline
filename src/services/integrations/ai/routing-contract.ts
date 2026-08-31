@@ -3,6 +3,7 @@ import { COURSE_IMPORT_CAPABILITY } from "./course-import-contract";
 import { SCHEDULE_IMAGE_CAPABILITY } from "./school-schedule-contract";
 import { BLACKBOARD_COURSE_IMAGE_CAPABILITY } from "./blackboard-screenshot-contract";
 import { ACADEMIC_CALENDAR_CAPABILITY } from "./academic-calendar-contract";
+import { ASSESSMENT_PREDICTION_CAPABILITY } from "./assessment-prediction-contract";
 import { isModelId } from "@/companion/network-policy";
 import type { LocalInferenceRequest } from "@/companion/types";
 import type { LocalProviderType } from "./types";
@@ -16,7 +17,8 @@ export type RequestKind =
   | "course"
   | "schedule_image"
   | "blackboard_image"
-  | "academic_calendar";
+  | "academic_calendar"
+  | "assessment_prediction";
 export type RoutingPreferences = {
   aiMode: AiMode;
   cloudEnabled: boolean;
@@ -58,6 +60,7 @@ export function capabilityFor(kind: RequestKind) {
   if (kind === "schedule_image") return SCHEDULE_IMAGE_CAPABILITY;
   if (kind === "blackboard_image") return BLACKBOARD_COURSE_IMAGE_CAPABILITY;
   if (kind === "academic_calendar") return ACADEMIC_CALENDAR_CAPABILITY;
+  if (kind === "assessment_prediction") return ASSESSMENT_PREDICTION_CAPABILITY;
   throw new AiTrustError("capability_denied");
 }
 /** Unknown/future domains (including journals/wellness) fail closed. */
@@ -68,7 +71,8 @@ export function cloudAllowed(capability: string, prefs: RoutingPreferences): boo
     capability === COURSE_IMPORT_CAPABILITY.id ||
     capability === SCHEDULE_IMAGE_CAPABILITY.id ||
     capability === BLACKBOARD_COURSE_IMAGE_CAPABILITY.id ||
-    capability === ACADEMIC_CALENDAR_CAPABILITY.id
+    capability === ACADEMIC_CALENDAR_CAPABILITY.id ||
+    capability === ASSESSMENT_PREDICTION_CAPABILITY.id
   ) {
     return prefs.courseImportCloud === true;
   }

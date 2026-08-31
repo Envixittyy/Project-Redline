@@ -27,6 +27,7 @@ import {
   saveCourseMaterialAction,
 } from "./school-material-actions";
 import { SchoolIntelligenceModal } from "./school-intelligence-modal";
+import { CoursePredictionsPanel } from "./course-predictions-panel";
 import styles from "./school-workspace.module.css";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -430,6 +431,11 @@ export function SchoolWorkspace({
                     </small>
                   )}
                 </div>
+
+                <CoursePredictionsPanel
+                  courseId={course.id}
+                  courseCode={course.code}
+                />
 
                 <button
                   className={styles.archive}

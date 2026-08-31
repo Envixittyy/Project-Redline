@@ -97,3 +97,4 @@ describe("Assessment Prediction Contract", () => {
     ).toThrow(AiTrustError);
   });
 });
+

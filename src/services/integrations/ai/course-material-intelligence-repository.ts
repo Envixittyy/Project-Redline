@@ -144,3 +144,4 @@ export async function finalizeCourseMaterialIntelligence(
     sourceHandle: request.source_handle,
   };
 }
+

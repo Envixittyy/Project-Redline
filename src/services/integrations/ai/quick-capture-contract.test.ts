@@ -56,3 +56,4 @@ describe("Quick Capture Contract", () => {
     expect(() => parseQuickCaptureOutput("{}", "other.cap", validHandle)).toThrow(AiTrustError);
   });
 });
+

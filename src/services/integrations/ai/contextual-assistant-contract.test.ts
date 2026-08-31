@@ -28,3 +28,4 @@ describe("Contextual Assistant Contract", () => {
     expect(() => parseContextualAssistantOutput("{}", "other.cap", validHandle)).toThrow(AiTrustError);
   });
 });
+

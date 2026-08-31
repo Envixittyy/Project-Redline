@@ -69,3 +69,4 @@ export async function applyBlackboardScreenshotAction(input: BlackboardScreensho
 export async function applyAcademicCalendarAction(input: AcademicCalendarApplyInput) {
   return applyAcademicCalendarImport(input);
 }
+

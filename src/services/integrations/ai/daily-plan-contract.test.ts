@@ -31,3 +31,4 @@ describe("Daily Plan Advice Contract", () => {
     expect(() => parseDailyPlanAdviceOutput("{}", "other.cap", validHandle)).toThrow(AiTrustError);
   });
 });
+

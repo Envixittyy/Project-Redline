@@ -73,3 +73,4 @@ describe("Academic Calendar Contract", () => {
     ).toThrow(AiTrustError);
   });
 });
+

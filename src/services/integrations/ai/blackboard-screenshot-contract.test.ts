@@ -64,3 +64,4 @@ describe("Blackboard Screenshot Contract", () => {
     ).toThrow(AiTrustError);
   });
 });
+

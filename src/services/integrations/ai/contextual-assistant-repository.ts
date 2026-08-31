@@ -168,3 +168,4 @@ export async function finalizeContextualAssistant(
     sourceHandle: request.source_handle,
   };
 }
+

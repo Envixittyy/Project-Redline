@@ -21,3 +21,4 @@ export async function applyQuickCaptureTaskAction(draft: ProposedTaskCapture) {
 export async function applyQuickCaptureEventAction(draft: ProposedEventCapture) {
   return applyQuickCaptureEvent(draft);
 }
+

@@ -105,3 +105,4 @@ export function contextualAssistantPrompt(
     formatJson: true,
   };
 }
+

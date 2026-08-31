@@ -15,3 +15,4 @@ export async function prepareDailyPlanAdviceAction(
 ) {
   return prepareRoutedInference("daily_plan_advice", JSON.stringify(context), local);
 }
+

@@ -82,3 +82,4 @@ describe("Image Validator (validateImageBuffer)", () => {
     expect(res.fileName).toBe("schedule.png");
   });
 });
+

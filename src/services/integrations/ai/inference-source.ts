@@ -44,7 +44,12 @@ export async function readInferenceSource(kind: RequestKind, requestId: unknown,
     } else {
       prompt = academicCalendarPrompt(r.source_handle, { text: r.source_text });
     }
-  } else if (kind === "assessment_prediction") {
+  } else if (
+    kind === "assessment_prediction" ||
+    kind === "note_summary" ||
+    kind === "note_rewrite" ||
+    kind === "note_action_items"
+  ) {
     if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
     try {
       prompt = JSON.parse(r.source_text);

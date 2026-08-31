@@ -12,13 +12,22 @@ export type AiMode = "auto" | "local" | "gemini" | "openrouter";
 export type CloudProvider = "gemini" | "openrouter";
 export type InferenceProvider = LocalProviderType | CloudProvider;
 export type InferenceLocation = "local" | "remote_local" | "cloud";
+import {
+  NOTE_SUMMARY_CAPABILITY,
+  NOTE_REWRITE_CAPABILITY,
+  NOTE_ACTION_ITEMS_CAPABILITY,
+} from "./note-intelligence-contract";
+
 export type RequestKind =
   | "checklist"
   | "course"
   | "schedule_image"
   | "blackboard_image"
   | "academic_calendar"
-  | "assessment_prediction";
+  | "assessment_prediction"
+  | "note_summary"
+  | "note_rewrite"
+  | "note_action_items";
 export type RoutingPreferences = {
   aiMode: AiMode;
   cloudEnabled: boolean;
@@ -61,6 +70,9 @@ export function capabilityFor(kind: RequestKind) {
   if (kind === "blackboard_image") return BLACKBOARD_COURSE_IMAGE_CAPABILITY;
   if (kind === "academic_calendar") return ACADEMIC_CALENDAR_CAPABILITY;
   if (kind === "assessment_prediction") return ASSESSMENT_PREDICTION_CAPABILITY;
+  if (kind === "note_summary") return NOTE_SUMMARY_CAPABILITY;
+  if (kind === "note_rewrite") return NOTE_REWRITE_CAPABILITY;
+  if (kind === "note_action_items") return NOTE_ACTION_ITEMS_CAPABILITY;
   throw new AiTrustError("capability_denied");
 }
 /** Unknown/future domains (including journals/wellness) fail closed. */
@@ -72,7 +84,10 @@ export function cloudAllowed(capability: string, prefs: RoutingPreferences): boo
     capability === SCHEDULE_IMAGE_CAPABILITY.id ||
     capability === BLACKBOARD_COURSE_IMAGE_CAPABILITY.id ||
     capability === ACADEMIC_CALENDAR_CAPABILITY.id ||
-    capability === ASSESSMENT_PREDICTION_CAPABILITY.id
+    capability === ASSESSMENT_PREDICTION_CAPABILITY.id ||
+    capability === NOTE_SUMMARY_CAPABILITY.id ||
+    capability === NOTE_REWRITE_CAPABILITY.id ||
+    capability === NOTE_ACTION_ITEMS_CAPABILITY.id
   ) {
     return prefs.courseImportCloud === true;
   }

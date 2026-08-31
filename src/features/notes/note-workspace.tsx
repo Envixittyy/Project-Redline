@@ -35,6 +35,7 @@ import type { EntityHandleMap } from "@/services/integrations/ai/entity-handles"
 
 import { archiveNoteAction, saveNoteAction } from "./note-actions";
 import { MarkdownPreview } from "./markdown-preview";
+import { NoteAiDialog } from "./note-ai-dialog";
 import styles from "./note-workspace.module.css";
 
 type TaskOption = { id: string; title: string };
@@ -64,6 +65,7 @@ export function NoteWorkspace({
   const [pending, startTransition] = useTransition();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   const [aiManifest, setAiManifest] = useState<AiTransferManifest | null>(null);
   const [aiEnvelope, setAiEnvelope] = useState<AiContextEnvelope | null>(null);
@@ -346,13 +348,24 @@ export function NoteWorkspace({
             Archive
           </button> : null}
           {selected ? (
-            <button type="button" disabled={pending} onClick={handleAiAssist}>
+            <button type="button" disabled={pending} onClick={() => setShowAiModal(true)}>
               <Sparkles size={16} />
               AI Assist
             </button>
           ) : null}
         </div>
       </header>
+
+      {showAiModal && selected ? (
+        <NoteAiDialog
+          note={{ id: selected.id, title: draft.title, body: draft.body }}
+          onClose={() => setShowAiModal(false)}
+          onNoteUpdated={(newBody) => {
+            setDraft((prev) => ({ ...prev, body: newBody }));
+            router.refresh();
+          }}
+        />
+      ) : null}
 
       {aiProposal ? (
         <div style={{ marginTop: "1rem" }}>

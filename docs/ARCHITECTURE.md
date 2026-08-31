@@ -171,19 +171,28 @@ Both feature clients call `features/ai/routing-client.ts`; server routing/contex
 
 Migration `20260831120000_ai_remote_hybrid.sql` adds owner-readable, signed-RPC-write-only `ai_inference_attempts`. Immutable source links, provider/model/location, capability, canonical payload digest, byte count and source expiry bind each transfer; atomic claims consume consent and prevent duplicate send. There are at most three attempts per source, no repeated provider, and one active/successful attempt. A separate one-use claim limits remote inference-ticket issuance. Source and privacy are reread before dispatch. Gemini/OpenRouter use fixed server-only adapters and the existing exact proposal parsers. Browser local finalization cannot finalize cloud attempts or directly finalize cloud-created sources. None of this adds apply authority; existing ID-only review/apply RPCs and atomic domain-write/audit transactions remain unchanged.
 
-Migration `20260831150000_school_intelligence_repair.sql` extends this trust foundation to School Intelligence and AI Product Features:
-- **`ai_scoped_requests` Table:** Generic, owner-isolated, immutable source table holding validated input text/image data URLs, SHA-256 digests, opaque handles, time zones, 5-minute expiry, and capability identifiers.
-- **Capability-Specific Privacy Consent:** 9 explicit boolean columns on `ai_preferences` (`school_schedule_cloud`, `blackboard_course_cloud`, `academic_calendar_cloud`, `assessment_prediction_cloud`, `notes_cloud`, `quick_capture_cloud`, `daily_plan_cloud`, `course_material_cloud`, `contextual_assistant_cloud`). Cloud routing evaluates only the specific capability flag; broad/inherited consent is denied.
-- **Signed Scoped Review Lifecycle:** `ai_create_scoped_request`, `ai_record_scoped_proposal`, `ai_revise_scoped_proposal`, `ai_reject_scoped_proposal`, and `ai_read_scoped_review` enforce server-signed preparation and immutable revision.
-- **Signed Apply RPCs & Domain Mutations:**
-  - `apply_ai_schedule_import`: Atomically creates canonical courses and recurring course meetings. Idempotent and replay-safe.
-  - `apply_ai_blackboard_courses`: Creates canonical courses only. Never manufactures fake Blackboard external records or mappings (SI-09).
-  - `apply_ai_academic_calendar`: Deduplicates on stable normalized source handle/title identity. Updates changed dates on existing source events without duplicating them; coexists with other events on the same date (SI-10).
-  - `apply_ai_assessment_predictions`: Creates predictions in `active` state.
-  - `confirm_prediction_to_task` & `confirm_prediction_to_event`: Atomic row locking (`FOR UPDATE`) and state transition (`active -> confirmed`). Prevents double-creation race conditions on concurrent confirm presses (SI-04, SI-05).
-  - `apply_ai_note_rewrite` & `apply_ai_note_action_items`: Validates note ownership and freshness before mutating note or creating linked action item tasks.
-  - `apply_ai_quick_capture`: Creates tasks or calendar events with timezone-safe instant math.
-  - `daily_plan_advice`, `course_material_summary`, `course_material_study_questions`, `contextual_assistant`: Purely informational, bounded queries (max 3 materials from same course, max 1 contextual entity, real database columns: `type`, `description`). No write authority.
+Migration `20260831150000_school_intelligence_repair.sql` adds `ai_scoped_requests`,
+protected scoped batch/attempt relationships, nine domain-specific privacy columns,
+signed command RPCs and transactional domain Apply functions. These remain
+**inactive repair material**, not certified workflows. A digest of a stored prompt
+cannot check the current Note/Course/material/calendar state: the request lacks a
+canonical source-ID/revision manifest. The review reader uses owner RLS, not HMAC.
+Successor proposals are not strictly validated, and several SQL payload shapes
+conflict with runtime contracts. Title-only calendar identity collides and overwrites
+manual divergence. Local wall clocks are incorrectly assigned UTC. Prediction
+conversion signs browser drafts and retains no created-entity provenance link.
+
+Final containment migration `20260831160000_school_intelligence_final_containment.sql`
+revokes scoped preparation/record/revision/Apply and prediction conversion, blocks
+scoped inference preparation/claims including existing attempts, and denies every
+new cloud capability regardless of stored opt-in. It preserves data, owner reads,
+and signed rejection; restores the non-confirming prediction state guard; and adds
+scoped batch/source owner equality. Application entry points also deny before reads,
+signing or transfer. Baseline checklist and text course import remain active.
+Images are never transferred; PDF/DOCX stay disabled. No new dependencies or cleanup
+job were added. See `docs/SCHOOL_INTELLIGENCE_FINAL_VERIFICATION.md` for the FAIL
+verdict, reproduced defects, and the separate tests of historical defects and final
+containment. Activation requires complete source/review/validation contracts.
 
 Successful attempts retain informational provider/model/location/evidence/latency metadata, joined to original and edited review batches. Cloud latency is measured around the server request; local latency is null rather than invented. Local/remote provenance is labelled `browser_relay`, not hardware/model attestation. Cloud configuration status is not an online health claim. Routing rows retain metadata only, but existing course source text and reviewed proposal text remain in the protected audit; five-minute execution expiry does not delete them, and legacy history clearing does not purge these rows. No automatic retention job was introduced.
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "@/services/integrations/ai/school-intelligence-policy";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type { ConfidenceLevel, PredictionType } from "@/services/integrations/ai/assessment-prediction-contract";
 import { signAiCommand } from "@/services/integrations/ai/trust-signing";
@@ -105,8 +106,7 @@ export async function dismissPrediction(predictionId: string): Promise<boolean> 
 }
 
 /**
- * Atomically confirms a prediction into a Task.
- * 2 concurrent presses will result in at most 1 Task created and status set to confirmed.
+ * Disabled: atomicity alone does not bind reviewed payload or source freshness.
  */
 export async function confirmPredictionAsTask(
   predictionId: string,
@@ -118,6 +118,7 @@ export async function confirmPredictionAsTask(
     courseId?: string;
   },
 ): Promise<{ ok: boolean; taskId?: string; message?: string }> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data, error } = await client.rpc(
@@ -138,7 +139,7 @@ export async function confirmPredictionAsTask(
 }
 
 /**
- * Atomically confirms a prediction into a Calendar Event.
+ * Disabled until persisted, source-bound confirmation is independently reviewed.
  */
 export async function confirmPredictionAsEvent(
   predictionId: string,
@@ -150,6 +151,7 @@ export async function confirmPredictionAsEvent(
     course?: string;
   },
 ): Promise<{ ok: boolean; eventId?: string; message?: string }> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data, error } = await client.rpc(
@@ -172,6 +174,7 @@ export async function supersedeMatchingPredictions(
   title: string,
   confirmedDate: string,
 ): Promise<number> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   // Find active predictions for this course

@@ -54,6 +54,7 @@ export function CaptureComposer({
       form.reset();
       setAiProposal(null);
       setAiBatchId(null);
+      router.refresh();
       onCaptured?.();
     });
   }

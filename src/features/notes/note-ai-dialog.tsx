@@ -128,11 +128,8 @@ export function NoteAiDialog({
   }
 
   function handleInsertSummary() {
-    if (!summaryResult) return;
-    const bullets = summaryResult.keyPoints.map((p) => `- ${p}`).join("\n");
-    const block = `## Summary\n${summaryResult.summary}\n\n### Key Points\n${bullets}\n\n---\n\n${note.body}`;
-    onNoteUpdated(block);
-    onClose();
+    // Updating the editor draft invokes ordinary autosave and bypasses AI review.
+    setError("Summary insertion is unavailable pending a source-bound review. You can copy the summary.");
   }
 
   function handleCopySummary() {

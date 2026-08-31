@@ -167,6 +167,20 @@ async function courseCounts() {
 }
 
 describe("AI trust boundary in PostgreSQL (actual migrations, authenticated role)", () => {
+  const blockedRpcs = [
+    ["ai_create_scoped_request", "prepare_scoped_request"],
+    ["ai_record_scoped_proposal", "record_scoped_proposal"],
+    ["ai_revise_scoped_proposal", "revise_scoped_proposal"],
+    ["apply_ai_schedule_import", "approve_schedule_import"],
+    ["apply_ai_blackboard_courses", "approve_blackboard_courses"],
+    ["apply_ai_academic_calendar", "approve_academic_calendar"],
+    ["apply_ai_assessment_predictions", "approve_assessment_predictions"],
+    ["confirm_prediction_to_task", "confirm_prediction_task"],
+    ["confirm_prediction_to_event", "confirm_prediction_event"],
+    ["apply_ai_note_rewrite", "approve_note_rewrite"],
+    ["apply_ai_note_action_items", "approve_note_action_items"],
+    ["apply_ai_quick_capture", "approve_quick_capture"],
+  ];
   beforeAll(async () => {
     db = new PGlite({ extensions: { pgcrypto } });
     await db.exec(`
@@ -199,7 +213,7 @@ describe("AI trust boundary in PostgreSQL (actual migrations, authenticated role
   });
   beforeEach(async () => {
     await db.exec(
-      "reset role; truncate public.operation_batches, public.ai_requests, public.ai_course_requests, public.tasks, public.courses cascade;",
+      "reset role; truncate public.operation_batches, public.ai_requests, public.ai_course_requests, public.ai_scoped_requests, public.tasks, public.courses cascade;",
     );
     await db.exec("set role authenticated");
     await db.query("select set_config('request.jwt.claim.sub',$1,false)", [
@@ -211,6 +225,72 @@ describe("AI trust boundary in PostgreSQL (actual migrations, authenticated role
       )
     ).rows[0].id;
     await db.query("delete from ai_preferences where user_id=$1", [owner]);
+  });
+
+  it.each(blockedRpcs)("final containment rejects %s even with a valid server signature", async (name, operation) => {
+    for (const role of ["authenticated", "anon"]) {
+      await db.exec(`set role ${role}`);
+      const commands = [
+        proof(operation, { batch_id: randomUUID(), title: "Substituted", proposal_digest: "a".repeat(64) }),
+        proof(operation, { prediction_id: randomUUID(), note_id: randomUUID(), title: "Replay" }),
+      ];
+      for (const command of commands) await expect(rpc(name, command)).rejects.toThrow(/permission denied/);
+    }
+  });
+
+  async function seedScoped(user = owner) {
+    await db.exec("reset role");
+    const id = randomUUID();
+    await db.query("insert into ai_scoped_requests(id,user_id,capability,source_handle,source_digest,source_text,provider,model) values($1,$2,'noteRewrite.propose','source_fixture',$3,'source','ollama','fixture')", [id, user, createHash('sha256').update('source').digest('hex')]);
+    await db.exec("set role authenticated");
+    return id;
+  }
+
+  it("scoped source and review DML remains owner isolated and cannot bypass protected batches", async () => {
+    const mine = await seedScoped(), theirs = await seedScoped(foreign);
+    expect((await db.query("select id from ai_scoped_requests")).rows).toEqual([{ id: mine }]);
+    await expect(db.query("update ai_scoped_requests set source_text='forged' where id=$1", [mine])).rejects.toThrow(/permission denied/);
+    await expect(db.query("delete from ai_scoped_requests where id=$1", [mine])).rejects.toThrow(/permission denied/);
+    await expect(db.query("insert into operation_batches(user_id,source,status,ai_scoped_request_id) values($1,'user','proposed',$2)", [owner, mine])).rejects.toThrow(/row-level security/);
+    await db.exec("reset role");
+    await expect(db.query("insert into operation_batches(user_id,source,status,ai_scoped_request_id) values($1,'ai','proposed',$2)", [owner, theirs])).rejects.toThrow(/ai_owner_mismatch/);
+  });
+
+  it("existing scoped requests cannot prepare or claim local/cloud inference", async () => {
+    const id = await seedScoped();
+    await expect(rpc("ai_prepare_inference", proof("prepare_inference", {
+      id: randomUUID(), scoped_request_id: id, provider: "ollama", model: "fixture", location: "local", capability: "noteRewrite.propose", payload_digest: "a".repeat(64), text_bytes: 10,
+    }))).rejects.toThrow(/school_intelligence_review_required/);
+    await db.exec("reset role");
+    const attempt = randomUUID();
+    await db.query("insert into ai_inference_attempts(id,user_id,scoped_request_id,provider,model,location,capability,payload_digest,text_bytes,status,expires_at) values($1,$2,$3,'ollama','fixture','local','noteRewrite.propose',$4,10,'ready',now()+interval '5 minutes')", [attempt, owner, id, "a".repeat(64)]);
+    await db.exec("set role authenticated");
+    await expect(rpc("ai_claim_inference", proof("claim_inference", { id: attempt, payload_digest: "a".repeat(64), consent: true }))).rejects.toThrow(/school_intelligence_review_required/);
+  });
+
+  it("a preexisting exact persisted review cannot mutate data after final containment", async () => {
+    const source = await seedScoped();
+    await db.exec("reset role");
+    await db.query("update ai_scoped_requests set status='proposed' where id=$1", [source]);
+    const batch = (await db.query<{ id: string }>("insert into operation_batches(user_id,source,status,summary,ai_scoped_request_id) values($1,'ai','proposed','Review fixture',$2) returning id", [owner, source])).rows[0].id;
+    await db.query("insert into operation_steps(user_id,batch_id,position,action_type,target_entity,input) values($1,$2,0,'noteRewrite.propose','note',$3)", [owner, batch, { rewritten_body: "forged replacement" }]);
+    const note = (await db.query<{ id: string }>("insert into notes(user_id,title,body) values($1,'Protected note','Keep my text') returning id", [owner])).rows[0].id;
+    await db.exec("set role authenticated");
+    const review = await rpc("ai_read_scoped_review", [batch]) as { proposalDigest: string };
+    for (let replay = 0; replay < 2; replay++) {
+      await expect(rpc("apply_ai_note_rewrite", proof("approve_note_rewrite", { batch_id: batch, note_id: note, proposal_digest: review.proposalDigest }))).rejects.toThrow(/permission denied/);
+    }
+    expect((await db.query("select body from notes where id=$1", [note])).rows).toEqual([{ body: "Keep my text" }]);
+    await expect(db.query("update operation_steps set input='{}' where batch_id=$1 returning id", [batch])).resolves.toMatchObject({ rows: [] });
+  });
+
+  it("every new cloud domain stays denied even when all nine preferences are enabled", async () => {
+    await db.query("insert into ai_preferences(user_id,cloud_enabled,ai_mode,preferred_cloud,cloud_fallback_mode,checklist_cloud,course_import_cloud,school_schedule_cloud,blackboard_course_cloud,academic_calendar_cloud,assessment_prediction_cloud,notes_cloud,quick_capture_cloud,daily_plan_cloud,course_material_cloud,contextual_assistant_cloud) values($1,true,'auto','gemini','ask_each_time',true,true,true,true,true,true,true,true,true,true,true)", [owner]);
+    await db.exec("reset role");
+    for (const capability of ["schoolScheduleImage.propose", "blackboardCourseImage.propose", "academicCalendarImport.propose", "schoolAssessmentPrediction.propose", "noteSummary.propose", "noteRewrite.propose", "noteActionItems.propose", "quickCapture.propose", "dailyPlanAdvice.propose", "courseMaterialSummary.propose", "courseMaterialStudyQuestions.propose", "contextualAssistant.propose"]) {
+      expect((await db.query<{ allowed: boolean }>("select ai_private.cloud_allowed($1,'gemini') allowed", [capability])).rows[0].allowed).toBe(false);
+    }
+    expect((await db.query<{ allowed: boolean }>("select ai_private.cloud_allowed('taskChecklist.propose','gemini') allowed")).rows[0].allowed).toBe(true);
   });
 
   async function seedPrediction(user = owner) {
@@ -952,538 +1032,4 @@ describe("AI trust boundary in PostgreSQL (actual migrations, authenticated role
     expect(await courseCounts()).toEqual({ courses: 0, meetings: 0 });
   });
 
-  describe("School Intelligence & Scoped Trust Lifecycle Repairs", () => {
-    it("capability-specific cloud privacy flags isolate permissions strictly", async () => {
-      await db.exec("reset role");
-      await db.query(
-        `insert into ai_preferences(user_id, cloud_enabled, ai_mode, preferred_cloud, checklist_cloud, course_import_cloud, school_schedule_cloud)
-         values($1, true, 'auto', 'gemini', true, false, false)
-         on conflict(user_id) do update set cloud_enabled=true, ai_mode='auto', preferred_cloud='gemini', checklist_cloud=true, course_import_cloud=false, school_schedule_cloud=false`,
-        [owner],
-      );
-      await db.exec("set role authenticated");
-
-      const checkAllowed = async (cap: string) => {
-        await db.exec("reset role");
-        const res = await db.query<{ allowed: boolean }>(
-          `select ai_private.cloud_allowed($1, 'gemini') as allowed`,
-          [cap],
-        );
-        await db.exec("set role authenticated");
-        return res.rows[0].allowed;
-      };
-
-      expect(await checkAllowed("taskChecklist.propose")).toBe(true);
-      expect(await checkAllowed("courseImport.propose")).toBe(false);
-      expect(await checkAllowed("schoolScheduleImage.propose")).toBe(false);
-      expect(await checkAllowed("blackboardCourseImage.propose")).toBe(false);
-      expect(await checkAllowed("schoolAssessmentPrediction.propose")).toBe(false);
-      expect(await checkAllowed("noteRewrite.propose")).toBe(false);
-
-      await db.exec("reset role");
-      await db.query(`update ai_preferences set school_schedule_cloud = true where user_id = $1`, [owner]);
-      await db.exec("set role authenticated");
-
-      expect(await checkAllowed("schoolScheduleImage.propose")).toBe(true);
-      expect(await checkAllowed("blackboardCourseImage.propose")).toBe(false);
-    });
-
-    it("applies schedule screenshot import atomically into courses and meetings", async () => {
-      const scheduleProposal = {
-        schema_version: 1,
-        type: "schedule_image_proposal",
-        source_handle: "sched_h",
-        courses: [
-          {
-            code: "MATH201",
-            title: "Calculus II",
-            meetings: [
-              { weekday: "monday", startTime: "08:00", endTime: "09:30", room: "Room 101" },
-              { weekday: "wednesday", startTime: "08:00", endTime: "09:30", room: "Room 101" },
-            ],
-          },
-        ],
-      };
-
-      const id = randomUUID();
-      const source = "data:image/png;base64,AAAA";
-      await rpc(
-        "ai_create_scoped_request",
-        proof("prepare_scoped_request", {
-          id,
-          capability: "schoolScheduleImage.propose",
-          source_handle: "sched_h",
-          source_digest: createHash("sha256").update(source).digest("hex"),
-          source_text: source,
-          file_name: "schedule.png",
-          start_date: "2026-08-31",
-          time_zone: "UTC",
-          provider: "ollama",
-          model: "test-model",
-        }),
-      );
-
-      const batch = (await rpc(
-        "ai_record_scoped_proposal",
-        proof("record_scoped_proposal", {
-          request_id: id,
-          proposal: scheduleProposal,
-          summary: "Schedule import",
-          target_entity: "course",
-        }),
-      )) as string;
-
-      const review = (await rpc("ai_read_scoped_review", [batch])) as { proposalDigest: string; capability: string };
-      expect(review.capability).toBe("schoolScheduleImage.propose");
-
-      const applyRes = await rpc(
-        "apply_ai_schedule_import",
-        proof("approve_schedule_import", {
-          batch_id: batch,
-          proposal_digest: review.proposalDigest,
-        }),
-      );
-      expect(applyRes).toMatchObject({ ok: true, coursesCreated: 1, meetingsCreated: 2 });
-
-      const courses = (await db.query<{ code: string; name: string }>("select code, name from courses where user_id=$1", [owner])).rows;
-      expect(courses).toEqual([{ code: "MATH201", name: "Calculus II" }]);
-
-      const meetings = (await db.query<{ title: string; weekdays: number[] }>("select title, weekdays from course_meetings where user_id=$1", [owner])).rows;
-      expect(meetings).toHaveLength(2);
-
-      // Replay is safe
-      const replayRes = await rpc(
-        "apply_ai_schedule_import",
-        proof("approve_schedule_import", {
-          batch_id: batch,
-          proposal_digest: review.proposalDigest,
-        }),
-      );
-      expect(replayRes).toMatchObject({ ok: true, alreadyApplied: true });
-    });
-
-    it("blackboard screenshot creates canonical courses only and never manufactures blackboard mappings", async () => {
-      const bbProposal = {
-        schema_version: 1,
-        type: "blackboard_course_proposal",
-        source_handle: "bb_h",
-        courses: [
-          {
-            sourceLabel: "BB_CHEM101_2026",
-            code: "CHEM101",
-            title: "General Chemistry",
-            action: "create",
-          },
-        ],
-      };
-
-      const id = randomUUID();
-      const source = "data:image/png;base64,BBBB";
-      await rpc(
-        "ai_create_scoped_request",
-        proof("prepare_scoped_request", {
-          id,
-          capability: "blackboardCourseImage.propose",
-          source_handle: "bb_h",
-          source_digest: createHash("sha256").update(source).digest("hex"),
-          source_text: source,
-          file_name: "bb.png",
-          start_date: "2026-08-31",
-          time_zone: "UTC",
-          provider: "ollama",
-          model: "test-model",
-        }),
-      );
-
-      const batch = (await rpc(
-        "ai_record_scoped_proposal",
-        proof("record_scoped_proposal", {
-          request_id: id,
-          proposal: bbProposal,
-          summary: "Blackboard screenshot courses",
-          target_entity: "course",
-        }),
-      )) as string;
-
-      const review = (await rpc("ai_read_scoped_review", [batch])) as { proposalDigest: string };
-      const applyRes = await rpc(
-        "apply_ai_blackboard_courses",
-        proof("approve_blackboard_courses", {
-          batch_id: batch,
-          proposal_digest: review.proposalDigest,
-        }),
-      );
-      expect(applyRes).toMatchObject({ ok: true, coursesCreated: 1 });
-
-      const course = (await db.query<{ code: string }>("select code from courses where code='CHEM101' and user_id=$1", [owner])).rows;
-      expect(course).toHaveLength(1);
-
-      // Verify zero rows in blackboard_course_mappings
-      const bbMappings = (await db.query("select * from blackboard_course_mappings where user_id=$1", [owner])).rows;
-      expect(bbMappings).toHaveLength(0);
-    });
-
-    it("academic calendar import deduplicates on stable identity and updates changed dates", async () => {
-      const calProposal = {
-        schema_version: 1,
-        type: "academic_calendar_proposal",
-        source_handle: "cal_h",
-        events: [
-          {
-            title: "Midterm Exam Week",
-            startDate: "2026-10-15",
-            endDate: "2026-10-20",
-            allDay: true,
-            eventType: "exam",
-          },
-        ],
-      };
-
-      const id = randomUUID();
-      const source = "Midterm Exam Week: Oct 15-20, 2026";
-      await rpc(
-        "ai_create_scoped_request",
-        proof("prepare_scoped_request", {
-          id,
-          capability: "academicCalendarImport.propose",
-          source_handle: "cal_h",
-          source_digest: createHash("sha256").update(source).digest("hex"),
-          source_text: source,
-          file_name: "calendar.txt",
-          start_date: "2026-08-31",
-          time_zone: "UTC",
-          provider: "ollama",
-          model: "test-model",
-        }),
-      );
-
-      const batch = (await rpc(
-        "ai_record_scoped_proposal",
-        proof("record_scoped_proposal", {
-          request_id: id,
-          proposal: calProposal,
-          summary: "Academic calendar import",
-          target_entity: "academic_calendar",
-        }),
-      )) as string;
-
-      const review = (await rpc("ai_read_scoped_review", [batch])) as { proposalDigest: string };
-      const applyRes = await rpc(
-        "apply_ai_academic_calendar",
-        proof("approve_academic_calendar", {
-          batch_id: batch,
-          proposal_digest: review.proposalDigest,
-        }),
-      );
-      expect(applyRes).toMatchObject({ ok: true, created: 1, updated: 0 });
-
-      const events = (await db.query<{ title: string; starts_at: string }>("select title, starts_at from calendar_events where source='academic_calendar' and user_id=$1", [owner])).rows;
-      expect(events).toHaveLength(1);
-      expect(events[0].title).toBe("Midterm Exam Week");
-
-      // Now import an updated date for the same event title
-      const updatedProposal = {
-        schema_version: 1,
-        type: "academic_calendar_proposal",
-        source_handle: "cal_h2",
-        events: [
-          {
-            title: "Midterm Exam Week",
-            startDate: "2026-10-18",
-            endDate: "2026-10-23",
-            allDay: true,
-            eventType: "exam",
-          },
-        ],
-      };
-
-      const id2 = randomUUID();
-      const source2 = "Midterm Exam Week: Oct 18-23, 2026";
-      await rpc(
-        "ai_create_scoped_request",
-        proof("prepare_scoped_request", {
-          id: id2,
-          capability: "academicCalendarImport.propose",
-          source_handle: "cal_h2",
-          source_digest: createHash("sha256").update(source2).digest("hex"),
-          source_text: source2,
-          file_name: "calendar2.txt",
-          start_date: "2026-08-31",
-          time_zone: "UTC",
-          provider: "ollama",
-          model: "test-model",
-        }),
-      );
-
-      const batch2 = (await rpc(
-        "ai_record_scoped_proposal",
-        proof("record_scoped_proposal", {
-          request_id: id2,
-          proposal: updatedProposal,
-          summary: "Academic calendar update",
-          target_entity: "academic_calendar",
-        }),
-      )) as string;
-
-      const review2 = (await rpc("ai_read_scoped_review", [batch2])) as { proposalDigest: string };
-      const applyRes2 = await rpc(
-        "apply_ai_academic_calendar",
-        proof("approve_academic_calendar", {
-          batch_id: batch2,
-          proposal_digest: review2.proposalDigest,
-        }),
-      );
-      expect(applyRes2).toMatchObject({ ok: true, created: 0, updated: 1 });
-
-      const updatedEvents = (await db.query<{ title: string; starts_at: string }>("select title, starts_at::text from calendar_events where source='academic_calendar' and user_id=$1", [owner])).rows;
-      expect(updatedEvents).toHaveLength(1);
-      expect(updatedEvents[0].starts_at).toContain("2026-10-18");
-    });
-
-    it("assessment prediction creates active predictions and confirms to task atomically (max 1 task on race)", async () => {
-      const course = (await db.query<{ id: string }>("insert into courses(user_id, code, name) values($1, 'BIO101', 'Biology') returning id", [owner])).rows[0];
-
-      const predProposal = {
-        schema_version: 1,
-        type: "assessment_prediction_proposal",
-        source_handle: "pred_h",
-        predictions: [
-          {
-            courseId: course.id,
-            predictionType: "quiz",
-            title: "Quiz 1 (Cell Structure)",
-            predictedDate: "2026-09-15",
-            confidence: "HIGH",
-            rationale: "Mentioned in syllabus week 3",
-          },
-        ],
-      };
-
-      const id = randomUUID();
-      const source = "BIO101 syllabus text";
-      await rpc(
-        "ai_create_scoped_request",
-        proof("prepare_scoped_request", {
-          id,
-          capability: "schoolAssessmentPrediction.propose",
-          source_handle: "pred_h",
-          source_digest: createHash("sha256").update(source).digest("hex"),
-          source_text: source,
-          file_name: "bio_syllabus.txt",
-          start_date: "2026-08-31",
-          time_zone: "UTC",
-          provider: "ollama",
-          model: "test-model",
-        }),
-      );
-
-      const batch = (await rpc(
-        "ai_record_scoped_proposal",
-        proof("record_scoped_proposal", {
-          request_id: id,
-          proposal: predProposal,
-          summary: "Assessment predictions",
-          target_entity: "assessment_prediction",
-        }),
-      )) as string;
-
-      const review = (await rpc("ai_read_scoped_review", [batch])) as { proposalDigest: string };
-      const applyRes = await rpc(
-        "apply_ai_assessment_predictions",
-        proof("approve_assessment_predictions", {
-          batch_id: batch,
-          proposal_digest: review.proposalDigest,
-        }),
-      );
-      expect(applyRes).toMatchObject({ ok: true, count: 1 });
-
-      const preds = (await db.query<{ id: string; status: string }>("select id, status from school_assessment_predictions where user_id=$1 and course_id=$2", [owner, course.id])).rows;
-      expect(preds).toHaveLength(1);
-      expect(preds[0].status).toBe("active");
-      const predId = preds[0].id;
-
-      // Concurrent confirm presses race: only 1 task created
-      const [res1, res2] = await Promise.all([
-        rpc("confirm_prediction_to_task", proof("confirm_prediction_task", { prediction_id: predId, title: "Quiz 1", dueDate: "2026-09-15" })),
-        rpc("confirm_prediction_to_task", proof("confirm_prediction_task", { prediction_id: predId, title: "Quiz 1", dueDate: "2026-09-15" })),
-      ]);
-
-      const successes = [res1, res2].filter((r) => (r as { ok: boolean })?.ok === true);
-      const failures = [res1, res2].filter((r) => (r as { ok: boolean })?.ok === false);
-      expect(successes).toHaveLength(1);
-      expect(failures).toHaveLength(1);
-
-      // Verify exactly 1 task exists in tasks table
-      const tasks = (await db.query<{ title: string; course_id: string }>("select title, course_id from tasks where user_id=$1 and course_id=$2", [owner, course.id])).rows;
-      expect(tasks).toHaveLength(1);
-
-      // Prediction status is confirmed
-      const updatedPred = (await db.query<{ status: string }>("select status from school_assessment_predictions where id=$1", [predId])).rows[0];
-      expect(updatedPred.status).toBe("confirmed");
-    });
-
-    it("note rewrite updates note body and note action items creates linked tasks", async () => {
-      const note = (await db.query<{ id: string }>("insert into notes(user_id, title, body) values($1, 'Lecture 1', 'Raw notes from lecture') returning id", [owner])).rows[0];
-
-      // 1. Note Rewrite
-      const rewriteProposal = {
-        schema_version: 1,
-        type: "note_rewrite_proposal",
-        source_handle: "note_h",
-        rewritten_body: "# Lecture 1\n\n- Organized bullet 1\n- Organized bullet 2",
-        mode: "replace",
-      };
-
-      const reqId = randomUUID();
-      const source = "Lecture 1 raw content";
-      await rpc(
-        "ai_create_scoped_request",
-        proof("prepare_scoped_request", {
-          id: reqId,
-          capability: "noteRewrite.propose",
-          source_handle: "note_h",
-          source_digest: createHash("sha256").update(source).digest("hex"),
-          source_text: source,
-          file_name: "note.json",
-          start_date: "2026-08-31",
-          time_zone: "UTC",
-          provider: "ollama",
-          model: "test-model",
-        }),
-      );
-
-      const batch = (await rpc(
-        "ai_record_scoped_proposal",
-        proof("record_scoped_proposal", {
-          request_id: reqId,
-          proposal: rewriteProposal,
-          summary: "Note rewrite",
-          target_entity: "note",
-        }),
-      )) as string;
-
-      const review = (await rpc("ai_read_scoped_review", [batch])) as { proposalDigest: string };
-      const applyRewriteRes = await rpc(
-        "apply_ai_note_rewrite",
-        proof("approve_note_rewrite", {
-          batch_id: batch,
-          note_id: note.id,
-          proposal_digest: review.proposalDigest,
-        }),
-      );
-      expect(applyRewriteRes).toMatchObject({ ok: true });
-
-      const updatedNote = (await db.query<{ body: string }>("select body from notes where id=$1", [note.id])).rows[0];
-      expect(updatedNote.body).toBe("# Lecture 1\n\n- Organized bullet 1\n- Organized bullet 2");
-
-      // 2. Note Action Items
-      const actionItemsProposal = {
-        schema_version: 1,
-        type: "note_action_items_proposal",
-        source_handle: "note_h2",
-        items: [
-          { title: "Review Chapter 1", dueDate: "2026-09-05", priority: "medium" },
-          { title: "Complete Homework 1", dueDate: "2026-09-08", priority: "high" },
-        ],
-      };
-
-      const reqId2 = randomUUID();
-      const source2 = "Action items source";
-      await rpc(
-        "ai_create_scoped_request",
-        proof("prepare_scoped_request", {
-          id: reqId2,
-          capability: "noteActionItems.propose",
-          source_handle: "note_h2",
-          source_digest: createHash("sha256").update(source2).digest("hex"),
-          source_text: source2,
-          file_name: "action_items.json",
-          start_date: "2026-08-31",
-          time_zone: "UTC",
-          provider: "ollama",
-          model: "test-model",
-        }),
-      );
-
-      const batch2 = (await rpc(
-        "ai_record_scoped_proposal",
-        proof("record_scoped_proposal", {
-          request_id: reqId2,
-          proposal: actionItemsProposal,
-          summary: "Note action items",
-          target_entity: "note",
-        }),
-      )) as string;
-
-      const review2 = (await rpc("ai_read_scoped_review", [batch2])) as { proposalDigest: string };
-      const applyAiRes = await rpc(
-        "apply_ai_note_action_items",
-        proof("approve_note_action_items", {
-          batch_id: batch2,
-          note_id: note.id,
-          proposal_digest: review2.proposalDigest,
-        }),
-      );
-      expect(applyAiRes).toMatchObject({ ok: true, count: 2 });
-
-      const createdTasks = (await db.query<{ title: string }>("select title from tasks where user_id=$1 and title like '%Homework 1%'", [owner])).rows;
-      expect(createdTasks).toHaveLength(1);
-    });
-
-    it("quick capture creates task and calendar event with timezone safety", async () => {
-      const taskProposal = {
-        schema_version: 1,
-        capture_type: "task",
-        source_handle: "qc_h",
-        task: {
-          title: "Buy textbook",
-          dueDate: "2026-09-01",
-          priority: "high",
-        },
-      };
-
-      const reqId = randomUUID();
-      const source = "Buy textbook tomorrow high priority";
-      await rpc(
-        "ai_create_scoped_request",
-        proof("prepare_scoped_request", {
-          id: reqId,
-          capability: "quickCapture.propose",
-          source_handle: "qc_h",
-          source_digest: createHash("sha256").update(source).digest("hex"),
-          source_text: source,
-          file_name: "quick_capture.json",
-          start_date: "2026-08-31",
-          time_zone: "UTC",
-          provider: "ollama",
-          model: "test-model",
-        }),
-      );
-
-      const batch = (await rpc(
-        "ai_record_scoped_proposal",
-        proof("record_scoped_proposal", {
-          request_id: reqId,
-          proposal: taskProposal,
-          summary: "Quick capture task",
-          target_entity: "task",
-        }),
-      )) as string;
-
-      const review = (await rpc("ai_read_scoped_review", [batch])) as { proposalDigest: string };
-      const applyRes = await rpc(
-        "apply_ai_quick_capture",
-        proof("approve_quick_capture", {
-          batch_id: batch,
-          proposal_digest: review.proposalDigest,
-        }),
-      );
-      expect(applyRes).toMatchObject({ ok: true });
-
-      const capturedTask = (await db.query<{ title: string; priority: string }>("select title, priority from tasks where title='Buy textbook' and user_id=$1", [owner])).rows;
-      expect(capturedTask).toHaveLength(1);
-      expect(capturedTask[0].priority).toBe("high");
-    });
-  });
 });
-

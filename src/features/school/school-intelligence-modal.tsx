@@ -213,6 +213,9 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
           const revised = await reviseCourseImportAction(batchId, syllabusProposal);
           if (revised.ok && revised.review) {
             batchId = revised.review.batchId;
+          } else {
+            setError("Could not save your edits for review. Nothing was applied.");
+            return;
           }
         }
         const result = await applyCourseImportAction(batchId);

@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import { resolveTimeZone, todayIn } from "@/lib/date/day";
@@ -22,6 +23,7 @@ export async function prepareCourseMaterialIntelligence(
   provider: unknown,
   model: unknown,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   if (!validInferenceProvider(provider, model) || typeof model !== "string") {
     throw new AiTrustError("invalid_provider");
@@ -79,7 +81,6 @@ export async function prepareCourseMaterialIntelligence(
 
   const sourceText = JSON.stringify(promptData);
   const sourceDigest = createHash("sha256").update(sourceText).digest("hex");
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   const timeZone = resolveTimeZone();
   const startDate = todayIn(timeZone);
 
@@ -111,6 +112,7 @@ export async function prepareCourseMaterialIntelligence(
 }
 
 async function loadScopedReview(batchId: unknown) {
+  schoolIntelligenceUnavailable();
   const { client } = await requireAuthenticatedSupabase();
   const { data, error } = await client.rpc("ai_read_scoped_review", {
     p_batch_id: uuid(batchId),
@@ -153,6 +155,7 @@ export async function finalizeCourseMaterialIntelligence(
   kind: "material_summary" | "material_study_questions",
   rawOutput: unknown,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client

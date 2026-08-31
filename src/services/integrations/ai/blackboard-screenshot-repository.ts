@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import { validateImageBuffer } from "@/services/documents/image-validator";
@@ -18,6 +19,7 @@ export async function prepareBlackboardScreenshotImport(
   provider: unknown,
   model: unknown,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   if (!validInferenceProvider(provider, model) || typeof model !== "string") {
     throw new AiTrustError("invalid_provider");
@@ -62,6 +64,7 @@ export async function prepareBlackboardScreenshotImport(
 }
 
 async function loadReview(batchId: unknown) {
+  schoolIntelligenceUnavailable();
   const { client } = await requireAuthenticatedSupabase();
   const { data, error } = await client.rpc("ai_read_scoped_review", {
     p_batch_id: uuid(batchId),
@@ -99,6 +102,7 @@ export async function finalizeBlackboardScreenshotImport(
   requestId: string,
   rawOutput: unknown,
 ): Promise<BlackboardCourseReview> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client
@@ -148,6 +152,7 @@ export async function reviseBlackboardScreenshotImport(
   batchId: unknown,
   editedCourses: ProposedBlackboardCourse[],
 ): Promise<BlackboardCourseReview> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const review = await loadReview(batchId);
   const proposal = {
@@ -175,6 +180,7 @@ export async function reviseBlackboardScreenshotImport(
 }
 
 export async function applyBlackboardScreenshotImport(batchId: unknown) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const review = await loadReview(batchId);
 
@@ -194,6 +200,7 @@ export async function applyBlackboardScreenshotImport(batchId: unknown) {
 }
 
 export async function rejectBlackboardScreenshotImport(batchId: unknown) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const { error } = await client.rpc(
     "ai_reject_scoped_proposal",

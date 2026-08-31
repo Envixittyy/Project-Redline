@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import { resolveTimeZone, todayIn } from "@/lib/date/day";
@@ -26,6 +27,7 @@ export async function prepareNoteIntelligence(
   provider: unknown,
   model: unknown,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   if (!validInferenceProvider(provider, model) || typeof model !== "string") {
     throw new AiTrustError("invalid_provider");
@@ -91,6 +93,7 @@ export async function prepareNoteIntelligence(
 }
 
 async function loadScopedReview(batchId: unknown) {
+  schoolIntelligenceUnavailable();
   const { client } = await requireAuthenticatedSupabase();
   const { data, error } = await client.rpc("ai_read_scoped_review", {
     p_batch_id: uuid(batchId),
@@ -146,6 +149,7 @@ export async function finalizeNoteIntelligence(
   kind: "note_summary" | "note_rewrite" | "note_action_items",
   rawOutput: unknown,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client
@@ -200,6 +204,7 @@ export async function applyNoteRewrite(
   batchId: unknown,
   noteId: string,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const r = await loadScopedReview(batchId);
 
@@ -223,6 +228,7 @@ export async function applyNoteActionItems(
   batchId: unknown,
   noteId: string,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const r = await loadScopedReview(batchId);
 
@@ -243,6 +249,7 @@ export async function applyNoteActionItems(
 }
 
 export async function rejectNoteIntelligence(batchId: unknown) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const { error } = await client.rpc(
     "ai_reject_scoped_proposal",

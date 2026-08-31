@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import { resolveTimeZone, todayIn } from "@/lib/date/day";
@@ -17,6 +18,7 @@ export async function prepareContextualAssistant(
   provider: unknown,
   model: unknown,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   if (!validInferenceProvider(provider, model) || typeof model !== "string") {
     throw new AiTrustError("invalid_provider");
@@ -133,6 +135,7 @@ export async function prepareContextualAssistant(
 }
 
 async function loadReview(batchId: unknown) {
+  schoolIntelligenceUnavailable();
   const { client } = await requireAuthenticatedSupabase();
   const { data, error } = await client.rpc("ai_read_scoped_review", {
     p_batch_id: uuid(batchId),
@@ -169,6 +172,7 @@ export async function finalizeContextualAssistant(
   requestId: string,
   rawOutput: unknown,
 ): Promise<ContextualAssistantReview> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client

@@ -1,4 +1,5 @@
 import "server-only";
+import { schoolIntelligenceUnavailable } from "./school-intelligence-policy";
 import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import { extractTextFromBuffer } from "@/services/documents/text-extractor";
@@ -19,6 +20,7 @@ export async function prepareAcademicCalendarImport(
   provider: unknown,
   model: unknown,
 ) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   if (!validInferenceProvider(provider, model) || typeof model !== "string") {
     throw new AiTrustError("invalid_provider");
@@ -78,6 +80,7 @@ export async function prepareAcademicCalendarImport(
 }
 
 async function loadReview(batchId: unknown) {
+  schoolIntelligenceUnavailable();
   const { client } = await requireAuthenticatedSupabase();
   const { data, error } = await client.rpc("ai_read_scoped_review", {
     p_batch_id: uuid(batchId),
@@ -115,6 +118,7 @@ export async function finalizeAcademicCalendarImport(
   requestId: string,
   rawOutput: unknown,
 ): Promise<AcademicCalendarReview> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
 
   const { data: request, error: reqError } = await client
@@ -164,6 +168,7 @@ export async function reviseAcademicCalendar(
   batchId: unknown,
   editedEvents: ProposedAcademicEvent[],
 ): Promise<AcademicCalendarReview> {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const review = await loadReview(batchId);
   const proposal = {
@@ -191,6 +196,7 @@ export async function reviseAcademicCalendar(
 }
 
 export async function applyAcademicCalendarImport(batchId: unknown) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const review = await loadReview(batchId);
 
@@ -210,6 +216,7 @@ export async function applyAcademicCalendarImport(batchId: unknown) {
 }
 
 export async function rejectAcademicCalendarImport(batchId: unknown) {
+  schoolIntelligenceUnavailable();
   const { client, userId } = await requireAuthenticatedSupabase();
   const { error } = await client.rpc(
     "ai_reject_scoped_proposal",

@@ -1,4 +1,5 @@
 import { AiTrustError } from "./trust-contract";
+import { strictDate, strictJson, strictObject, strictText } from "./strict-output";
 
 export const NOTE_SUMMARY_CAPABILITY = {
   id: "noteSummary.propose" as const,
@@ -25,7 +26,7 @@ export const NOTE_REWRITE_CAPABILITY = {
   limits: {
     bodyChars: 30000,
     explanationChars: 1000,
-    bytes: 65536,
+    bytes: 32768,
   },
 };
 
@@ -152,43 +153,15 @@ export function parseNoteRewriteOutput(
   handle: string,
 ): NoteRewriteProposal {
   if (capability !== NOTE_REWRITE_CAPABILITY.id) throw new AiTrustError("capability_denied");
-  if (typeof raw !== "string" || new TextEncoder().encode(raw).length > NOTE_REWRITE_CAPABILITY.limits.bytes) {
-    throw new AiTrustError("output_too_large");
-  }
-
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
+  const v = strictObject(strictJson(raw, 32768),
+    ["schema_version", "type", "source_handle", "rewrittenBody", "changesExplanation"], ["rewrittenTitle"]);
+  if (v.schema_version !== 1 || v.type !== NOTE_REWRITE_CAPABILITY.outputType || v.source_handle !== handle) {
     throw new AiTrustError("invalid_output");
   }
-
-  const v = value as Record<string, unknown>;
-  if (
-    !v ||
-    v.schema_version !== 1 ||
-    v.type !== NOTE_REWRITE_CAPABILITY.outputType ||
-    v.source_handle !== handle ||
-    typeof v.rewrittenBody !== "string" ||
-    typeof v.changesExplanation !== "string"
-  ) {
-    throw new AiTrustError("invalid_output");
-  }
-
-  const rewrittenBody = v.rewrittenBody.trim().slice(0, NOTE_REWRITE_CAPABILITY.limits.bodyChars);
-  const changesExplanation = v.changesExplanation.trim().slice(0, NOTE_REWRITE_CAPABILITY.limits.explanationChars);
-  const rewrittenTitle = typeof v.rewrittenTitle === "string" ? v.rewrittenTitle.trim().slice(0, 100) : undefined;
-
-  if (!rewrittenBody || !changesExplanation) throw new AiTrustError("invalid_output");
-
-  return {
-    schema_version: 1,
-    type: "propose_note_rewrite",
-    source_handle: handle,
-    rewrittenTitle,
-    rewrittenBody,
-    changesExplanation,
-  };
+  strictText(v.rewrittenBody, 30000, true);
+  strictText(v.changesExplanation, 1000, true);
+  if (Object.hasOwn(v, "rewrittenTitle")) strictText(v.rewrittenTitle, 100);
+  return v as NoteRewriteProposal;
 }
 
 export function parseNoteActionItemsOutput(
@@ -197,55 +170,21 @@ export function parseNoteActionItemsOutput(
   handle: string,
 ): NoteActionItemsProposal {
   if (capability !== NOTE_ACTION_ITEMS_CAPABILITY.id) throw new AiTrustError("capability_denied");
-  if (typeof raw !== "string" || new TextEncoder().encode(raw).length > NOTE_ACTION_ITEMS_CAPABILITY.limits.bytes) {
-    throw new AiTrustError("output_too_large");
-  }
-
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
+  const v = strictObject(strictJson(raw, 16384), ["schema_version", "type", "source_handle", "actionItems"]);
+  if (v.schema_version !== 1 || v.type !== NOTE_ACTION_ITEMS_CAPABILITY.outputType || v.source_handle !== handle ||
+    !Array.isArray(v.actionItems) || v.actionItems.length < 1 || v.actionItems.length > 20) {
     throw new AiTrustError("invalid_output");
   }
-
-  const v = value as Record<string, unknown>;
-  if (
-    !v ||
-    v.schema_version !== 1 ||
-    v.type !== NOTE_ACTION_ITEMS_CAPABILITY.outputType ||
-    v.source_handle !== handle ||
-    !Array.isArray(v.actionItems)
-  ) {
-    throw new AiTrustError("invalid_output");
+  for (const value of v.actionItems) {
+    const item = strictObject(value, ["title"], ["dueDate", "priority"]);
+    strictText(item.title, 200);
+    if (Object.hasOwn(item, "dueDate")) strictDate(item.dueDate);
+    if (Object.hasOwn(item, "priority") && !["low", "medium", "high", "urgent"].includes(item.priority as string)) {
+      throw new AiTrustError("invalid_output");
+    }
   }
-
-  const actionItems: NoteActionItem[] = [];
-  const validPriorities = new Set(["low", "medium", "high", "urgent"]);
-  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-
-  for (const item of v.actionItems) {
-    if (!item || typeof item !== "object") continue;
-    const it = item as Record<string, unknown>;
-    const title = String(it.title || "").trim().slice(0, NOTE_ACTION_ITEMS_CAPABILITY.limits.titleChars);
-    if (!title) continue;
-
-    const dueDate = typeof it.dueDate === "string" && datePattern.test(it.dueDate.trim()) ? it.dueDate.trim() : undefined;
-    const priority = typeof it.priority === "string" && validPriorities.has(it.priority.toLowerCase())
-      ? (it.priority.toLowerCase() as NoteActionItem["priority"])
-      : "medium";
-
-    actionItems.push({ title, dueDate, priority });
-    if (actionItems.length >= NOTE_ACTION_ITEMS_CAPABILITY.limits.maxItems) break;
-  }
-
-  return {
-    schema_version: 1,
-    type: "propose_note_action_items",
-    source_handle: handle,
-    actionItems,
-  };
+  return v as NoteActionItemsProposal;
 }
-
 export function noteSummaryPrompt(handle: string, note: { title: string; body: string }) {
   const prompt = JSON.stringify({
     untrusted_data: {

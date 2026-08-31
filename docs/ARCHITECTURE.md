@@ -194,6 +194,58 @@ job were added. See `docs/SCHOOL_INTELLIGENCE_FINAL_VERIFICATION.md` for the FAI
 verdict, reproduced defects, and the separate tests of historical defects and final
 containment. Activation requires complete source/review/validation contracts.
 
+### School Intelligence trust repair — Pass 1 (still disabled)
+
+Migrations `20260831170000_ai_scoped_source_freshness.sql` and
+`20260831180000_ai_scoped_review_authority.sql` repair shared infrastructure without
+granting product activation. Existing `ai_scoped_requests` gain a version-2 source
+manifest and immutable authority digest; existing operation batches gain a sealed
+review digest, predecessor relationship and transaction-bound consumption marker.
+Legacy requests remain unversioned and cannot be adopted or applied by this layer.
+
+Preparation accepts selected identities only, authenticates the signed command,
+locks canonical records, constructs bounded context and computes fingerprints in
+SQL. Fingerprint readers cover one Note, a Course plus normalized meeting set,
+immutable text Capture plus lifecycle, Course Material, native Calendar Event,
+provider-identified external calendar event, stable-UID Blackboard record, and
+Prediction plus its currently linked dependencies. No reader fetches a URL or
+returns credentials. Readers do not grant capabilities: only one-Note rewrite and
+action-item schemas are registered as Pass 1 validation exemplars. All product
+preparation/record/revision/Apply RPCs remain revoked, including these exemplars;
+all application and cloud containment gates are unchanged.
+
+Record and revision repeat canonical freshness checks and strict output validation.
+Revisions preserve the same request/owner/capability/source/provenance/expiry, store
+exact edited JSON values in a new step, link the predecessor, and atomically reject
+its batch. Source and proposal fields are immutable under database triggers. The
+digest includes request authority, batch ID, predecessor ID and exact reviewed
+output; PostgreSQL JSONB serialization and fixed UTC timestamp formatting define
+the digest format. Strings are neither trimmed nor silently truncated.
+
+Future **fixed domain SQL functions** must call private `begin_scoped_apply`, use
+only its persisted authority to mutate, then call `finish_scoped_apply` in the same
+transaction. Begin verifies a signed capability-specific approval containing only
+the batch ID, checks owner/state/expiry/digests, locks and recomputes sources, and
+enforces `ask_before_changing`. Finish records result IDs and source/provider/review
+provenance, then consumes the batch/request atomically. A deferred constraint
+rejects unfinished claims at commit. The claim uses PostgreSQL's transaction ID,
+not a caller-controlled GUC. Neither helper has client execute permission; there
+is no generic Apply RPC, dynamic SQL dispatcher, callback or network operation.
+Tests install temporary fixed Note/Task consumers only inside isolated PGlite.
+
+Course meeting writes share a parent Course lock so inserts/deletes/reparenting
+cannot evade a collection fingerprint. Preference changes share a policy lock,
+including insert/delete of the preference row, with the new consumption boundary.
+Baseline checklist and reviewed text Course import keep their existing transactions.
+The older presentation permission helper now also denies deferred automation mode.
+
+Academic title hashes still cannot establish trusted import identity or a
+last-import baseline; those rows are rejected as sources. Prediction fingerprints
+detect changes in current state, but do not attest historical generation provenance;
+prediction capabilities remain unregistered. Per-product source selection, complete
+domain mutation semantics, cloud/binary provenance, and UI wiring belong to later
+repair passes. See `docs/AI_TRUST_REPAIR_PASS1.md` for the exact certification scope.
+
 Successful attempts retain informational provider/model/location/evidence/latency metadata, joined to original and edited review batches. Cloud latency is measured around the server request; local latency is null rather than invented. Local/remote provenance is labelled `browser_relay`, not hardware/model attestation. Cloud configuration status is not an online health claim. Routing rows retain metadata only, but existing course source text and reviewed proposal text remain in the protected audit; five-minute execution expiry does not delete them, and legacy history clearing does not purge these rows. No automatic retention job was introduced.
 
 Academic automation contracts (Phases 7C–7E & 4B) are formalized:

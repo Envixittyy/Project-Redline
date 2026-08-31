@@ -19,13 +19,13 @@ export async function generateTaskChecklist(
       code: "not_paired",
       message: "Pair the companion on this PC first.",
     };
-  const prepared = await prepareTaskChecklistAction(
-    taskId,
-    config.provider,
-    config.model,
-  );
-  if (!prepared.ok) return prepared;
   try {
+    const prepared = await prepareTaskChecklistAction(
+      taskId,
+      config.provider,
+      config.model,
+    );
+    if (!prepared.ok) return prepared;
     if (signal?.aborted)
       return {
         ok: false as const,

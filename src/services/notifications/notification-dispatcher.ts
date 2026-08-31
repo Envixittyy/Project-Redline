@@ -335,6 +335,7 @@ async function evaluateTasks(
         body: planned.body,
         deepLink: planned.deepLink,
         courseId: planned.courseId,
+        currentInstant,
       });
       if (res.created) {
         plannedCount++;
@@ -421,6 +422,7 @@ async function evaluateCalendarEvents(
       body: planned.body,
       deepLink: planned.deepLink,
       courseId: null,
+      currentInstant,
     });
 
     if (res.created) {
@@ -541,6 +543,7 @@ async function evaluateSchoolClasses(
           body: planned.body,
           deepLink: planned.deepLink,
           courseId: planned.courseId,
+          currentInstant,
         });
 
         if (res.created) {

@@ -1,0 +1,14 @@
+.dialog {
+  color: var(--text-primary);
+  margin: auto;
+  width: calc(100% - 2rem);
+  max-height: calc(
+    100dvh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+  );
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.dialog::backdrop {
+  background: var(--scrim);
+  backdrop-filter: blur(var(--glass-blur));
+}

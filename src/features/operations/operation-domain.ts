@@ -1,9 +1,9 @@
-export const operationStatuses = ["proposed", "confirmed", "committed", "undone", "failed"] as const;
+export const operationStatuses = ["proposed", "confirmed", "committed", "undone", "failed", "rejected"] as const;
 
 export type OperationStatus = (typeof operationStatuses)[number];
 
 export type OperationTarget = {
-  entity: "task" | "event" | "note" | "notion_page" | "work_session";
+  entity: "task" | "event" | "note" | "notion_page" | "work_session" | "course";
   id: string;
 };
 

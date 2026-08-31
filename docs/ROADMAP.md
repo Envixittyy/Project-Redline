@@ -157,9 +157,9 @@ graph TD
 - **10A: Local Companion Transport & Security Architecture [`IMPLEMENTED — DEPLOYMENT VERIFICATION PENDING` | Large | Risk: High | Reviewer: Codex]**
   - Direct desktop-browser transport to fixed `127.0.0.1:41400`; hosted servers never route to the PC. Exact origin, expiring pairing, fixed runtime destinations/routes, bounded responses, cancellation, and no redirect following.
   - Three adapters: Ollama, llama.cpp, and local OpenAI-compatible. Real-model and hosted-origin permission checks remain deployment prerequisites; iPhone-to-PC transport is unsupported.
-  - Active capability: `taskChecklist.propose` / `task.readMinimal`, one canonical owner task, opaque request handle, bounded context, strict checklist-only schema, and semantic staleness checks. The old broad capability catalog is descriptive and grants nothing by default.
-  - Server-authenticated proposal provenance under restrictive RLS; ID-only approval through the task repository; one atomic task/checklist/audit SQL transaction. No service-role AI client, deletion, generic action executor, course writes, or automation.
-  - Existing settings receive only the necessary browser transport, memory-only pairing, and disabled-cloud messaging changes. Checklist generation/review UI, course import, personality controls, and settings redesign remain separate assignments.
+  - Active capabilities: `taskChecklist.propose` / `task.readMinimal` for one canonical task, and `courseImport.propose` / `document.readSelectedText` for one immutable selected text upload. Both enforce opaque handles, bounded context/output, source checks, persisted review and explicit approval. The old broad capability catalog is descriptive and grants nothing by default.
+  - Server-authenticated proposal provenance under restrictive RLS; ID-only approval through the task repository; domain-specific atomic task/checklist/audit and course/meetings/audit SQL transactions. No service-role AI client, deletion, generic action executor, existing-course edits, or automation.
+  - Gemini checkpoint `15493bc` was selectively integrated under the explicit security-review correction: checklist review, text course import (TXT/MD/CSV/ICS only), personalized Home, truthful telemetry, hidden commands, and motion/accessibility. Edited proposals require a new immutable review before approval. This does not start Phase 10B; settings redesign and additional document formats remain separate work.
   - Normal application features remain independent of AI. Key/migration provisioning and manual target-browser validation are documented in `docs/LOCAL_COMPANION_ARCHITECTURE.md`.
 - **10B: Image & Screenshot Ingestion Pipeline [`PLANNED` | Medium | Risk: Moderate | Model: Gemini 3.7 Flash]**
   - Universal Capture image upload, lightweight local vision worker on-demand lifecycle (60–180s idle unload), and proposal generation.
@@ -234,3 +234,5 @@ The following items are permanently **OUT OF SCOPE** unless foundational product
 - Unconstrained autonomous AI agents mutating database records without user confirmation.
 
 
+
+**Current reviewed import scope:** The historical Phase 7E format list is not implemented by this integration. Only TXT/MD/CSV/ICS is active here; PDF/DOCX/XLSX and OCR are deferred to a later product assignment.

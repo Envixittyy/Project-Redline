@@ -27,6 +27,7 @@ import {
   linkTaskMaterialsAction,
   unlinkTaskMaterialAction,
 } from "./task-material-actions";
+import { TaskChecklistProposal } from "./task-checklist-proposal";
 import styles from "./task-editor.module.css";
 
 /** Completion has its own control, so it is not offered as an editable status. */
@@ -506,6 +507,10 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
               <Plus size={16} /> Add subtask
             </button>
           </div>
+
+          <TaskChecklistProposal
+            task={task}
+          />
 
           {error ? (
             <p className={styles.error} role="alert">

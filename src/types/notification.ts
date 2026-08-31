@@ -78,5 +78,7 @@ export type CreateNotificationEventInput = {
   body: string;
   deepLink: string;
   courseId?: string | null;
+  /** One evaluation instant shared by planning and delivery creation. */
+  currentInstant?: Date;
 };
 

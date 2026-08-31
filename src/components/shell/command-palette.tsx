@@ -27,6 +27,17 @@ import {
   type KeyboardEvent,
 } from "react";
 
+import {
+  matchHiddenCommand,
+  type HiddenCommandKind,
+} from "@/features/personality/hidden-commands";
+import {
+  HowCookedAmIModal,
+  LosSantosModal,
+  TelemetryModal,
+} from "@/features/personality/telemetry-modal";
+import { AboutRedlineModal } from "@/features/personality/about-redline-modal";
+
 import styles from "./command-palette.module.css";
 
 const openPaletteEvent = "forward:open-command-palette";
@@ -52,7 +63,8 @@ const commands: readonly Command[] = [
     description: "Review deterministic schedule suggestions for today",
     href: "/#planning",
     icon: Compass,
-    keywords: "plan my day schedule optimizer recommendations work sessions focus",
+    keywords:
+      "plan my day schedule optimizer recommendations work sessions focus",
   },
   {
     label: "What Should I Do Now?",
@@ -167,6 +179,9 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [activeModal, setActiveModal] = useState<HiddenCommandKind | null>(
+    null,
+  );
 
   const filteredCommands = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -181,6 +196,7 @@ export function CommandPalette() {
 
   useEffect(() => {
     function openPalette() {
+      if (activeModal) return;
       returnFocusRef.current =
         document.activeElement instanceof HTMLElement
           ? document.activeElement
@@ -203,14 +219,16 @@ export function CommandPalette() {
       window.removeEventListener(openPaletteEvent, openPalette);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [activeModal]);
 
   useEffect(() => {
     if (!open) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const focusFrame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    const focusFrame = window.requestAnimationFrame(() =>
+      inputRef.current?.focus(),
+    );
 
     return () => {
       window.cancelAnimationFrame(focusFrame);
@@ -228,6 +246,11 @@ export function CommandPalette() {
   function choose(command: Command) {
     closePalette({ restoreFocus: false });
     router.push(command.href);
+  }
+
+  function triggerHiddenCommand(hidden: HiddenCommandKind) {
+    closePalette({ restoreFocus: false });
+    setActiveModal(hidden);
   }
 
   function handlePanelKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -252,10 +275,19 @@ export function CommandPalette() {
       return;
     }
 
-    if (event.key === "Enter" && filteredCommands[activeIndex]) {
-      event.preventDefault();
-      choose(filteredCommands[activeIndex]);
-      return;
+    if (event.key === "Enter") {
+      const hidden = matchHiddenCommand(query);
+      if (hidden) {
+        event.preventDefault();
+        triggerHiddenCommand(hidden);
+        return;
+      }
+
+      if (filteredCommands[activeIndex]) {
+        event.preventDefault();
+        choose(filteredCommands[activeIndex]);
+        return;
+      }
     }
 
     if (event.key === "Tab" && panelRef.current) {
@@ -277,108 +309,143 @@ export function CommandPalette() {
     }
   }
 
-  if (!open) return null;
-
   return (
-    <div
-      className={styles.backdrop}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) closePalette();
-      }}
-    >
-      <div
-        ref={panelRef}
-        className={`${styles.panel} motion-enter`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="command-palette-title"
-        onKeyDown={handlePanelKeyDown}
-      >
-        <div className={styles.heading}>
-          <div>
-            <p>Forward</p>
-            <h2 id="command-palette-title">Where do you want to go?</h2>
-          </div>
-          <button
-            type="button"
-            className={styles.closeButton}
-            aria-label="Close command palette"
-            onClick={() => closePalette()}
-          >
-            <X size={19} aria-hidden="true" />
-          </button>
-        </div>
+    <>
+      {activeModal === "telemetry" ? (
+        <TelemetryModal
+          onClose={() => {
+            setActiveModal(null);
+            window.requestAnimationFrame(() => returnFocusRef.current?.focus());
+          }}
+        />
+      ) : null}
+      {activeModal === "how_cooked_am_i" ? (
+        <HowCookedAmIModal
+          onClose={() => {
+            setActiveModal(null);
+            window.requestAnimationFrame(() => returnFocusRef.current?.focus());
+          }}
+        />
+      ) : null}
+      {activeModal === "los_santos" ? (
+        <LosSantosModal
+          onClose={() => {
+            setActiveModal(null);
+            window.requestAnimationFrame(() => returnFocusRef.current?.focus());
+          }}
+        />
+      ) : null}
+      {activeModal === "about_redline" ? (
+        <AboutRedlineModal
+          onClose={() => {
+            setActiveModal(null);
+            window.requestAnimationFrame(() => returnFocusRef.current?.focus());
+          }}
+        />
+      ) : null}
 
-        <label className={styles.searchField}>
-          <Search size={19} aria-hidden="true" />
-          <span className={styles.srOnly}>Search commands</span>
-          <input
-            ref={inputRef}
-            value={query}
-            role="combobox"
-            aria-autocomplete="list"
-            aria-controls="command-results"
-            aria-expanded="true"
-            aria-activedescendant={
-              filteredCommands[activeIndex]
-                ? `command-${activeIndex}`
-                : undefined
-            }
-            placeholder="Search Forward…"
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setActiveIndex(0);
-            }}
-          />
-          <kbd>Esc</kbd>
-        </label>
-
+      {open ? (
         <div
-          id="command-results"
-          className={styles.results}
-          role="listbox"
-          aria-label="Commands"
+          className={styles.backdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closePalette();
+          }}
         >
-          {filteredCommands.length ? (
-            filteredCommands.map((command, index) => {
-              const Icon = command.icon;
-              const active = index === activeIndex;
-              return (
-                <button
-                  type="button"
-                  id={`command-${index}`}
-                  key={command.href}
-                  className={`${styles.command} motion-interactive`}
-                  role="option"
-                  aria-selected={active}
-                  data-active={active || undefined}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onClick={() => choose(command)}
-                >
-                  <span className={styles.commandIcon} aria-hidden="true">
-                    <Icon size={18} />
-                  </span>
-                  <span>
-                    <strong>{command.label}</strong>
-                    <small>{command.description}</small>
-                  </span>
-                </button>
-              );
-            })
-          ) : (
-            <div className={styles.empty}>
-              <Search size={20} aria-hidden="true" />
-              <p>No match yet. Try a page name like Tasks or Calendar.</p>
+          <div
+            ref={panelRef}
+            className={`${styles.panel} motion-enter`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="command-palette-title"
+            onKeyDown={handlePanelKeyDown}
+          >
+            <div className={styles.heading}>
+              <div>
+                <p>Forward</p>
+                <h2 id="command-palette-title">Where do you want to go?</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.closeButton}
+                aria-label="Close command palette"
+                onClick={() => closePalette()}
+              >
+                <X size={19} aria-hidden="true" />
+              </button>
             </div>
-          )}
-        </div>
 
-        <p className={styles.hint}>
-          <span>↑↓ move</span>
-          <span>↵ open</span>
-          <span>Esc close</span>
-        </p>
-      </div>
-    </div>
+            <label className={styles.searchField}>
+              <Search size={19} aria-hidden="true" />
+              <span className={styles.srOnly}>Search commands</span>
+              <input
+                ref={inputRef}
+                value={query}
+                role="combobox"
+                aria-autocomplete="list"
+                aria-controls="command-results"
+                aria-expanded="true"
+                aria-activedescendant={
+                  filteredCommands[activeIndex]
+                    ? `command-${activeIndex}`
+                    : undefined
+                }
+                placeholder="Search Forward…"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setActiveIndex(0);
+                }}
+              />
+              <kbd>Esc</kbd>
+            </label>
+
+            <div
+              id="command-results"
+              className={styles.results}
+              role="listbox"
+              aria-label="Commands"
+            >
+              {filteredCommands.length ? (
+                filteredCommands.map((command, index) => {
+                  const Icon = command.icon;
+                  const active = index === activeIndex;
+                  return (
+                    <button
+                      type="button"
+                      id={`command-${index}`}
+                      key={command.label}
+                      className={`${styles.command} motion-interactive`}
+                      role="option"
+                      aria-selected={active}
+                      data-active={active || undefined}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => choose(command)}
+                    >
+                      <span className={styles.commandIcon} aria-hidden="true">
+                        <Icon size={18} />
+                      </span>
+                      <span>
+                        <strong>{command.label}</strong>
+                        <small>{command.description}</small>
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className={styles.empty}>
+                  <Search size={20} aria-hidden="true" />
+                  <p>No match yet. Try a page name like Tasks or Calendar.</p>
+                </div>
+              )}
+            </div>
+
+            <p className={styles.hint}>
+              <span>↑↓ move</span>
+              <span>↵ open</span>
+              <span>Esc close</span>
+            </p>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

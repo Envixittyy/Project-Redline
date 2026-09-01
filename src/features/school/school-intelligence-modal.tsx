@@ -26,8 +26,9 @@ import type {
 } from "@/services/integrations/ai/blackboard-screenshot-contract";
 import type {
   AcademicCalendarReview,
-  ProposedAcademicEvent,
+  AcademicCalendarEdit,
 } from "@/services/integrations/ai/academic-calendar-contract";
+import type { AcademicCalendarSource } from "@/services/integrations/ai/academic-calendar-repository";
 import type { CourseImportReview, CourseProposal } from "@/services/integrations/ai/course-import-contract";
 import {
   applyScheduleImportAction,
@@ -36,6 +37,8 @@ import {
   reviseBlackboardScreenshotAction,
   applyAcademicCalendarAction,
   reviseAcademicCalendarAction,
+  prepareDeterministicAcademicCalendarImportAction,
+  rejectAcademicCalendarAction,
 } from "./school-ai-actions";
 import {
   applyCourseImportAction,
@@ -48,11 +51,14 @@ type TabMode = "schedule_image" | "blackboard_image" | "syllabus" | "academic_ca
 
 type SchoolIntelligenceModalProps = {
   courses: CourseWithMeetings[];
+  sources?: AcademicCalendarSource[];
+  initialTab?: TabMode;
   onClose: () => void;
 };
 
-export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligenceModalProps) {
-  const [tab, setTab] = useState<TabMode>("schedule_image");
+export function SchoolIntelligenceModal({ courses, sources = [], initialTab = "schedule_image", onClose }: SchoolIntelligenceModalProps) {
+  const [tab, setTab] = useState<TabMode>(initialTab);
+  const [academicSourceId, setAcademicSourceId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const controller = useRef<AbortController | null>(null);
 
@@ -71,9 +77,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
   const [syllabusProposal, setSyllabusProposal] = useState<CourseProposal | null>(null);
 
   const [calendarReview, setCalendarReview] = useState<AcademicCalendarReview | null>(null);
-  const [calendarEvents, setCalendarEvents] = useState<
-    Array<ProposedAcademicEvent & { selected: boolean }>
-  >([]);
+  const [calendarEvents, setCalendarEvents] = useState<AcademicCalendarEdit[]>([]);
 
   useEffect(() => {
     return () => {
@@ -84,6 +88,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
   function resetState() {
     controller.current?.abort();
     if (syllabusReview) void rejectCourseImportAction(syllabusReview.batchId);
+    if (calendarReview) void rejectAcademicCalendarAction(calendarReview.batchId);
     setScheduleReview(null);
     setScheduleCourses([]);
     setBbReview(null);
@@ -94,6 +99,11 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     setCalendarEvents([]);
     setError(null);
     setLoading(false);
+  }
+
+  function cancelAndClose() {
+    if (calendarReview) void rejectAcademicCalendarAction(calendarReview.batchId);
+    onClose();
   }
 
   function handleTabChange(nextTab: TabMode) {
@@ -114,12 +124,20 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
 
     const formData = new FormData();
     formData.append("file", file);
+    if (tab === "academic_calendar") {
+      const selectedSource = sources.find((source) => source.id === academicSourceId);
+      formData.append("sourceId", selectedSource?.id ?? "");
+      formData.append("sourceLabel", selectedSource?.label ?? file.name.replace(/\.[^.]+$/, "").slice(0, 120));
+    }
 
     const companionConfig = getCompanionSession();
     const kind = tab === "syllabus" ? "course" : tab;
 
     try {
-      const result = await generateRoutedProposal(kind, formData, companionConfig, abort.signal);
+      const deterministicAcademic = tab === "academic_calendar" && /\.(ics|csv)$/i.test(file.name);
+      const result = deterministicAcademic
+        ? { ok: true as const, review: await prepareDeterministicAcademicCalendarImportAction(formData) }
+        : await generateRoutedProposal(kind, formData, companionConfig, abort.signal);
 
       if (abort.signal.aborted) return;
 
@@ -146,7 +164,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
       } else if (tab === "academic_calendar") {
         const rev = review as AcademicCalendarReview;
         setCalendarReview(rev);
-        setCalendarEvents(rev.events.map((ev) => ({ ...ev, selected: true })));
+        setCalendarEvents(rev.events.map((item) => ({ entryId: item.entryId, decision: "IGNORE", event: item.reviewed })));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to process source.");
@@ -216,9 +234,8 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     if (!calendarReview) return;
     startApplyTransition(async () => {
       try {
-        const approvedEvents = calendarEvents.filter((e) => e.selected);
         let batchId = calendarReview.batchId;
-        const revised = await reviseAcademicCalendarAction(batchId, approvedEvents);
+        const revised = await reviseAcademicCalendarAction(batchId, calendarEvents);
         batchId = revised.batchId;
         const result = await applyAcademicCalendarAction(batchId);
         if (result.ok) onClose();
@@ -248,7 +265,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     <div
       className={styles.backdrop}
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !applying) onClose();
+        if (e.target === e.currentTarget && !applying) cancelAndClose();
       }}
     >
       <div className={`${styles.modal} motion-enter`} role="dialog" aria-modal="true">
@@ -260,7 +277,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
           <button
             type="button"
             className={styles.closeButton}
-            onClick={onClose}
+            onClick={cancelAndClose}
             disabled={applying}
             aria-label="Close"
           >
@@ -298,10 +315,9 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
               type="button"
               className={styles.tab}
               data-active={tab === "academic_calendar"}
-              disabled
-              title="Academic Calendar import remains disabled pending its dedicated trust pass."
+              onClick={() => handleTabChange("academic_calendar")}
             >
-              <Calendar size={15} /> Academic Calendar (Unavailable)
+              <Calendar size={15} /> Academic Calendar
             </button>
           </div>
         ) : null}
@@ -316,6 +332,15 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
           {/* Upload Dropzone */}
           {!hasActiveReview ? (
             <div>
+              {tab === "academic_calendar" ? (
+                <label className={styles.uploadSubtext}>
+                  Trusted source
+                  <select value={academicSourceId} onChange={(event) => setAcademicSourceId(event.target.value)} className={styles.courseTitleInput}>
+                    <option value="">Create a new source from this file</option>
+                    {sources.map((source) => <option key={source.id} value={source.id}>{source.label} ({source.format.toUpperCase()})</option>)}
+                  </select>
+                </label>
+              ) : null}
               <div
                 className={styles.uploadBox}
                 onClick={() => fileInputRef.current?.click()}
@@ -337,13 +362,13 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
                       {tab === "schedule_image" && "Select Class Schedule Screenshot"}
                       {tab === "blackboard_image" && "Select Blackboard Courses Screenshot"}
                       {tab === "syllabus" && "Select Syllabus Document"}
-                      {tab === "academic_calendar" && "Academic Calendar import is unavailable"}
+                      {tab === "academic_calendar" && "Select Academic Calendar Source"}
                     </h4>
                     <p className={styles.uploadSubtext}>
                       {tab === "schedule_image" && "PNG, JPEG, WEBP up to 5MB. AI extracts courses and recurring meeting times."}
                       {tab === "blackboard_image" && "PNG, JPEG, WEBP up to 5MB. AI extracts visible labels for Course review only; it cannot establish Blackboard identity."}
                       {tab === "syllabus" && "PDF, DOCX, TXT, MD, ICS up to 10MB. AI extracts course details and timetable."}
-                      {tab === "academic_calendar" && "This workflow remains disabled pending its dedicated identity and divergence design."}
+                      {tab === "academic_calendar" && "ICS and CSV parse locally on the server. TXT, MD, PNG, JPEG and WEBP use strict reviewed extraction. PDF and DOCX are disabled."}
                     </p>
                   </>
                 )}
@@ -359,7 +384,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
                     ? "image/png,image/jpeg,image/webp"
                     : tab === "syllabus"
                     ? ".pdf,.docx,.txt,.md,.csv,.ics,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,text/calendar"
-                    : ".pdf,.docx,.txt,.md,.csv,.ics,image/png,image/jpeg,image/webp,application/pdf,text/plain,text/markdown,text/csv,text/calendar"
+                    : ".txt,.md,.csv,.ics,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,text/plain,text/markdown,text/csv,text/calendar"
                 }
                 onChange={handleFileChange}
                 disabled={loading}
@@ -585,22 +610,41 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
               </div>
 
               {calendarEvents.map((ev, idx) => (
-                <div key={idx} className={styles.eventRow}>
+                <div key={ev.entryId} className={styles.courseReviewCard}>
+                  <div className={styles.courseHeaderRow}>
                   <input
                     type="checkbox"
                     className={styles.eventCheckbox}
-                    checked={ev.selected}
+                    checked={ev.decision !== "IGNORE"}
+                    disabled={["IGNORE", "UNCHANGED"].includes(calendarReview.events[idx].operation)}
                     onChange={(e) => {
                       const updated = [...calendarEvents];
-                      updated[idx] = { ...updated[idx], selected: e.target.checked };
+                      const operation = calendarReview.events[idx].operation;
+                      updated[idx] = { ...updated[idx], decision: e.target.checked ? (operation === "CONFLICT" ? "APPLY_SOURCE" : "APPLY") : "IGNORE" };
                       setCalendarEvents(updated);
                     }}
                   />
-                  <span className={styles.eventTitle}>{ev.title}</span>
-                  <span className={styles.eventTypeBadge}>{ev.eventType}</span>
-                  <span className={styles.eventDate}>{ev.startDate}</span>
+                  <strong className={styles.eventTitle}>{calendarReview.events[idx].operation}</strong>
+                  <span className={styles.eventTypeBadge}>{ev.event.eventType}</span>
+                  {calendarReview.events[idx].operation === "CONFLICT" ? (
+                    <select value={ev.decision} onChange={(e) => { const updated = [...calendarEvents]; updated[idx] = { ...updated[idx], decision: e.target.value as AcademicCalendarEdit["decision"] }; setCalendarEvents(updated); }}>
+                      <option value="IGNORE">Ignore for now</option><option value="APPLY_SOURCE">Use reviewed source</option><option value="KEEP_CURRENT">Keep current Redline event</option>
+                    </select>
+                  ) : null}
+                  </div>
+                  <input className={styles.courseTitleInput} value={ev.event.title} aria-label="Academic event title" onChange={(e) => {
+                    const updated = [...calendarEvents]; updated[idx] = { ...updated[idx], event: { ...updated[idx].event, title: e.target.value } }; setCalendarEvents(updated);
+                  }} />
+                  <div className={styles.meetingRow}>
+                    <label>Start <input value={ev.event.start} onChange={(e) => { const updated = [...calendarEvents]; updated[idx] = { ...updated[idx], event: { ...updated[idx].event, start: e.target.value } }; setCalendarEvents(updated); }} /></label>
+                    <label>End <input value={ev.event.end} onChange={(e) => { const updated = [...calendarEvents]; updated[idx] = { ...updated[idx], event: { ...updated[idx].event, end: e.target.value } }; setCalendarEvents(updated); }} /></label>
+                  </div>
+                  {calendarReview.events[idx].operation === "UPDATE" ? <p className={styles.uploadSubtext}>Before: {calendarReview.events[idx].baseline?.title} · {calendarReview.events[idx].baseline?.start}<br />After: {ev.event.title} · {ev.event.start}</p> : null}
+                  {calendarReview.events[idx].operation === "CONFLICT" ? <p className={styles.uploadSubtext}>Source: {calendarReview.events[idx].source.title} · {calendarReview.events[idx].source.start}<br />Current Redline: {calendarReview.events[idx].current?.title} · {calendarReview.events[idx].current?.start}<br />Last imported baseline: {calendarReview.events[idx].baseline?.title} · {calendarReview.events[idx].baseline?.start}</p> : null}
+                  {calendarReview.events[idx].note ? <p className={styles.uploadSubtext}>{calendarReview.events[idx].note}</p> : null}
                 </div>
               ))}
+              {calendarReview.skipped.length ? <div className={styles.uploadSubtext}><strong>Unchanged / skipped</strong>{calendarReview.skipped.map((item) => <p key={item.entryId}>{item.title}: {item.reason}</p>)}</div> : null}
             </div>
           ) : null}
         </div>
@@ -621,7 +665,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
               <button
                 type="button"
                 className={styles.secondaryButton}
-                onClick={onClose}
+                onClick={cancelAndClose}
                 disabled={applying}
               >
                 Cancel

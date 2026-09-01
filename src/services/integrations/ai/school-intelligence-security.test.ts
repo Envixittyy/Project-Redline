@@ -12,7 +12,6 @@ import { OpenAiCompatibleAdapter } from "@/companion/adapters/openai-compatible-
 import { confirmPredictionAsTask, confirmPredictionAsEvent } from "@/services/school/prediction-service";
 
 const denied = [
-  ["academic_calendar", "academicCalendarImport.propose"],
   ["note_summary", "noteSummary.propose"],
   ["note_rewrite", "noteRewrite.propose"],
   ["note_action_items", "noteActionItems.propose"],
@@ -41,6 +40,13 @@ describe("School Intelligence containment", () => {
     expect(() => routingChain(denied, capability)).toThrow("cloud_privacy_denied");
     expect(fetchMock).not.toHaveBeenCalled();
   });
+  it("activates Academic Calendar only through its dedicated consent flag", () => {
+    const prefs: RoutingPreferences = { aiMode: "gemini", cloudEnabled: true, cloudFallbackMode: "ask_each_time", preferredCloud: "gemini", secondaryCloud: false,
+      checklistCloud: false, courseImportCloud: false, academicCalendarCloud: true };
+    expect(capabilityFor("academic_calendar").id).toBe("academicCalendarImport.propose");
+    expect(cloudAllowed("academicCalendarImport.propose", prefs)).toBe(true);
+    expect(cloudAllowed("academicCalendarImport.propose", { ...prefs, academicCalendarCloud: false })).toBe(false);
+  });
   it("permits predictions only through local routing even when assessment cloud consent is stored", () => {
     const prefs: RoutingPreferences = {
       aiMode: "auto", cloudEnabled: true, cloudFallbackMode: "ask_each_time",
@@ -65,7 +71,6 @@ describe("School Intelligence containment", () => {
   });
 
   it.each([
-    () => import("./academic-calendar-repository"),
     () => import("./note-intelligence-repository"),
     () => import("./quick-capture-repository"),
     () => import("./daily-plan-repository"),

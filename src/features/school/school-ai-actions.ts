@@ -21,9 +21,11 @@ import {
 import type { BlackboardCourseEdit } from "@/services/integrations/ai/blackboard-screenshot-contract";
 import {
   applyAcademicCalendarImport,
+  prepareDeterministicAcademicCalendarImport,
+  rejectAcademicCalendarImport,
   reviseAcademicCalendar,
 } from "@/services/integrations/ai/academic-calendar-repository";
-import type { ProposedAcademicEvent } from "@/services/integrations/ai/academic-calendar-contract";
+import type { AcademicCalendarEdit } from "@/services/integrations/ai/academic-calendar-contract";
 
 export async function prepareScheduleImportAction(formData: FormData, local: unknown) {
   return prepareRoutedInference("schedule_image", formData, local);
@@ -35,6 +37,10 @@ export async function prepareBlackboardScreenshotAction(formData: FormData, loca
 
 export async function prepareAcademicCalendarImportAction(formData: FormData, local: unknown) {
   return prepareRoutedInference("academic_calendar", formData, local);
+}
+
+export async function prepareDeterministicAcademicCalendarImportAction(formData: FormData) {
+  return prepareDeterministicAcademicCalendarImport(formData);
 }
 
 export async function sendCloudInferenceAction(attemptId: string) {
@@ -77,10 +83,14 @@ export async function applyBlackboardScreenshotAction(batchId: string) {
   return applyBlackboardScreenshotImport(batchId);
 }
 
-export async function reviseAcademicCalendarAction(batchId: string, events: ProposedAcademicEvent[]) {
+export async function reviseAcademicCalendarAction(batchId: string, events: AcademicCalendarEdit[]) {
   return reviseAcademicCalendar(batchId, events);
 }
 
 export async function applyAcademicCalendarAction(batchId: string) {
   return applyAcademicCalendarImport(batchId);
+}
+
+export async function rejectAcademicCalendarAction(batchId: string) {
+  return rejectAcademicCalendarImport(batchId);
 }

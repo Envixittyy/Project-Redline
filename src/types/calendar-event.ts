@@ -1,4 +1,4 @@
-export const calendarEventSources = ["life_os", "blackboard", "google_calendar"] as const;
+export const calendarEventSources = ["life_os", "blackboard", "google_calendar", "academic_calendar"] as const;
 
 export type CalendarEventSource = (typeof calendarEventSources)[number];
 

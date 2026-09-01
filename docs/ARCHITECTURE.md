@@ -36,8 +36,8 @@ decoder timeout, then emits a PNG derivative without EXIF/XMP/IPTC metadata.
 Sharp `0.35.3`, already a Next.js transitive dependency, is declared directly.
 Validation alone does not authorize transfer. Pass 2A adds modality metadata,
 short-lived normalized derivative storage and exact binary disclosure/consent.
-Pass 2C activates only Schedule and Blackboard Course screenshots on that layer;
-Academic Calendar screenshots remain quarantined.
+Pass 2C activates Schedule and Blackboard Course screenshots on that layer. Pass
+2B subsequently activates the separately scoped Academic Calendar image consumer.
 
 Document extraction again accepts only complete UTF-8 TXT/MD/CSV/ICS: 256 KiB
 input, 25,000 characters and 32 KiB UTF-8 text. Oversized sources fail rather than
@@ -70,9 +70,34 @@ School for explanation but are excluded from Home and Calendar.
 This adapter is local or private-mesh local text only. The dedicated assessment
 cloud flag remains a stored preference with no egress authority. Task/Event
 conversion remains denied. Schedule and Blackboard screenshots are activated by
-the later Pass 2C adapter described below. Academic Calendar import remains
-disabled because no stable import-source/source-entry/baseline/divergence model has
-been implemented. PDF/DOCX and every Pass-3 capability remain contained.
+the later Pass 2C adapter described below. Academic Calendar import is activated by
+the independent Pass 2B adapter below. PDF/DOCX and every Pass-3 capability remain
+contained.
+
+### Trusted Academic Calendar import — Pass 2B
+
+Migration `20260901000000_academic_calendar_import.sql` keeps import source,
+immutable source revision, source entry, and canonical `calendar_events` row as
+separate identities. Owner-scoped sources have server-generated IDs and explicit
+format association; filename is display provenance only. Revisions bind digest,
+normalized content, format, provenance, and creation time. ICS UID plus recurrence
+ID and explicit CSV IDs are strongest; conservative structure and semantics are
+resolved server-side when a format has no trusted ID. Different sources never
+share entry or baseline state.
+
+`academic_calendar_entry_links` stores the canonical event and exact last-imported
+Calendar baseline. A reimport compares canonical state with that baseline before
+proposing an update. Divergence produces a three-way conflict and cannot overwrite
+manual Calendar edits. Removed entries become absent while canonical events remain.
+The ID-only Calendar consumer revalidates source, revision, entry, baseline,
+canonical event, successor review, mutation policy, expiry and replay state, then
+mutates Calendar and advances provenance in one transaction.
+
+ICS/CSV use bounded deterministic parsers and never enter inference routing.
+TXT/MD require strict extraction with unique verbatim evidence. PNG/JPEG/WEBP use
+the Pass 2A normalized PNG authority and capability/model-bound disclosure with
+fresh send-once cloud consent. No Academic Calendar provider fallback is automatic.
+PDF and DOCX remain disabled.
 
 ### Model modality and normalized-image disclosure — Pass 2A
 
@@ -388,7 +413,7 @@ Phase 7A reuses this transaction rather than introducing a Blackboard-specific t
 
 Data access stays server-side by default and exposes narrow operations to features. Do not create a large speculative schema. Add tables and constraints alongside the product phase that establishes their behavior.
 
-`src/services/calendar-events/calendar-event-repository.ts` is the only module that speaks to `calendar_events`. Range reads use overlap semantics (`starts_at < rangeEnd` and `ends_at > rangeStart`) so multi-day events appear in every occupied local day. Native mutations are constrained to `source = life_os`; future integration adapters must own writes for their provider rows.
+`src/services/calendar-events/calendar-event-repository.ts` is the only module that speaks to `calendar_events`. Range reads use overlap semantics (`starts_at < rangeEnd` and `ends_at > rangeStart`) so multi-day events appear in every occupied local day. Browser creation is constrained to `source = life_os`; manual editing also permits `academic_calendar` while preserving protected source/external identity so reimport detects divergence. Other provider rows remain read-only.
 
 `src/services/work-sessions/work-session-repository.ts` owns `task_work_sessions`. Each row has an owner-consistent task foreign key, a strict increasing instant range, a lifecycle status, and a manual-or-planner origin. New planning features should write sessions rather than adding more schedule columns to tasks.
 
@@ -406,7 +431,7 @@ Check constraints keep invalid states unrepresentable: a title cannot be blank, 
 
 ## Calendar-event schema
 
-`calendar_events` stores owner `user_id`, `title`, `description`, `starts_at`, `ends_at`, `all_day`, `event_type`, `source`, `external_id`, `source_url`, optional `course`, and created/updated timestamps. `calendar_event_source` prepares the stable identities `life_os`, `blackboard`, and `google_calendar`; only `life_os` has behavior in Phase 1D. External identity is unique per owner and source when present. End is always strictly after start, and all-day intervals use an exclusive end instant.
+`calendar_events` stores owner `user_id`, `title`, `description`, `starts_at`, `ends_at`, `all_day`, `event_type`, `source`, `external_id`, `source_url`, optional `course`, and created/updated timestamps. `calendar_event_source` carries `life_os`, `blackboard`, `google_calendar`, and `academic_calendar`. The Academic Calendar source is owned by the Pass 2B adapter and uses `entry:<source-entry-id>` external identity. External identity is unique per owner and source when present. End is always strictly after start, and all-day intervals use an exclusive end instant.
 
 `event_type` is constrained by native server-action validation rather than a database enum so future source adapters can preserve provider categories without changing the table. Course is free text until School establishes course metadata. Calendar item styling exposes a semantic per-item accent custom property; future course metadata may supply it without hard-coding course colors into Calendar components.
 

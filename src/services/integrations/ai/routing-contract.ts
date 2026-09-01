@@ -86,7 +86,7 @@ export type RoutedPreparation = {
 };
 
 export function capabilityFor(kind: RequestKind) {
-  if (!["checklist", "course", "assessment_prediction", "schedule_image", "blackboard_image"].includes(kind)) schoolIntelligenceUnavailable();
+  if (!["checklist", "course", "assessment_prediction", "schedule_image", "blackboard_image", "academic_calendar"].includes(kind)) schoolIntelligenceUnavailable();
   if (kind === "checklist") return CHECKLIST_CAPABILITY;
   if (kind === "course") return COURSE_IMPORT_CAPABILITY;
   if (kind === "schedule_image") return SCHEDULE_IMAGE_CAPABILITY;
@@ -117,6 +117,9 @@ export function cloudAllowed(capability: string, prefs: RoutingPreferences): boo
   }
   if (prefs.cloudFallbackMode === "ask_each_time" && capability === BLACKBOARD_COURSE_IMAGE_CAPABILITY.id) {
     return prefs.blackboardCourseCloud === true;
+  }
+  if (prefs.cloudFallbackMode === "ask_each_time" && capability === ACADEMIC_CALENDAR_CAPABILITY.id) {
+    return prefs.academicCalendarCloud === true;
   }
   // Capability flags express privacy preferences, not activation authority.
   return false;

@@ -72,6 +72,12 @@ function validatedDraft(input: CalendarEventInput): CalendarEventDraft {
   };
 }
 
+function validatedPatch(input: CalendarEventInput): CalendarEventDraft {
+  const draft = validatedDraft(input);
+  return { title: draft.title, description: draft.description, start: draft.start, end: draft.end,
+    allDay: draft.allDay, eventType: draft.eventType, course: draft.course };
+}
+
 function toFailure(error: unknown): CalendarActionResult {
   if (error instanceof InvalidCalendarInputError) return { ok: false, message: error.message };
   if (error instanceof SupabaseNotConfiguredError) {
@@ -103,7 +109,8 @@ export async function saveCalendarEventAction(
   input: CalendarEventInput,
 ): Promise<CalendarActionResult> {
   try {
-    await updateCalendarEvent(requireId(id), validatedDraft(input));
+    // Source/provenance identity is immutable through the browser event editor.
+    await updateCalendarEvent(requireId(id), validatedPatch(input));
     revalidatePath("/calendar");
     return { ok: true };
   } catch (error) {

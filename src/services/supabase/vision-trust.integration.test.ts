@@ -159,6 +159,20 @@ describe("Pass 2A normalized-image authority", () => {
       image_id: blackboard, capability: "blackboardCourseImage.propose", provider: "gemini", model: "gemini-vision-fixture",
       location: "cloud", modality_source: "server_cloud_configuration",
     })).rejects.toThrow(/ai_cloud_privacy_denied/);
+
+    const academic = await source("academicCalendarImport.propose");
+    await expect(rpc("ai_prepare_image_disclosure", "prepare_image_disclosure", {
+      image_id: academic, capability: "academicCalendarImport.propose", provider: "gemini", model: "gemini-vision-fixture",
+      location: "cloud", modality_source: "server_cloud_configuration",
+    })).rejects.toThrow(/ai_cloud_privacy_denied/);
+    await db.query("update ai_preferences set academic_calendar_cloud=true where user_id=$1", [owner]);
+    const academicDisclosure = await rpc("ai_prepare_image_disclosure", "prepare_image_disclosure", {
+      image_id: academic, capability: "academicCalendarImport.propose", provider: "gemini", model: "gemini-vision-fixture",
+      location: "cloud", modality_source: "server_cloud_configuration",
+    }) as string;
+    await expect(rpc("ai_claim_image_disclosure", "claim_image_disclosure", { disclosure_id: academicDisclosure })).rejects.toThrow(/ai_cloud_privacy_denied/);
+    await rpc("ai_consent_image_disclosure", "consent_image_disclosure", { disclosure_id: academicDisclosure });
+    expect(await rpc("ai_claim_image_disclosure", "claim_image_disclosure", { disclosure_id: academicDisclosure })).toMatchObject({ capability: "academicCalendarImport.propose", model: "gemini-vision-fixture" });
   });
 
   it("exposes no browser table path to normalized bytes or disclosures", async () => {

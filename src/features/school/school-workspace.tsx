@@ -30,6 +30,8 @@ import { CourseImportModal } from "./course-import-modal";
 import { CoursePredictionsPanel } from "./course-predictions-panel";
 import { CourseMaterialIntelligenceModal } from "./course-material-intelligence-modal";
 import { ContextualAssistantModal } from "@/features/ai/contextual-assistant-modal";
+import { SchoolIntelligenceModal } from "./school-intelligence-modal";
+import type { AcademicCalendarSource } from "@/services/integrations/ai/academic-calendar-repository";
 import styles from "./school-workspace.module.css";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -39,6 +41,7 @@ type SchoolWorkspaceProps = {
   materials: CourseMaterial[];
   today: string;
   timeZone: string;
+  academicCalendarSources: AcademicCalendarSource[];
 };
 
 export function SchoolWorkspace({
@@ -46,12 +49,14 @@ export function SchoolWorkspace({
   materials,
   today,
   timeZone,
+  academicCalendarSources,
 }: SchoolWorkspaceProps) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const [showAddCourse, setShowAddCourse] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showAcademicImport, setShowAcademicImport] = useState(false);
   const [activeMeetingCourseId, setActiveMeetingCourseId] = useState<string | null>(null);
   const [activeMaterialCourseId, setActiveMaterialCourseId] = useState<string | null>(null);
   const [aiStudyMaterials, setAiStudyMaterials] = useState<CourseMaterial[] | null>(null);
@@ -83,6 +88,9 @@ export function SchoolWorkspace({
           onClose={() => setShowImport(false)}
         />
       ) : null}
+      {showAcademicImport ? (
+        <SchoolIntelligenceModal courses={courses} sources={academicCalendarSources} initialTab="academic_calendar" onClose={() => setShowAcademicImport(false)} />
+      ) : null}
 
       <div className={styles.toolbar}>
         <div>
@@ -98,6 +106,9 @@ export function SchoolWorkspace({
             className="motion-interactive"
           >
             <Sparkles size={16} aria-hidden="true" /> Import Course (Text)
+          </button>
+          <button onClick={() => setShowAcademicImport(true)} type="button" className="motion-interactive">
+            <CalendarPlus size={16} aria-hidden="true" /> Import Academic Calendar
           </button>
           <button
             onClick={() => setShowAddCourse((v) => !v)}

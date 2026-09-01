@@ -39,12 +39,20 @@ export async function readInferenceSource(kind: RequestKind, requestId: unknown,
     prompt = kind === "schedule_image" ? schedulePrompt(r.source_handle) : blackboardCoursePrompt(r.source_handle);
   } else if (kind === "academic_calendar") {
     if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
-    if (r.source_text.startsWith("data:image/")) {
-      const match = r.source_text.match(/^data:(image\/[a-z]+);base64,(.+)$/);
-      if (!match) throw new AiTrustError("source_changed");
-      prompt = academicCalendarPrompt(r.source_handle, { image: { base64: match[2], mimeType: match[1] } });
+    let authority: { revisionId?: unknown; disclosureId?: unknown; imageBytes?: unknown };
+    try { authority = JSON.parse(r.source_text); } catch { throw new AiTrustError("source_changed"); }
+    if (typeof authority.revisionId !== "string") throw new AiTrustError("source_changed");
+    const { data: revision, error: revisionError } = await client.from("academic_calendar_source_revisions")
+      .select("format,normalized_text,content_digest,image_id").eq("id", authority.revisionId).eq("user_id", userId).maybeSingle();
+    if (revisionError || !revision || !["txt", "md", "png", "jpeg", "webp"].includes(revision.format)) throw new AiTrustError("source_changed");
+    if (revision.format === "txt" || revision.format === "md") {
+      if (!revision.normalized_text || createHash("sha256").update(revision.normalized_text).digest("hex") !== revision.content_digest || authority.disclosureId !== null) throw new AiTrustError("source_changed");
+      prompt = academicCalendarPrompt(r.source_handle, revision.format, revision.normalized_text);
     } else {
-      prompt = academicCalendarPrompt(r.source_handle, { text: r.source_text });
+      if (typeof authority.disclosureId !== "string") throw new AiTrustError("source_changed");
+      if (typeof authority.imageBytes !== "number" || !Number.isInteger(authority.imageBytes) || authority.imageBytes < 1 || authority.imageBytes > 5 * 1024 * 1024) throw new AiTrustError("source_changed");
+      transferBytes = authority.imageBytes;
+      prompt = academicCalendarPrompt(r.source_handle, revision.format);
     }
   } else if (kind === "assessment_prediction") {
     if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
@@ -74,6 +82,9 @@ export async function readInferenceSource(kind: RequestKind, requestId: unknown,
   // separately immutable columns; the digest binds every transmitted inference field.
   const payload = JSON.stringify({ version: 1, capability: capability.id, inference });
   let disclosureId: string | undefined;
-  if (kind === "schedule_image" || kind === "blackboard_image") disclosureId = (JSON.parse(r.source_text) as { disclosureId: string }).disclosureId;
+  if (kind === "schedule_image" || kind === "blackboard_image" || kind === "academic_calendar") {
+    const value = JSON.parse(r.source_text) as { disclosureId?: string | null };
+    if (typeof value.disclosureId === "string") disclosureId = value.disclosureId;
+  }
   return { inference, digest: createHash("sha256").update(payload).digest("hex"), bytes: Buffer.byteLength(payload), transferBytes, expiresAt: r.expires_at as string, disclosureId };
 }

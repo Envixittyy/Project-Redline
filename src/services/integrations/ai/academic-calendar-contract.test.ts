@@ -1,76 +1,29 @@
 import { describe, expect, it } from "vitest";
-import {
-  parseAcademicCalendarOutput,
-  ACADEMIC_CALENDAR_CAPABILITY,
-} from "./academic-calendar-contract";
-import { AiTrustError } from "./trust-contract";
+import { ACADEMIC_CALENDAR_CAPABILITY, academicCalendarPrompt, parseAcademicCalendarOutput } from "./academic-calendar-contract";
 
-describe("Academic Calendar Contract", () => {
-  const validHandle = "acad_handle_123";
-
-  it("parses valid academic calendar proposal output", () => {
-    const validJson = JSON.stringify({
-      schema_version: 1,
-      type: "import_academic_calendar",
-      source_handle: validHandle,
-      events: [
-        {
-          title: "Spring Term Classes Begin",
-          startDate: "2026-01-12",
-          allDay: true,
-          eventType: "term_start",
-          description: "First day of classes for Spring semester",
-        },
-        {
-          title: "Spring Break",
-          startDate: "2026-03-16",
-          endDate: "2026-03-20",
-          allDay: true,
-          eventType: "break",
-        },
-      ],
-    });
-
-    const parsed = parseAcademicCalendarOutput(
-      validJson,
-      ACADEMIC_CALENDAR_CAPABILITY.id,
-      validHandle,
-    );
-
-    expect(parsed.events).toHaveLength(2);
-    expect(parsed.events[0].title).toBe("Spring Term Classes Begin");
-    expect(parsed.events[0].eventType).toBe("term_start");
-    expect(parsed.events[1].eventType).toBe("break");
+describe("trusted Academic Calendar extraction contract", () => {
+  const handle = "academic_fixture", zone = "Asia/Manila";
+  const output = (overrides: Record<string, unknown> = {}) => JSON.stringify({ schema_version: 2, type: "extract_academic_calendar", source_handle: handle,
+    events: [{ title: "Spring Break", start: "2026-03-16", end: "2026-03-21", allDay: true, eventType: "break", evidence: "Spring Break: March 16-20" }], ...overrides });
+  it("normalizes strict TXT/MD events without accepting model identity", () => {
+    expect(parseAcademicCalendarOutput(output(), ACADEMIC_CALENDAR_CAPABILITY.id, handle, "txt", zone).events[0]).toMatchObject({ title: "Spring Break", start: "2026-03-15T16:00:00.000Z" });
+    expect(() => parseAcademicCalendarOutput(output({ events: [{ title: "Break", start: "2026-03-16", allDay: true, eventType: "break", evidence: "Break", id: "model-id" }] }), ACADEMIC_CALENDAR_CAPABILITY.id, handle, "txt", zone)).toThrow();
   });
-
-  it("rejects capability mismatch", () => {
-    expect(() =>
-      parseAcademicCalendarOutput("{}", "other.capability", validHandle),
-    ).toThrow(AiTrustError);
+  it.each([
+    ["missing date", { title: "Break", allDay: true, eventType: "break", evidence: "Break" }],
+    ["malformed date", { title: "Break", start: "soon", allDay: true, eventType: "break", evidence: "Break" }],
+    ["missing evidence", { title: "Break", start: "2026-03-16", allDay: true, eventType: "break" }],
+  ])("rejects %s", (_name, bad) => expect(() => parseAcademicCalendarOutput(output({ events: [bad] }), ACADEMIC_CALENDAR_CAPABILITY.id, handle, "md", zone)).toThrow());
+  it("rejects oversized, malformed, capability-swapped, handle-swapped, and image evidence output", () => {
+    expect(() => parseAcademicCalendarOutput("x".repeat(65537), ACADEMIC_CALENDAR_CAPABILITY.id, handle, "txt", zone)).toThrow();
+    expect(() => parseAcademicCalendarOutput("{}", ACADEMIC_CALENDAR_CAPABILITY.id, handle, "txt", zone)).toThrow();
+    expect(() => parseAcademicCalendarOutput(output(), "other", handle, "txt", zone)).toThrow();
+    expect(() => parseAcademicCalendarOutput(output({ source_handle: "other" }), ACADEMIC_CALENDAR_CAPABILITY.id, handle, "txt", zone)).toThrow();
+    expect(() => parseAcademicCalendarOutput(output(), ACADEMIC_CALENDAR_CAPABILITY.id, handle, "png", zone)).toThrow();
   });
-
-  it("rejects invalid dates", () => {
-    const invalidJson = JSON.stringify({
-      schema_version: 1,
-      type: "import_academic_calendar",
-      source_handle: validHandle,
-      events: [
-        {
-          title: "Spring Break",
-          startDate: "not-a-date",
-          allDay: true,
-          eventType: "break",
-        },
-      ],
-    });
-
-    expect(() =>
-      parseAcademicCalendarOutput(
-        invalidJson,
-        ACADEMIC_CALENDAR_CAPABILITY.id,
-        validHandle,
-      ),
-    ).toThrow(AiTrustError);
+  it("discloses normalized text only for text formats and never asks a model for IDs", () => {
+    expect(academicCalendarPrompt(handle, "txt", "trusted text").prompt).toContain("trusted text");
+    expect(academicCalendarPrompt(handle, "png").prompt).not.toContain("trusted text");
+    expect(academicCalendarPrompt(handle, "png").systemPrompt).toContain("Do not return IDs");
   });
 });
-

@@ -331,7 +331,14 @@ describe("Pass 1 shared authority (actual migrations; test-only fixed domain con
   });
 
   it("does not treat legacy academic title-hash rows as trusted import sources", async () => {
+    await db.exec("reset role");
+    // Simulate a row that predates the Pass 2B provenance guard.
+    await db.query("alter table calendar_events disable trigger academic_calendar_event_provenance");
+    await db.exec("set role service_role");
     const id = (await db.query<{ id: string }>("insert into calendar_events(title,starts_at,ends_at,source,external_id) values('Holiday','2026-09-01Z','2026-09-02Z','academic_calendar','title_hash') returning id")).rows[0].id;
+    await db.exec("reset role");
+    await db.query("alter table calendar_events enable trigger academic_calendar_event_provenance");
+    await db.exec("set role authenticated");
     await expect(fingerprint("calendar_event", id)).rejects.toThrow(/ai_source_unavailable/);
   });
 

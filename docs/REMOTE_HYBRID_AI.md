@@ -4,18 +4,18 @@ Phase 10B, 2026-08-31. Adds inference routes only. See `PHASE10B_REMOTE_HYBRID_R
 
 ## What is supported
 
-- Auto, Local, Gemini and OpenRouter modes for task checklist proposals and selected-text course import. Pass 2 additionally supports Auto/Local assessment prediction generation using one explicitly selected saved syllabus and its Course, through same-PC or private-mesh local inference. Gemini/OpenRouter prediction egress remains disabled.
+- Auto, Local, Gemini and OpenRouter modes for task checklist proposals, selected-text course import, Schedule screenshots, and Blackboard Course-list screenshots. Pass 2 additionally supports Auto/Local assessment prediction generation using one explicitly selected saved syllabus and its Course, through same-PC or private-mesh local inference. Gemini/OpenRouter prediction egress remains disabled.
 - Local means the selected Companion connection: same-PC loopback **or** the configured home-PC private-mesh connection. Auto does not guess which PC is yours or scan the LAN.
 - Inference never applies changes. Review, edit/re-review, ID-only approval, stale checks and atomic domain-write/audit remain mandatory.
-- TXT/MD/CSV/ICS are the only active course formats. Pass 2A adds contained normalized-image transport infrastructure, but no School screenshot product workflow, OCR, PDF/DOCX/XLSX, Notes/journal/Wellness AI, background mutation, shell, tools, filesystem access or browsing was activated.
+- TXT/MD/CSV/ICS are the only active document course formats. Pass 2C activates normalized PNG/JPEG/WebP input only for Schedule and Blackboard Course bootstrap. Academic Calendar screenshots, general OCR/Universal Capture, PDF/DOCX/XLSX, Notes/journal/Wellness AI, background mutation, shell, tools, filesystem access and browsing remain disabled.
 
 ## Request path
 
-1. The authenticated server resolves one canonical task or one immutable selected text upload and the capability from trusted code. Browser text cannot choose a capability, provider endpoint or permission.
+1. The authenticated server resolves one canonical task, one immutable selected text upload, or one explicitly selected image and its fixed capability from trusted code. Images are fully decoded and normalized to a trusted PNG source before disclosure. Browser text cannot choose a capability, provider endpoint or permission.
 2. The server reads saved mode/privacy preferences and persists an owner-scoped inference attempt bound to the canonical payload digest, capability, provider/model, location and five-minute source expiry.
-3. Local inference uses the existing paired browser transport. Remote-local inference additionally requires a signed exact-request ticket. The deployed Next.js server never fetches a PC or LAN URL.
+3. Local inference uses the existing paired browser transport. Remote-local text inference requires a signed exact-request ticket; Schedule and Blackboard image inference requires that same exact-body ticket discipline for both same-PC and remote-local transport. The deployed Next.js server never fetches a PC or LAN URL.
 4. Cloud preparation returns a disclosure, not an upload. The user sees provider/model, purpose, field names, source count, bounded canonical request bytes, expiry and provider terms. Each Send-once action reconstructs source, rechecks privacy/freshness and atomically consumes that attempt before egress. Cancel sends nothing. The source body is not supplied back by the browser.
-5. All output passes the existing strict capability parser and persisted review. Apply is a separate, unchanged domain operation.
+5. All output passes the strict capability parser and persisted review. Screenshot output cannot choose canonical targets. User edits create a server-sealed successor, and Apply accepts only its batch ID.
 
 ## Routing and failures
 

@@ -284,10 +284,13 @@ describe("AI trust boundary in PostgreSQL (actual migrations, authenticated role
     await expect(db.query("update operation_steps set input='{}' where batch_id=$1 returning id", [batch])).resolves.toMatchObject({ rows: [] });
   });
 
-  it("every new cloud domain stays denied even when all nine preferences are enabled", async () => {
+  it("only the two activated image domains join the existing cloud registry", async () => {
     await db.query("insert into ai_preferences(user_id,cloud_enabled,ai_mode,preferred_cloud,cloud_fallback_mode,checklist_cloud,course_import_cloud,school_schedule_cloud,blackboard_course_cloud,academic_calendar_cloud,assessment_prediction_cloud,notes_cloud,quick_capture_cloud,daily_plan_cloud,course_material_cloud,contextual_assistant_cloud) values($1,true,'auto','gemini','ask_each_time',true,true,true,true,true,true,true,true,true,true,true)", [owner]);
     await db.exec("reset role");
-    for (const capability of ["schoolScheduleImage.propose", "blackboardCourseImage.propose", "academicCalendarImport.propose", "schoolAssessmentPrediction.propose", "noteSummary.propose", "noteRewrite.propose", "noteActionItems.propose", "quickCapture.propose", "dailyPlanAdvice.propose", "courseMaterialSummary.propose", "courseMaterialStudyQuestions.propose", "contextualAssistant.propose"]) {
+    for (const capability of ["schoolScheduleImage.propose", "blackboardCourseImage.propose"]) {
+      expect((await db.query<{ allowed: boolean }>("select ai_private.cloud_allowed($1,'gemini') allowed", [capability])).rows[0].allowed).toBe(true);
+    }
+    for (const capability of ["academicCalendarImport.propose", "schoolAssessmentPrediction.propose", "noteSummary.propose", "noteRewrite.propose", "noteActionItems.propose", "quickCapture.propose", "dailyPlanAdvice.propose", "courseMaterialSummary.propose", "courseMaterialStudyQuestions.propose", "contextualAssistant.propose"]) {
       expect((await db.query<{ allowed: boolean }>("select ai_private.cloud_allowed($1,'gemini') allowed", [capability])).rows[0].allowed).toBe(false);
     }
     expect((await db.query<{ allowed: boolean }>("select ai_private.cloud_allowed('taskChecklist.propose','gemini') allowed")).rows[0].allowed).toBe(true);

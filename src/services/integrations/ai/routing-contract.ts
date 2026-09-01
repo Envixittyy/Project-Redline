@@ -86,7 +86,7 @@ export type RoutedPreparation = {
 };
 
 export function capabilityFor(kind: RequestKind) {
-  if (kind !== "checklist" && kind !== "course" && kind !== "assessment_prediction") schoolIntelligenceUnavailable();
+  if (!["checklist", "course", "assessment_prediction", "schedule_image", "blackboard_image"].includes(kind)) schoolIntelligenceUnavailable();
   if (kind === "checklist") return CHECKLIST_CAPABILITY;
   if (kind === "course") return COURSE_IMPORT_CAPABILITY;
   if (kind === "schedule_image") return SCHEDULE_IMAGE_CAPABILITY;
@@ -112,8 +112,13 @@ export function cloudAllowed(capability: string, prefs: RoutingPreferences): boo
   if (capability === COURSE_IMPORT_CAPABILITY.id) {
     return prefs.courseImportCloud === true;
   }
+  if (prefs.cloudFallbackMode === "ask_each_time" && capability === SCHEDULE_IMAGE_CAPABILITY.id) {
+    return prefs.schoolScheduleCloud === true;
+  }
+  if (prefs.cloudFallbackMode === "ask_each_time" && capability === BLACKBOARD_COURSE_IMAGE_CAPABILITY.id) {
+    return prefs.blackboardCourseCloud === true;
+  }
   // Capability flags express privacy preferences, not activation authority.
-  // Final review found unresolved source/review contracts in all new domains.
   return false;
 }
 export function isCloud(provider: string): provider is CloudProvider {

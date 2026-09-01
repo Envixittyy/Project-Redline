@@ -35,8 +35,9 @@ limit, 8192-pixel dimensions, 16,777,216 pixels, a single frame and a five-secon
 decoder timeout, then emits a PNG derivative without EXIF/XMP/IPTC metadata.
 Sharp `0.35.3`, already a Next.js transitive dependency, is declared directly.
 Validation alone does not authorize transfer. Pass 2A adds modality metadata,
-short-lived normalized derivative storage and exact binary disclosure/consent,
-but the three School screenshot product workflows remain quarantined.
+short-lived normalized derivative storage and exact binary disclosure/consent.
+Pass 2C activates only Schedule and Blackboard Course screenshots on that layer;
+Academic Calendar screenshots remain quarantined.
 
 Document extraction again accepts only complete UTF-8 TXT/MD/CSV/ICS: 256 KiB
 input, 25,000 characters and 32 KiB UTF-8 text. Oversized sources fail rather than
@@ -68,9 +69,8 @@ School for explanation but are excluded from Home and Calendar.
 
 This adapter is local or private-mesh local text only. The dedicated assessment
 cloud flag remains a stored preference with no egress authority. Task/Event
-conversion remains denied. Schedule and Blackboard screenshots remain disabled at
-their product boundary. Pass 2A installs binary transport authority only; it does
-not certify their source, review or Apply adapters. Academic Calendar import remains
+conversion remains denied. Schedule and Blackboard screenshots are activated by
+the later Pass 2C adapter described below. Academic Calendar import remains
 disabled because no stable import-source/source-entry/baseline/divergence model has
 been implemented. PDF/DOCX and every Pass-3 capability remain contained.
 
@@ -107,8 +107,39 @@ image byte field; the OpenAI-compatible adapter constructs a data URL internally
 llama.cpp rejects images. Cloud transport similarly constructs provider-native
 image fields only after fresh capability-specific disclosure and consent. Image
 errors, text-only models and unknown modality never trigger automatic cloud fallback.
-Model output remains untrusted, and no School screenshot preparation, proposal,
-Apply or prediction-conversion authority is enabled by this infrastructure.
+Model output remains untrusted. This infrastructure alone grants no screenshot
+preparation, proposal, Apply, or prediction-conversion authority; product adapters
+must register their own finite source, review, and consumer contracts.
+
+### Schedule and Blackboard screenshot activation — Pass 2C
+
+Migration `20260831210000_school_screenshot_activation.sql` registers exactly
+`schoolScheduleImage.propose` and `blackboardCourseImage.propose`. A scoped request
+binds one Pass-2A validated PNG and one capability/provider/model/location-specific
+disclosure. Its minimized `source_text` contains only trusted image/disclosure IDs,
+digest, byte count, and route metadata; raw uploads never enter an inference adapter
+or the generic text source path. Local and remote-local inference requires an
+exact-body Companion image ticket. Cloud requires the capability flag, exact server
+vision model, a separate Send-once confirmation, and the same disclosure claim.
+Image attempts never enter automatic fallback.
+
+Provider output is extraction only. Schedule accepts bounded visible Course code,
+name, weekday, strict times, and optional room/end time. Blackboard accepts only a
+visible label and optional visible code/title. Unknown keys, URLs, malformed values,
+target IDs, Blackboard IDs, external IDs, and mapping IDs are rejected. Every row
+starts as `IGNORE`. A user successor chooses `MATCH_EXISTING`, `CREATE_NEW`, or
+`IGNORE`; the database seals exact existing-Course fingerprints into the successor.
+Apply accepts only the batch ID and never performs fuzzy matching.
+
+The fixed Schedule consumer creates or matches canonical `courses`, then adds
+canonical `course_meetings`. Meeting dedupe uses Course, weekday, start/end, and
+workspace time zone; room is excluded so a changed display room cannot duplicate an
+existing time slot. The importer is additive and never deletes or replaces manual
+meetings. The Blackboard consumer creates or matches `courses` only and never writes
+`blackboard_course_mappings`; a screenshot label cannot establish provider identity.
+Normalized Course-code conflicts such as `CPE201` / `CPE 201` fail for explicit
+review instead of fuzzy matching. Pass-1 freshness, mutation policy, transaction
+claim/finish, audit, replay, and rollback remain authoritative for both consumers.
 
 ## Directory structure
 

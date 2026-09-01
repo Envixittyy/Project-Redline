@@ -8,6 +8,7 @@ import { cloudAvailability, cloudModel, CLOUD_PRIVACY_URLS, inferCloud } from ".
 import { readInferenceSource } from "./inference-source";
 import { signAiCommand } from "./trust-signing";
 import { AiTrustError, uuid } from "./trust-contract";
+import { claimImageDisclosure, consentImageDisclosure, dispatchCloudImageDisclosure, finishImageDisclosure, signClaimedImageCompanionRequest } from "./image-disclosure";
 import {
   capabilityFor, cloudAllowed, isCloud, localSelection, mayFallback, routingChain,
   type InferenceLocation, type InferenceProvider, type InferenceProvenance, type RequestKind,
@@ -137,7 +138,7 @@ async function prepareAttempt(kind: RequestKind, requestId: string, provider: In
   });
   return { attemptId: id, requestId, kind, provider, model, location,
     ...(location !== "cloud" ? { inference: source.inference } : {}),
-    disclosure: { purpose: capability.id, fields: [...capability.inputFields], sources: 1, bytes: source.bytes, expiresAt: source.expiresAt,
+    disclosure: { purpose: capability.id, fields: [...capability.inputFields], sources: 1, bytes: source.transferBytes ?? source.bytes, expiresAt: source.expiresAt,
       ...(isCloud(provider) ? { privacyUrl: CLOUD_PRIVACY_URLS[provider] } : {}) } };
 }
 export async function prepareRoutedInference(kind: RequestKind, input: unknown, local: unknown) {
@@ -154,9 +155,9 @@ export async function prepareRoutedInference(kind: RequestKind, input: unknown, 
       : kind === "course"
       ? await prepareCourseImport(input as FormData, provider, model)
       : kind === "schedule_image"
-      ? await prepareScheduleImport(input as FormData, provider, model)
+      ? await prepareScheduleImport(input as FormData, { provider, model, location } as import("./image-disclosure").ImageRoute)
       : kind === "blackboard_image"
-      ? await prepareBlackboardScreenshotImport(input as FormData, provider, model)
+      ? await prepareBlackboardScreenshotImport(input as FormData, { provider, model, location } as import("./image-disclosure").ImageRoute)
       : kind === "academic_calendar"
       ? await prepareAcademicCalendarImport(input as FormData, provider, model)
       : kind === "assessment_prediction"
@@ -172,12 +173,19 @@ export async function prepareRoutedInference(kind: RequestKind, input: unknown, 
       : await prepareNoteIntelligence(input as string, kind, provider, model);
   return prepareAttempt(kind, prepared.requestId, provider, model, location);
 }
-export async function claimLocalInference(id: unknown) {
+export async function claimLocalInference(id: unknown, transport?: { companionUrl: string; endpoint: string; pairingToken: string; deviceId: string }) {
   const a = await loadInferenceAttempt(id);
   if (a.location === "cloud") throw new AiTrustError("capability_denied");
   const source = await readInferenceSource(a.kind, a.requestId, a.model);
   await rpc("claim_inference", { id: a.id, payload_digest: source.digest, consent: false });
-  return source.inference;
+  if (a.kind === "schedule_image" || a.kind === "blackboard_image") {
+    if (!source.disclosureId) throw new AiTrustError("disclosure_unavailable");
+    const claimed = await claimImageDisclosure(source.disclosureId);
+    if (!transport) throw new AiTrustError("companion_auth_not_configured");
+    const signed = await signClaimedImageCompanionRequest(claimed, source.inference, transport);
+    return { inference: signed.body.request, ticket: signed.ticket };
+  }
+  return { inference: source.inference };
 }
 async function finish(id: string, status: "failed" | "succeeded" | "cancelled", code?: string, batchId?: string, latencyMs?: number) {
   const safeCodes = ["provider_unavailable", "rate_limited", "missing_credentials", "local_unavailable", "timeout", "network_unavailable", "pairing_invalid", "invalid_output", "unsupported_modality", "source_changed", "provider_rejected"];
@@ -216,6 +224,11 @@ async function finalize(a: Awaited<ReturnType<typeof loadInferenceAttempt>>, raw
 export async function finalizeLocalInference(id: unknown, raw: unknown) {
   const a = await loadInferenceAttempt(id);
   if (a.location === "cloud") throw new AiTrustError("capability_denied");
+  if (a.kind === "schedule_image" || a.kind === "blackboard_image") {
+    const source = await readInferenceSource(a.kind, a.requestId, a.model);
+    if (!source.disclosureId) throw new AiTrustError("disclosure_unavailable");
+    await finishImageDisclosure(source.disclosureId, "succeeded");
+  }
   try { return await finalize(a, raw); }
   catch (e) { await finish(a.id, "failed", "invalid_output"); throw e; }
 }
@@ -234,7 +247,10 @@ export async function sendCloudInference(id: unknown) {
     await rpc("claim_inference", { id: a.id, payload_digest: source.digest, consent: true });
     claimed = true;
     const start = performance.now();
-    const raw = await inferCloud(a.provider, source.inference);
+    if ((a.kind === "schedule_image" || a.kind === "blackboard_image") && source.disclosureId) await consentImageDisclosure(source.disclosureId);
+    const raw = (a.kind === "schedule_image" || a.kind === "blackboard_image") && source.disclosureId
+      ? await dispatchCloudImageDisclosure(source.disclosureId, source.inference)
+      : await inferCloud(a.provider, source.inference);
     const latencyMs = Math.round(performance.now() - start);
     return await finalize({ ...a, status: "dispatching" }, raw, latencyMs);
   } catch (e) {
@@ -247,6 +263,10 @@ export async function sendCloudInference(id: unknown) {
 export async function failLocalInference(id: unknown, code: unknown) {
   const a = await loadInferenceAttempt(id);
   if (a.location === "cloud" || typeof code !== "string") throw new AiTrustError("capability_denied");
+  if (a.kind === "schedule_image" || a.kind === "blackboard_image") {
+    const source = await readInferenceSource(a.kind, a.requestId, a.model);
+    if (source.disclosureId) await finishImageDisclosure(source.disclosureId, "failed").catch(() => undefined);
+  }
   await finish(a.id, "failed", code);
 }
 export async function cancelInference(id: unknown) {
@@ -257,6 +277,7 @@ export async function cancelInference(id: unknown) {
 }
 export async function prepareFallback(id: unknown) {
   const a = await loadInferenceAttempt(id), prefs = await routingPreferences();
+  if (a.kind === "schedule_image" || a.kind === "blackboard_image") throw new AiTrustError("fallback_denied");
   if (prefs.aiMode !== "auto" || a.status !== "failed" || !mayFallback(a.error_code ?? "", a.location)) throw new AiTrustError("fallback_denied");
   const chain = routingChain(prefs, a.capability);
   const at = chain.indexOf(isCloud(a.provider) ? a.provider : "local");

@@ -20,6 +20,13 @@ describe("actual shared browser routing orchestration", () => {
     expect(m.infer).toHaveBeenCalledWith(config, { prompt: "server canonical", model: "test" }, undefined, undefined);
     expect(m.finalize).toHaveBeenCalledWith("local", "raw"); expect(consent).not.toHaveBeenCalled(); expect(m.send).not.toHaveBeenCalled();
   });
+  it("uses the exact Pass-2A ticket returned with claimed image media", async () => {
+    m.prepare.mockResolvedValue({ ok: true, prepared: { ...local, kind: "schedule_image", disclosure: { ...local.disclosure, purpose: "schoolScheduleImage.propose", fields: ["normalized_image"] } } });
+    m.claim.mockResolvedValue({ ok: true, inference: { prompt: "image prompt", model: "test", media: [{ type: "image" }] }, ticket: "exact-image-ticket" });
+    expect((await generateRoutedProposal("schedule_image", new FormData(), config)).ok).toBe(true);
+    expect(m.infer).toHaveBeenCalledWith(config, expect.objectContaining({ media: [{ type: "image" }] }), undefined, "exact-image-ticket");
+    expect(m.ticket).not.toHaveBeenCalled();
+  });
   it("cancelled disclosure sends nothing", async () => {
     m.prepare.mockResolvedValue({ ok: true, prepared: cloud("gemini") }); const consent = vi.fn(async () => false);
     expect((await generateRoutedProposal("course", new FormData(), null, undefined, consent)).ok).toBe(false);

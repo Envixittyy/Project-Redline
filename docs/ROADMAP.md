@@ -155,7 +155,7 @@ graph TD
 
 ### Phase 10: Local AI Companion & Remote/Hybrid Routing (P6/P7)
 
-**Explicit scope update (2026-08-31):** The user's Phase 10B assignment is remote + hybrid routing. The previously numbered image/screenshot ingestion work remains deferred and was not implemented. Historical Phase 10A limitations below describe its original deployment boundary; see 10B for the additive current transport.
+**Explicit scope update (2026-08-31):** The user's Phase 10B assignment was remote + hybrid routing. Pass 2A later added trusted normalized-image transport, and Pass 2C activates only Schedule screenshots and Blackboard Course bootstrap. Academic Calendar import, Universal Capture image/OCR, and other image workflows remain deferred. Historical Phase 10A limitations below describe its original deployment boundary; see 10B and the Pass 2C report for additive current transport.
 - **10A: Local Companion Transport & Security Architecture [`IMPLEMENTED — DEPLOYMENT VERIFICATION PENDING` | Large | Risk: High | Reviewer: Codex]**
   - Direct desktop-browser transport to fixed `127.0.0.1:41400`; hosted servers never route to the PC. Exact origin, expiring pairing, fixed runtime destinations/routes, bounded responses, cancellation, and no redirect following.
   - Three adapters: Ollama, llama.cpp, and local OpenAI-compatible. Real-model and hosted-origin permission checks remain deployment prerequisites; iPhone-to-PC transport is unsupported.
@@ -168,8 +168,8 @@ graph TD
   - Same-PC loopback preserved. Separate loopback-only remote backend behind private Tailscale Serve; authenticated server-signed, one-use request tickets and owner/device-bound pairing. No public listener, runtime exposure, generic proxy, or relay service.
   - Server-only Gemini/OpenRouter keys, fixed endpoints, configured model IDs, bounded structured responses. Old generic cloud paths remain disabled; review/apply/atomic audit contracts are unchanged.
   - Synthetic database, server, adapter, transport, and browser checks pass. Physical iPhone/PWA, outside-home and other-laptop verification, real models/provider accounts, keys, and deployed migrations remain operator prerequisites. See `docs/REMOTE_HYBRID_AI.md` and `docs/PHASE10B_REMOTE_HYBRID_REPORT.md`.
-- **Image & Screenshot Ingestion Pipeline [`DEFERRED — NOT PART OF 10B`]**
-  - Universal Capture image upload and local vision worker remain unimplemented pending an explicit later assignment; no OCR or vision work is included here.
+- **Image & Screenshot Ingestion Pipeline [`PARTIAL — SCHEDULE + BLACKBOARD COURSE BOOTSTRAP ACTIVE`]**
+  - Pass 2A supplies trusted model modality, normalized PNG sources, and exact image disclosures. Pass 2C activates only reviewed Schedule-to-Course/Course-Meeting import and Blackboard-visible-list-to-Course bootstrap. Academic Calendar, Universal Capture image/OCR, and all other image workflows remain deferred.
 
 ### Phase 11: Recurring Tasks & Targeted Automation
 - **11A: Recurring Task Data Model & Recurrence Engine [`ARCHITECTURE REVIEW REQUIRED` | Medium | Risk: High | Reviewer: Codex / Claude Sonnet]**

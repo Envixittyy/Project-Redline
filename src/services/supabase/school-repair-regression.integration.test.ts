@@ -5,7 +5,6 @@ import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { parseNoteRewriteOutput, parseNoteActionItemsOutput } from "@/services/integrations/ai/note-intelligence-contract";
 import { parseQuickCaptureOutput } from "@/services/integrations/ai/quick-capture-contract";
-import { parseScheduleOutput } from "@/services/integrations/ai/school-schedule-contract";
 
 // Historical exploit evidence, NOT tests certifying active feature behavior.
 // Keep this database pinned to the submitted repair migration. The full-chain
@@ -167,7 +166,7 @@ describe("Submitted repair checkpoint: independently reproduced defects (not act
 
   it("schedule reimport duplicates meetings and ignores suggest-only permission", async () => {
     await db.query("insert into ai_preferences(user_id,permission_mode) values($1,'suggest_only')", [owner]);
-    const proposal = parseScheduleOutput(JSON.stringify({ schema_version: 1, type: "import_schedule", source_handle: "source_fixture", courses: [{ code: "CS101", title: "Computing", meetings: [{ weekday: "monday", startTime: "09:00", endTime: "10:00" }] }] }), "schoolScheduleImage.propose", "source_fixture");
+    const proposal = { schema_version: 1, type: "import_schedule", source_handle: "source_fixture", courses: [{ code: "CS101", title: "Computing", meetings: [{ weekday: "monday", startTime: "09:00", endTime: "10:00" }] }] };
     for (let i = 0; i < 2; i++) await rpc("apply_ai_schedule_import", "approve_schedule_import", await review("schoolScheduleImage.propose", proposal));
     expect((await db.query("select * from courses")).rows).toHaveLength(1);
     expect((await db.query("select * from course_meetings")).rows).toHaveLength(2);

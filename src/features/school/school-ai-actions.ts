@@ -13,12 +13,12 @@ import {
   applyScheduleImport,
   reviseScheduleImport,
 } from "@/services/integrations/ai/schedule-import-repository";
-import type { ProposedCourseSchedule } from "@/services/integrations/ai/school-schedule-contract";
+import type { ScheduleEdit } from "@/services/integrations/ai/school-schedule-contract";
 import {
   applyBlackboardScreenshotImport,
   reviseBlackboardScreenshotImport,
 } from "@/services/integrations/ai/blackboard-screenshot-repository";
-import type { ProposedBlackboardCourse } from "@/services/integrations/ai/blackboard-screenshot-contract";
+import type { BlackboardCourseEdit } from "@/services/integrations/ai/blackboard-screenshot-contract";
 import {
   applyAcademicCalendarImport,
   reviseAcademicCalendar,
@@ -41,8 +41,8 @@ export async function sendCloudInferenceAction(attemptId: string) {
   return sendCloudInference(attemptId);
 }
 
-export async function claimLocalInferenceAction(attemptId: string) {
-  return claimLocalInference(attemptId);
+export async function claimLocalInferenceAction(attemptId: string, transport?: { companionUrl: string; endpoint: string; pairingToken: string; deviceId: string }) {
+  return claimLocalInference(attemptId, transport);
 }
 
 export async function finalizeLocalInferenceAction(attemptId: string, rawOutput: unknown) {
@@ -61,7 +61,7 @@ export async function prepareFallbackAction(attemptId: string) {
   return prepareFallback(attemptId);
 }
 
-export async function reviseScheduleImportAction(batchId: string, courses: ProposedCourseSchedule[]) {
+export async function reviseScheduleImportAction(batchId: string, courses: ScheduleEdit[]) {
   return reviseScheduleImport(batchId, courses);
 }
 
@@ -69,7 +69,7 @@ export async function applyScheduleImportAction(batchId: string) {
   return applyScheduleImport(batchId);
 }
 
-export async function reviseBlackboardScreenshotAction(batchId: string, courses: ProposedBlackboardCourse[]) {
+export async function reviseBlackboardScreenshotAction(batchId: string, courses: BlackboardCourseEdit[]) {
   return reviseBlackboardScreenshotImport(batchId, courses);
 }
 

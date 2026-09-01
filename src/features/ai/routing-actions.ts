@@ -10,8 +10,8 @@ function failure(e: unknown) {
 export async function prepareRoutedInferenceAction(kind: RequestKind, input: unknown, local: unknown) {
   try { return { ok: true as const, prepared: await prepareRoutedInference(kind, input, local) }; } catch (e) { return failure(e); }
 }
-export async function claimLocalInferenceAction(id: unknown) {
-  try { return { ok: true as const, inference: await claimLocalInference(id) }; } catch (e) { return failure(e); }
+export async function claimLocalInferenceAction(id: unknown, transport?: { companionUrl: string; endpoint: string; pairingToken: string; deviceId: string }) {
+  try { return { ok: true as const, ...(await claimLocalInference(id, transport)) }; } catch (e) { return failure(e); }
 }
 export async function finalizeLocalInferenceAction(id: unknown, raw: unknown) {
   try { return { ok: true as const, review: await finalizeLocalInference(id, raw) }; } catch (e) { return failure(e); }

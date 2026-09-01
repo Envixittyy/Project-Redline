@@ -18,11 +18,11 @@ import { getCompanionSession } from "@/services/integrations/ai/companion-sessio
 import type { CourseWithMeetings } from "@/types/course";
 import type {
   ScheduleReview,
-  ProposedCourseSchedule,
+  ScheduleEdit,
 } from "@/services/integrations/ai/school-schedule-contract";
 import type {
   BlackboardCourseReview,
-  ProposedBlackboardCourse,
+  BlackboardCourseEdit,
 } from "@/services/integrations/ai/blackboard-screenshot-contract";
 import type {
   AcademicCalendarReview,
@@ -62,12 +62,10 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
 
   // Review states
   const [scheduleReview, setScheduleReview] = useState<ScheduleReview | null>(null);
-  const [scheduleCourses, setScheduleCourses] = useState<ProposedCourseSchedule[]>([]);
+  const [scheduleCourses, setScheduleCourses] = useState<ScheduleEdit[]>([]);
 
   const [bbReview, setBbReview] = useState<BlackboardCourseReview | null>(null);
-  const [bbCourses, setBbCourses] = useState<
-    Array<ProposedBlackboardCourse & { action: "create" | "match" | "ignore"; targetCourseId?: string }>
-  >([]);
+  const [bbCourses, setBbCourses] = useState<BlackboardCourseEdit[]>([]);
 
   const [syllabusReview, setSyllabusReview] = useState<CourseImportReview | null>(null);
   const [syllabusProposal, setSyllabusProposal] = useState<CourseProposal | null>(null);
@@ -136,24 +134,11 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
       if (tab === "schedule_image") {
         const rev = review as ScheduleReview;
         setScheduleReview(rev);
-        setScheduleCourses(rev.courses);
+        setScheduleCourses(rev.courses.map(({ targetFingerprint: _fingerprint, ...course }) => course));
       } else if (tab === "blackboard_image") {
         const rev = review as BlackboardCourseReview;
         setBbReview(rev);
-        setBbCourses(
-          rev.courses.map((c) => {
-            const matched = courses.find(
-              (ex) =>
-                ex.code.toLowerCase() === c.code.toLowerCase() ||
-                ex.name.toLowerCase().includes(c.title.toLowerCase()),
-            );
-            return {
-              ...c,
-              action: matched ? "match" : "create",
-              targetCourseId: matched?.id,
-            };
-          }),
-        );
+        setBbCourses(rev.courses.map(({ targetFingerprint: _fingerprint, ...course }) => course));
       } else if (tab === "syllabus") {
         const rev = review as CourseImportReview;
         setSyllabusReview(rev);
@@ -249,6 +234,15 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     Boolean(bbReview) ||
     Boolean(syllabusReview) ||
     Boolean(calendarReview);
+  const screenshotReviewReady = scheduleReview
+    ? scheduleCourses.every((course) => course.decision === "IGNORE" || (
+        course.code.trim().length > 0 && course.name.trim().length > 0 && course.meetings.length > 0 &&
+        course.meetings.every((meeting) => Boolean(meeting.endTime)) &&
+        (course.decision !== "MATCH_EXISTING" || Boolean(course.targetCourseId))))
+    : bbReview
+    ? bbCourses.every((course) => course.decision === "IGNORE" || (
+        course.decision === "MATCH_EXISTING" ? Boolean(course.targetCourseId) : Boolean(course.code?.trim() && course.title?.trim())))
+    : true;
 
   return (
     <div
@@ -304,9 +298,10 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
               type="button"
               className={styles.tab}
               data-active={tab === "academic_calendar"}
-              onClick={() => handleTabChange("academic_calendar")}
+              disabled
+              title="Academic Calendar import remains disabled pending its dedicated trust pass."
             >
-              <Calendar size={15} /> Academic Calendar
+              <Calendar size={15} /> Academic Calendar (Unavailable)
             </button>
           </div>
         ) : null}
@@ -342,13 +337,13 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
                       {tab === "schedule_image" && "Select Class Schedule Screenshot"}
                       {tab === "blackboard_image" && "Select Blackboard Courses Screenshot"}
                       {tab === "syllabus" && "Select Syllabus Document"}
-                      {tab === "academic_calendar" && "Select Academic Calendar (Document or Screenshot)"}
+                      {tab === "academic_calendar" && "Academic Calendar import is unavailable"}
                     </h4>
                     <p className={styles.uploadSubtext}>
                       {tab === "schedule_image" && "PNG, JPEG, WEBP up to 5MB. AI extracts courses and recurring meeting times."}
-                      {tab === "blackboard_image" && "PNG, JPEG, WEBP up to 5MB. AI extracts course labels for deterministic mapping."}
+                      {tab === "blackboard_image" && "PNG, JPEG, WEBP up to 5MB. AI extracts visible labels for Course review only; it cannot establish Blackboard identity."}
                       {tab === "syllabus" && "PDF, DOCX, TXT, MD, ICS up to 10MB. AI extracts course details and timetable."}
-                      {tab === "academic_calendar" && "ICS, CSV, TXT, PDF, DOCX or Screenshot. AI extracts term dates, breaks, and exam weeks."}
+                      {tab === "academic_calendar" && "This workflow remains disabled pending its dedicated identity and divergence design."}
                     </p>
                   </>
                 )}
@@ -402,10 +397,10 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
                     />
                     <input
                       className={styles.courseTitleInput}
-                      value={c.title}
+                      value={c.name}
                       onChange={(e) => {
                         const updated = [...scheduleCourses];
-                        updated[idx] = { ...updated[idx], title: e.target.value };
+                        updated[idx] = { ...updated[idx], name: e.target.value };
                         setScheduleCourses(updated);
                       }}
                       placeholder="Course Title"
@@ -423,14 +418,41 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
                     </button>
                   </div>
 
+                  <div className={styles.courseHeaderRow}>
+                    <select
+                      className={styles.courseTitleInput}
+                      value={c.decision}
+                      onChange={(e) => {
+                        const decision = e.target.value as ScheduleEdit["decision"];
+                        const updated = [...scheduleCourses];
+                        updated[idx] = { ...updated[idx], decision, ...(decision === "MATCH_EXISTING" ? {} : { targetCourseId: undefined }) };
+                        setScheduleCourses(updated);
+                      }}
+                    >
+                      <option value="IGNORE">Ignore</option>
+                      <option value="CREATE_NEW">Create new Course</option>
+                      <option value="MATCH_EXISTING">Match existing Course</option>
+                    </select>
+                    {c.decision === "MATCH_EXISTING" ? (
+                      <select className={styles.courseTitleInput} value={c.targetCourseId ?? ""} onChange={(e) => {
+                        const updated = [...scheduleCourses]; updated[idx] = { ...updated[idx], targetCourseId: e.target.value }; setScheduleCourses(updated);
+                      }}>
+                        <option value="">Select exact Course…</option>
+                        {courses.map((course) => <option key={course.id} value={course.id}>{course.code} · {course.name}</option>)}
+                      </select>
+                    ) : null}
+                  </div>
+
                   <ul className={styles.meetingList}>
                     {c.meetings.map((m, mIdx) => (
                       <li key={mIdx} className={styles.meetingRow}>
-                        <span className={styles.meetingWeekday}>{m.weekday}</span>
-                        <span className={styles.meetingTime}>
-                          {m.startTime} – {m.endTime}
-                        </span>
-                        {m.room ? <span>{m.room}</span> : null}
+                        <select value={m.weekday} aria-label="Meeting weekday" onChange={(e) => { const updated=[...scheduleCourses]; const meetings=[...updated[idx].meetings]; meetings[mIdx]={...meetings[mIdx],weekday:e.target.value as typeof m.weekday}; updated[idx]={...updated[idx],meetings}; setScheduleCourses(updated); }}>
+                          {(["sunday","monday","tuesday","wednesday","thursday","friday","saturday"] as const).map(day => <option key={day} value={day}>{day}</option>)}
+                        </select>
+                        <input type="time" value={m.startTime} aria-label="Meeting start time" onChange={(e) => { const updated=[...scheduleCourses]; const meetings=[...updated[idx].meetings]; meetings[mIdx]={...meetings[mIdx],startTime:e.target.value}; updated[idx]={...updated[idx],meetings}; setScheduleCourses(updated); }} />
+                        <input type="time" value={m.endTime ?? ""} aria-label="Meeting end time" onChange={(e) => { const updated=[...scheduleCourses]; const meetings=[...updated[idx].meetings]; meetings[mIdx]={...meetings[mIdx],...(e.target.value ? {endTime:e.target.value} : {endTime:undefined})}; updated[idx]={...updated[idx],meetings}; setScheduleCourses(updated); }} />
+                        <input value={m.room ?? ""} placeholder="Room (optional)" aria-label="Meeting room" onChange={(e) => { const updated=[...scheduleCourses]; const meetings=[...updated[idx].meetings]; meetings[mIdx]={...meetings[mIdx],...(e.target.value ? {room:e.target.value} : {room:undefined})}; updated[idx]={...updated[idx],meetings}; setScheduleCourses(updated); }} />
+                        <button type="button" className={styles.closeButton} aria-label="Remove meeting" onClick={() => { const updated=[...scheduleCourses]; updated[idx]={...updated[idx],meetings:updated[idx].meetings.filter((_,i)=>i!==mIdx)}; setScheduleCourses(updated); }}><Trash2 size={13}/></button>
                       </li>
                     ))}
                   </ul>
@@ -455,30 +477,30 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
               {bbCourses.map((c, idx) => (
                 <div key={idx} className={styles.courseReviewCard}>
                   <div className={styles.courseHeaderRow}>
-                    <strong style={{ fontSize: "0.9rem", color: "var(--text-primary)" }}>{c.code}</strong>
-                    <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", flex: 1 }}>
-                      {c.title}
-                    </span>
+                    <input className={styles.courseCodeInput} value={c.code ?? ""} placeholder="Visible code" onChange={(e) => { const updated=[...bbCourses]; updated[idx]={...updated[idx],...(e.target.value ? {code:e.target.value} : {code:undefined})}; setBbCourses(updated); }} />
+                    <input className={styles.courseTitleInput} value={c.title ?? ""} placeholder="Visible Course title" onChange={(e) => { const updated=[...bbCourses]; updated[idx]={...updated[idx],...(e.target.value ? {title:e.target.value} : {title:undefined})}; setBbCourses(updated); }} />
                     <select
                       className={styles.courseCodeInput}
                       style={{ width: "auto" }}
-                      value={c.action}
+                      value={c.decision}
                       onChange={(e) => {
                         const updated = [...bbCourses];
                         updated[idx] = {
                           ...updated[idx],
-                          action: e.target.value as "create" | "match" | "ignore",
+                          decision: e.target.value as BlackboardCourseEdit["decision"],
+                          ...(e.target.value === "MATCH_EXISTING" ? {} : { targetCourseId: undefined }),
                         };
                         setBbCourses(updated);
                       }}
                     >
-                      <option value="create">Create new course</option>
-                      <option value="match">Match existing</option>
-                      <option value="ignore">Ignore</option>
+                      <option value="IGNORE">Ignore</option>
+                      <option value="CREATE_NEW">Create new Course</option>
+                      <option value="MATCH_EXISTING">Match existing Course</option>
                     </select>
                   </div>
 
-                  {c.action === "match" ? (
+                  <p className={styles.uploadSubtext}>{c.sourceLabel}</p>
+                  {c.decision === "MATCH_EXISTING" ? (
                     <select
                       className={styles.courseTitleInput}
                       value={c.targetCourseId || ""}
@@ -608,7 +630,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
               <button
                 type="button"
                 className={styles.primaryButton}
-                disabled={applying}
+                disabled={applying || !screenshotReviewReady}
                 onClick={() => {
                   if (scheduleReview) handleApplySchedule();
                   else if (bbReview) handleApplyBlackboard();
@@ -621,9 +643,9 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
                   {applying
                     ? "Applying to School…"
                     : scheduleReview
-                    ? "Approve & Create Courses"
+                    ? "Approve Schedule Import"
                     : bbReview
-                    ? "Approve Course Mappings"
+                    ? "Approve Course Bootstrap"
                     : syllabusReview
                     ? "Approve & Create Course"
                     : "Import Academic Events"}

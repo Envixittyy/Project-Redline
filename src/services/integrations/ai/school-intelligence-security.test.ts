@@ -12,8 +12,6 @@ import { OpenAiCompatibleAdapter } from "@/companion/adapters/openai-compatible-
 import { confirmPredictionAsTask, confirmPredictionAsEvent } from "@/services/school/prediction-service";
 
 const denied = [
-  ["schedule_image", "schoolScheduleImage.propose"],
-  ["blackboard_image", "blackboardCourseImage.propose"],
   ["academic_calendar", "academicCalendarImport.propose"],
   ["note_summary", "noteSummary.propose"],
   ["note_rewrite", "noteRewrite.propose"],
@@ -29,6 +27,20 @@ beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal("fetch", fetchMock); });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("School Intelligence containment", () => {
+  it.each([
+    ["schedule_image", "schoolScheduleImage.propose", "schoolScheduleCloud"],
+    ["blackboard_image", "blackboardCourseImage.propose", "blackboardCourseCloud"],
+  ] as const)("activates only trusted %s routing", (kind, capability, preference) => {
+    const prefs: RoutingPreferences = { aiMode: "gemini", cloudEnabled: true, cloudFallbackMode: "ask_each_time", preferredCloud: "gemini", secondaryCloud: false,
+      checklistCloud: false, courseImportCloud: false, [preference]: true };
+    expect(capabilityFor(kind).id).toBe(capability);
+    expect(cloudAllowed(capability, prefs)).toBe(true);
+    expect(routingChain(prefs, capability)).toEqual(["gemini"]);
+    const denied = { ...prefs, [preference]: false };
+    expect(cloudAllowed(capability, denied)).toBe(false);
+    expect(() => routingChain(denied, capability)).toThrow("cloud_privacy_denied");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it("permits predictions only through local routing even when assessment cloud consent is stored", () => {
     const prefs: RoutingPreferences = {
       aiMode: "auto", cloudEnabled: true, cloudFallbackMode: "ask_each_time",
@@ -53,8 +65,6 @@ describe("School Intelligence containment", () => {
   });
 
   it.each([
-    () => import("./schedule-import-repository"),
-    () => import("./blackboard-screenshot-repository"),
     () => import("./academic-calendar-repository"),
     () => import("./note-intelligence-repository"),
     () => import("./quick-capture-repository"),

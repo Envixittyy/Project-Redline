@@ -18,7 +18,7 @@ describe("provider-neutral routing and privacy", () => {
     expect(() => routingChain({ ...base, aiMode: "gemini" }, "taskChecklist.propose")).toThrow("cloud_disabled");
     expect(() => routingChain({ ...base, aiMode: "openrouter", cloudEnabled: true }, "taskChecklist.propose")).toThrow("cloud_privacy_denied");
   });
-  it.each(["invalid_output", "capability_denied", "source_changed", "pairing_invalid", "cancelled", "provider_rejected"])("never fallback for %s", code => {
+  it.each(["invalid_output", "unsupported_modality", "capability_denied", "source_changed", "pairing_invalid", "cancelled", "provider_rejected"])("never fallback for %s", code => {
     expect(mayFallback(code, "local")).toBe(false); expect(mayFallback(code, "cloud")).toBe(false);
   });
   it("allows infrastructure failure but stops ambiguous cloud transfers", () => {

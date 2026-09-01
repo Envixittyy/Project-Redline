@@ -14,6 +14,7 @@ import type {
 
 import {
   clearAiTransferHistoryAction,
+  saveLocalModelConfigurationAction,
   updateAiPreferencesAction,
 } from "./ai-actions";
 import { checkCompanionHealth, getCompanionStatus, pairCompanion, unpairCompanion } from "@/services/integrations/ai/companion-client";
@@ -23,7 +24,7 @@ import type { AiMode, CloudProvider } from "@/services/integrations/ai/routing-c
 
 type AiSettingsPanelProps = {
   preferences: AiPreferences;
-  providers?: Record<CloudProvider, { configured: boolean; model: string | null; status: string }>;
+  providers?: Record<CloudProvider, { configured: boolean; model: string | null; modality?: "text" | "vision" | "unknown"; status: string }>;
 };
 
 export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps) {
@@ -61,6 +62,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
   const [localModel, setLocalModel] = useState(
     preferences.localModel || "qwen2.5:7b",
   );
+  const [localSupportsImages, setLocalSupportsImages] = useState(false);
   const [pairingSecret, setPairingSecret] = useState("");
   const [pairingExpiresAt, setPairingExpiresAt] = useState<string | null>(null);
   const [pairingToken, setPairingToken] = useState<string | null>(
@@ -84,6 +86,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
     if (provider === "ollama") setLocalEndpoint("http://127.0.0.1:11434");
     else if (provider === "llamacpp") setLocalEndpoint("http://127.0.0.1:8080");
     else if (provider === "openai_compatible") setLocalEndpoint("http://127.0.0.1:1234/v1");
+    setLocalSupportsImages(false);
   }
 
   async function checkStatus() {
@@ -282,7 +285,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
               <select
                 className={styles.select}
                 value={localModel}
-                onChange={(e) => setLocalModel(e.target.value)}
+                onChange={(e) => { setLocalModel(e.target.value); setLocalSupportsImages(false); }}
               >
                 {discoveredModels.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -295,7 +298,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
                 className={styles.input}
                 type="text"
                 value={localModel}
-                onChange={(e) => setLocalModel(e.target.value)}
+                onChange={(e) => { setLocalModel(e.target.value); setLocalSupportsImages(false); }}
                 placeholder="e.g. qwen2.5:7b, llama-3.2-3b"
               />
             )}
@@ -305,6 +308,23 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
                 : "Enter model tag (e.g. qwen2.5:7b)."}
             </span>
           </label>
+
+          <div className={styles.toggleRow}>
+            <div>
+              <strong>Saved model capabilities</strong>
+              <div className={styles.fieldHint}>Text is always enabled. Image authority is saved for this exact provider and model; changing models starts as unknown.</div>
+            </div>
+            <input type="checkbox" checked={localSupportsImages} disabled={localProvider === "llamacpp"}
+              aria-label="This exact local model supports images" onChange={e => setLocalSupportsImages(e.target.checked)}
+              style={{ width: "2.75rem", height: "2.75rem" }} />
+          </div>
+          <div className={styles.actions}>
+            <button className={styles.buttonSecondary} type="button" disabled={pending || !localModel}
+              onClick={() => startTransition(async () => {
+                const result = await saveLocalModelConfigurationAction(localProvider, localModel, localSupportsImages);
+                setMessage(result.message);
+              })}>Save model capabilities</button>
+          </div>
 
           {/* Pairing control */}
           {!pairingToken ? (
@@ -431,7 +451,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
           <label className={styles.toggleRow}><span>Allow cloud disclosure for task checklists</span><input type="checkbox" checked={checklistCloud} disabled={!cloudEnabled} onChange={e => setChecklistCloud(e.target.checked)} /></label>
           <label className={styles.toggleRow}><span>Allow cloud disclosure for selected course text</span><input type="checkbox" checked={courseImportCloud} disabled={!cloudEnabled} onChange={e => setCourseImportCloud(e.target.checked)} /></label>
           <p className={styles.fieldHint}>Fallback availability: {cloudEnabled && fallbackMode !== "off" && (checklistCloud || courseImportCloud) ? "may be offered for enabled capabilities; fresh consent required" : "disabled"}. Unknown/private future domains are local-only. Model IDs and keys are configured on the server.</p>
-          {providers && <div className={styles.fieldHint}>{(["gemini", "openrouter"] as const).map(p => <p key={p}>{p}: {providers[p].configured ? `configured · ${providers[p].model} · online status not checked` : "not configured"}</p>)}</div>}
+          {providers && <div className={styles.fieldHint}>{(["gemini", "openrouter"] as const).map(p => <p key={p}>{p}: {providers[p].configured ? `configured · ${providers[p].model} · ${providers[p].modality ?? "unknown"} · online status not checked` : "not configured"}</p>)}</div>}
 
           <label className={styles.field}>
             Mutation Permission Policy

@@ -6,6 +6,7 @@ import type {
   LocalRuntimeCapabilities,
   RuntimeHealthResult,
 } from "../types";
+import { validatedImageMedia } from "../image-media";
 import {
   LocalAdapterError,
   normalizeLocalError,
@@ -23,6 +24,7 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
       jsonFormat: true,
       modelDiscovery: true,
       abortSignal: true,
+      imageInput: true,
     };
   }
 
@@ -109,9 +111,7 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
     signal?: AbortSignal,
   ): Promise<LocalInferenceResponse> {
     try {
-      if (request.images !== undefined) {
-        throw new LocalAdapterError("Vision is not enabled for this capability.", "unsupported_modality");
-      }
+      const image = validatedImageMedia(request);
       const url = validateLoopbackUrl(endpoint);
       if (url.pathname !== "/")
         throw new LocalAdapterError(
@@ -124,7 +124,7 @@ export class OllamaAdapter implements LocalRuntimeAdapter {
       if (request.systemPrompt) {
         messages.push({ role: "system", content: request.systemPrompt });
       }
-      messages.push({ role: "user", content: request.prompt });
+      messages.push({ role: "user", content: request.prompt, ...(image ? { images: [image] } : {}) });
 
       const payload: Record<string, unknown> = {
         model: request.model,

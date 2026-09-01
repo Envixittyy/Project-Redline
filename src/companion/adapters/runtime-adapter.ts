@@ -102,7 +102,7 @@ export function normalizeLocalError(
       model: "",
       provider,
       error: err.code,
-      failureCode: err.code === "provider_unavailable" || err.code === "model_not_found" ? "provider_unavailable" : err.code === "rate_limited" ? "rate_limited" : err.code === "provider_rejected" ? "provider_rejected" : "invalid_output",
+      failureCode: err.code === "provider_unavailable" || err.code === "model_not_found" ? "provider_unavailable" : err.code === "rate_limited" ? "rate_limited" : err.code === "provider_rejected" ? "provider_rejected" : err.code === "unsupported_modality" ? "unsupported_modality" : "invalid_output",
     };
   }
 

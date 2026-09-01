@@ -20,6 +20,8 @@ import type {
 } from "@/services/integrations/ai/types";
 import type { RawContextInput } from "@/services/integrations/ai/context-minimizer";
 import type { EntityHandleMap } from "@/services/integrations/ai/entity-handles";
+import { saveLocalModelConfiguration } from "@/services/integrations/ai/model-modality";
+import type { LocalProviderType } from "@/services/integrations/ai/types";
 
 function failure() {
   return {
@@ -58,6 +60,15 @@ export async function updateAiPreferencesAction(
     return result;
   } catch {
     return failure();
+  }
+}
+export async function saveLocalModelConfigurationAction(provider: LocalProviderType, model: string, supportsImage: boolean) {
+  try {
+    await saveLocalModelConfiguration(provider, model, supportsImage);
+    revalidatePath("/settings/ai");
+    return { ok: true, message: supportsImage ? "Saved as a text and image model." : "Saved as a text-only model." };
+  } catch {
+    return { ok: false, message: "Model capability configuration was not saved." };
   }
 }
 

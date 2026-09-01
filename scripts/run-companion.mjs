@@ -27,6 +27,10 @@ const server = new CompanionServer({
       ? { openai_compatible: process.env.COMPANION_OPENAI_ENDPOINT }
       : {}),
   },
+  ...(process.env.COMPANION_REQUEST_SIGNING_KEY ? { imageTrust: {
+    audience: process.env.COMPANION_LOCAL_ORIGIN || "http://127.0.0.1:41400",
+    signingKey: process.env.COMPANION_REQUEST_SIGNING_KEY,
+  } } : {}),
 });
 // A distinct listener means a Funnel request cannot fall through to local mode.
 const remoteServer = process.env.NEXT_PUBLIC_COMPANION_REMOTE_ORIGIN ? new CompanionServer({

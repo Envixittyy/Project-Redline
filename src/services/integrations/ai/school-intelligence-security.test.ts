@@ -99,7 +99,7 @@ describe("School Intelligence containment", () => {
   it.each([new OllamaAdapter(), new LlamaCppAdapter(), new OpenAiCompatibleAdapter()])("$id rejects image input before runtime egress, independent of the model name", async adapter => {
     for (const images of [[], ["https://attacker.invalid/image"], ["data:image/svg+xml;base64,AAAA"], Array(100).fill("AAAA")]) {
       const result = await adapter.infer("http://127.0.0.1:1234", { model: "vision-model", prompt: "source", images });
-      expect(result).toMatchObject({ ok: false, error: "unsupported_modality", failureCode: "invalid_output" });
+      expect(result).toMatchObject({ ok: false, error: "unsupported_modality", failureCode: "unsupported_modality" });
     }
     expect(fetchMock).not.toHaveBeenCalled();
   });

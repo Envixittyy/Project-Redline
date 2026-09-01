@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import sharp from "sharp";
@@ -51,6 +52,16 @@ describe("bounded image decoding", () => {
     const result = await validateImageBuffer(source, "../../private/image.jpg", "image/jpeg");
     expect(result.fileName).toBe("image.png");
     expect((await sharp(Buffer.from(result.base64, "base64")).metadata()).exif).toBeUndefined();
+  });
+  it("uses normalized pixel output for digest semantics, so metadata-only differences converge", async () => {
+    const pixels = await fixture("png");
+    const plain = await sharp(pixels).png().toBuffer();
+    const tagged = await sharp(pixels).withExif({ IFD0: { Copyright: "private source metadata" } }).png().toBuffer();
+    expect(tagged.equals(plain)).toBe(false);
+    const normalizedPlain = await validateImageBuffer(plain, "plain.png", "image/png");
+    const normalizedTagged = await validateImageBuffer(tagged, "tagged.png", "image/png");
+    const hash = (base64: string) => createHash("sha256").update(Buffer.from(base64, "base64")).digest("hex");
+    expect(hash(normalizedTagged.base64)).toBe(hash(normalizedPlain.base64));
   });
   it("rejects a truncated image after its valid header", async () => {
     const source = await fixture("jpeg", 100, 100);

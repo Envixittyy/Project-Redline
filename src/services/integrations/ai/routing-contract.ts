@@ -159,6 +159,7 @@ export function routingMessage(code: string): string {
     timeout: "AI timed out. Cloud delivery may be uncertain; review a new request before sending again.",
     rate_limited: "The provider is rate limited. No changes were made.",
     provider_unavailable: "The inference provider is unavailable. Normal Forward features still work.",
+    unsupported_modality: "The exact selected model is not trusted for image input. No image was sent and no fallback was attempted.",
     missing_credentials: "This cloud provider is not configured on the server.",
     cancelled: "AI request cancelled. No application changes were made.",
     invalid_output: "The model returned an invalid proposal. Nothing was applied and no fallback was sent.",

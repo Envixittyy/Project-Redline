@@ -7,7 +7,7 @@ Phase 10B, 2026-08-31. Adds inference routes only. See `PHASE10B_REMOTE_HYBRID_R
 - Auto, Local, Gemini and OpenRouter modes for task checklist proposals and selected-text course import. Pass 2 additionally supports Auto/Local assessment prediction generation using one explicitly selected saved syllabus and its Course, through same-PC or private-mesh local inference. Gemini/OpenRouter prediction egress remains disabled.
 - Local means the selected Companion connection: same-PC loopback **or** the configured home-PC private-mesh connection. Auto does not guess which PC is yours or scan the LAN.
 - Inference never applies changes. Review, edit/re-review, ID-only approval, stale checks and atomic domain-write/audit remain mandatory.
-- TXT/MD/CSV/ICS are the only course formats. No OCR, PDF/DOCX/XLSX, Notes/journal/Wellness AI, background mutation, shell, tools, filesystem access or browsing was added.
+- TXT/MD/CSV/ICS are the only active course formats. Pass 2A adds contained normalized-image transport infrastructure, but no School screenshot product workflow, OCR, PDF/DOCX/XLSX, Notes/journal/Wellness AI, background mutation, shell, tools, filesystem access or browsing was activated.
 
 ## Request path
 
@@ -22,6 +22,11 @@ Phase 10B, 2026-08-31. Adds inference routes only. See `PHASE10B_REMOTE_HYBRID_R
 Auto defaults to local first; Gemini is the default preferred cloud provider. OpenRouter can be selected as preferred instead. The other cloud provider is offered only if secondary fallback is enabled. Each distinct cloud attempt needs its own disclosure and confirmation. Explicit Local never uses cloud; explicit Gemini/OpenRouter never switches provider. Cloud is off by default and both capability-specific flags default off.
 
 Fallback allows local offline/unpaired, runtime/model unavailable, rate limit, provider HTTP 5xx, missing cloud configuration and local network/timeout failures. Pairing revocation/invalid authorization, malformed output, invalid endpoint, source changes and provider policy rejection stop the request. Cloud network/timeout results may be ambiguous after upload, so they do not automatically fall through to another provider. There are at most three attempts per source, no repeated provider and no parallel pending/successful attempt. A fallback never retries Apply.
+
+Image disclosure has a stricter rule: local image failure, text-only configuration
+or unknown modality never uploads to cloud automatically. A separate cloud image
+disclosure must be prepared under the matching schedule, Blackboard or academic
+calendar flag and explicitly consented before one exact provider request.
 
 Status is deliberately limited: local health/model status is measured only on a user action; cloud settings show configured/not-configured and online status not checked, not fabricated health. Successful results expose provider, model, location, evidence and cloud request latency where measured. Local/remote latency is null. Local output is a browser relay, not cryptographic hardware/model attestation.
 
@@ -59,7 +64,7 @@ Every remote request requires an authenticated Forward server action to issue a 
 
 ## Optional Gemini and OpenRouter
 
-1. Obtain a provider key in your own account and choose a specific supported model. Add `GEMINI_API_KEY` + `GEMINI_MODEL`, and/or `OPENROUTER_API_KEY` + `OPENROUTER_MODEL`, to **server-only** environment variables. `.env.example` contains blank names only. The app does not collect or display secrets.
+1. Obtain a provider key in your own account and choose a specific supported model. Add `GEMINI_API_KEY` + `GEMINI_MODEL`, and/or `OPENROUTER_API_KEY` + `OPENROUTER_MODEL`, to **server-only** environment variables. For image authority also set the matching `GEMINI_MODEL_MODALITY` or `OPENROUTER_MODEL_MODALITY` to `vision`; `text`, missing and any other value reject image input. The app does not collect or display secrets.
 2. Gemini model IDs must begin `gemini-`; OpenRouter model IDs must be a bounded `vendor/model` name. Arbitrary endpoints, router-auto and routing aliases are rejected. Verify availability and structured-JSON support for the chosen model in your account; automated tests use mocks, not paid calls.
 3. Gemini uses the fixed `generativelanguage.googleapis.com` generateContent endpoint and an API-key header. OpenRouter uses its fixed chat-completions endpoint. No tools or browsing are enabled. Both have a 30-second whole-response deadline, bounded input/output and no redirects/retries.
 4. OpenRouter requests JSON support, `allow_fallbacks: false`, `require_parameters: true`, `data_collection: "deny"` and `zdr: true`. It can still select an eligible downstream host for the chosen model; this does not make it local or establish an absolute privacy guarantee. If no eligible host/model supports these restrictions, the request fails. Read the provider's terms before sending private course/task text. [OpenRouter provider routing](https://openrouter.ai/docs/guides/routing/provider-selection), [Gemini API terms](https://ai.google.dev/gemini-api/terms), [OpenRouter privacy policy](https://openrouter.ai/privacy).

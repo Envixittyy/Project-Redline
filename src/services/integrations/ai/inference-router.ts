@@ -180,7 +180,7 @@ export async function claimLocalInference(id: unknown) {
   return source.inference;
 }
 async function finish(id: string, status: "failed" | "succeeded" | "cancelled", code?: string, batchId?: string, latencyMs?: number) {
-  const safeCodes = ["provider_unavailable", "rate_limited", "missing_credentials", "local_unavailable", "timeout", "network_unavailable", "pairing_invalid", "invalid_output", "source_changed", "provider_rejected"];
+  const safeCodes = ["provider_unavailable", "rate_limited", "missing_credentials", "local_unavailable", "timeout", "network_unavailable", "pairing_invalid", "invalid_output", "unsupported_modality", "source_changed", "provider_rejected"];
   await rpc("finish_inference", { id, status, error_code: code ? (safeCodes.includes(code) ? code : "ai_unavailable") : null,
     batch_id: batchId ?? null, latency_ms: latencyMs === undefined ? null : Math.min(120000, Math.max(0, Math.round(latencyMs))) });
 }

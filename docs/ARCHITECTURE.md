@@ -34,9 +34,9 @@ The image validator now fully decodes PNG/JPEG/WEBP, enforces a 5 MiB input/outp
 limit, 8192-pixel dimensions, 16,777,216 pixels, a single frame and a five-second
 decoder timeout, then emits a PNG derivative without EXIF/XMP/IPTC metadata.
 Sharp `0.35.3`, already a Next.js transitive dependency, is declared directly.
-Validation alone does not authorize transfer: all cloud and Companion adapters
-reject image-bearing requests until modality metadata, immutable derivative
-storage and exact binary disclosure/consent are implemented.
+Validation alone does not authorize transfer. Pass 2A adds modality metadata,
+short-lived normalized derivative storage and exact binary disclosure/consent,
+but the three School screenshot product workflows remain quarantined.
 
 Document extraction again accepts only complete UTF-8 TXT/MD/CSV/ICS: 256 KiB
 input, 25,000 characters and 32 KiB UTF-8 text. Oversized sources fail rather than
@@ -68,11 +68,47 @@ School for explanation but are excluded from Home and Calendar.
 
 This adapter is local or private-mesh local text only. The dedicated assessment
 cloud flag remains a stored preference with no egress authority. Task/Event
-conversion remains denied. Schedule and Blackboard screenshots remain disabled
-because every runtime/provider still rejects binary input and no immutable image
-source/modality/disclosure lifecycle is installed. Academic Calendar import remains
+conversion remains denied. Schedule and Blackboard screenshots remain disabled at
+their product boundary. Pass 2A installs binary transport authority only; it does
+not certify their source, review or Apply adapters. Academic Calendar import remains
 disabled because no stable import-source/source-entry/baseline/divergence model has
 been implemented. PDF/DOCX and every Pass-3 capability remain contained.
+
+### Model modality and normalized-image disclosure — Pass 2A
+
+Migration `20260831200000_ai_vision_trust.sql` adds an owner-scoped, signed model
+configuration registry, five-minute normalized image sources and single-use image
+disclosures. Local and remote-local image authority comes only from an exact saved
+provider/model record. Ollama and OpenAI-compatible local models may be explicitly
+marked image-capable; llama.cpp remains text-only. Gemini and OpenRouter authority
+comes only from the exact server-owned model plus its `*_MODEL_MODALITY` setting.
+Model names are never inspected for vision hints. Missing metadata is `UNKNOWN` and
+returns `unsupported_modality` before transport.
+
+The authenticated server fully decodes the selected PNG/JPEG/WebP with the existing
+hardened validator, normalizes it to metadata-free PNG and hashes those normalized
+bytes. The trusted source stores owner, capability, SHA-256 digest, PNG MIME, size,
+dimensions, status and expiry with the normalized bytes. Metadata-only inputs that
+decode to the same pixels converge on the normalized-output digest; the raw upload,
+filename and path have no disclosure authority.
+
+A persisted disclosure binds the source and digest to one owner, capability,
+provider, exact model, trusted modality source, `normalized_image` field, consent
+state and expiry. Claim rereads and rehashes the stored bytes, rechecks model
+configuration and capability-specific privacy, consumes the disclosure once and
+returns canonical base64. Browser table writes and reads of image/disclosure rows
+are denied. Revocation and explicit expiry purge erase bytes; authority expires
+after five minutes even if cleanup has not yet run.
+
+Companion image input is one explicit PNG byte field plus digest. Paths, URLs,
+multipart forwarding and the legacy image array are rejected. Same-PC image calls
+require the same exact-body ticket discipline as private-mesh calls. Ollama uses its
+image byte field; the OpenAI-compatible adapter constructs a data URL internally;
+llama.cpp rejects images. Cloud transport similarly constructs provider-native
+image fields only after fresh capability-specific disclosure and consent. Image
+errors, text-only models and unknown modality never trigger automatic cloud fallback.
+Model output remains untrusted, and no School screenshot preparation, proposal,
+Apply or prediction-conversion authority is enabled by this infrastructure.
 
 ## Directory structure
 

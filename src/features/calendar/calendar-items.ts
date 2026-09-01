@@ -136,6 +136,8 @@ export function buildCalendarItems(
   }
 
   for (const prediction of predictions) {
+    if (prediction.stale || (fromDate && prediction.predictedDate < fromDate) ||
+      (toDateExclusive && prediction.predictedDate >= toDateExclusive)) continue;
     const entry = predictionToCalendarEntry(prediction, timeZone);
     if (!entry || !matchesCalendarFilters(entry, defaultCalendarFilters)) continue;
     items.push({

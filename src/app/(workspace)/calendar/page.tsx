@@ -13,6 +13,7 @@ import { listExternalCalendarEventsInRange } from "@/services/external-calendars
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
 import { listTaskLinkOptions, listTasksByIds, listTasksForCalendarRange } from "@/services/tasks/task-repository";
 import { listWorkSessionsInRange } from "@/services/work-sessions/work-session-repository";
+import { listActivePredictions } from "@/services/school/prediction-service";
 
 import styles from "./calendar-page.module.css";
 
@@ -49,13 +50,14 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       | { items: null; taskOptions: []; failure: string };
 
     try {
-      const [events, externalEvents, taskRange, meetings, workSessions, taskOptions] = await Promise.all([
+      const [events, externalEvents, taskRange, meetings, workSessions, taskOptions, predictions] = await Promise.all([
         listCalendarEventsInRange(range.start, range.end),
         listExternalCalendarEventsInRange(range.start, range.end),
         listTasksForCalendarRange(range.start, range.end, fromDate, toDateExclusive),
         listCourseMeetingsForCalendar(),
         listWorkSessionsInRange(range.start, range.end),
         listTaskLinkOptions(),
+        listActivePredictions(),
       ]);
       const workSessionTasks = await listTasksByIds(workSessions.map((session) => session.taskId));
       const items = buildCalendarItems(
@@ -69,6 +71,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
         workSessions,
         workSessionTasks,
         externalEvents,
+        predictions,
       )
         .filter((item) => item.date >= fromDate && item.date < toDateExclusive);
 

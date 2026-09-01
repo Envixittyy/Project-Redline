@@ -160,7 +160,7 @@ export async function prepareRoutedInference(kind: RequestKind, input: unknown, 
       : kind === "academic_calendar"
       ? await prepareAcademicCalendarImport(input as FormData, provider, model)
       : kind === "assessment_prediction"
-      ? await prepareAssessmentPredictions(input as string, provider, model)
+      ? await prepareAssessmentPredictions(input, provider, model)
       : kind === "quick_capture"
       ? await prepareQuickCapture(input as string, provider, model)
       : kind === "daily_plan_advice"

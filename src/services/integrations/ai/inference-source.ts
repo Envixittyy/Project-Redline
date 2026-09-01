@@ -7,6 +7,7 @@ import { courseImportPrompt } from "./course-import-contract";
 import { schedulePrompt } from "./school-schedule-contract";
 import { blackboardCoursePrompt } from "./blackboard-screenshot-contract";
 import { academicCalendarPrompt } from "./academic-calendar-contract";
+import { assessmentPredictionPrompt } from "./assessment-prediction-contract";
 import { capabilityFor, type RequestKind } from "./routing-contract";
 
 export async function readInferenceSource(kind: RequestKind, requestId: unknown, model: string) {
@@ -45,8 +46,10 @@ export async function readInferenceSource(kind: RequestKind, requestId: unknown,
     } else {
       prompt = academicCalendarPrompt(r.source_handle, { text: r.source_text });
     }
+  } else if (kind === "assessment_prediction") {
+    if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
+    prompt = assessmentPredictionPrompt(r.source_handle, r.source_text);
   } else if (
-    kind === "assessment_prediction" ||
     kind === "note_summary" ||
     kind === "note_rewrite" ||
     kind === "note_action_items" ||

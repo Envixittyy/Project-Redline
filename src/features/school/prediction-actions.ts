@@ -6,8 +6,10 @@ import {
 import {
   applyAssessmentPredictions,
   reviseAssessmentPredictions,
+  rejectAssessmentPredictions,
 } from "@/services/integrations/ai/assessment-prediction-repository";
 import type { ProposedPrediction } from "@/services/integrations/ai/assessment-prediction-contract";
+import { revalidatePath } from "next/cache";
 import {
   listActivePredictions,
   listPredictionsForCourse,
@@ -16,8 +18,11 @@ import {
   confirmPredictionAsEvent,
 } from "@/services/school/prediction-service";
 
-export async function prepareAssessmentPredictionsAction(courseId: string, local: unknown) {
-  return prepareRoutedInference("assessment_prediction", courseId, local);
+export async function prepareAssessmentPredictionsAction(
+  selection: { courseId: string; syllabusMaterialId: string },
+  local: unknown,
+) {
+  return prepareRoutedInference("assessment_prediction", selection, local);
 }
 
 export async function reviseAssessmentPredictionsAction(batchId: string, predictions: ProposedPrediction[]) {
@@ -25,7 +30,15 @@ export async function reviseAssessmentPredictionsAction(batchId: string, predict
 }
 
 export async function applyAssessmentPredictionsAction(batchId: string) {
-  return applyAssessmentPredictions(batchId);
+  const result = await applyAssessmentPredictions(batchId);
+  revalidatePath("/school");
+  revalidatePath("/");
+  revalidatePath("/calendar");
+  return result;
+}
+
+export async function rejectAssessmentPredictionsAction(batchId: string) {
+  await rejectAssessmentPredictions(batchId);
 }
 
 export async function getActivePredictionsAction() {

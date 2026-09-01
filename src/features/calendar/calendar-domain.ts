@@ -81,6 +81,7 @@ export type AssessmentPredictionCalendarEntry = CalendarEntryBase & {
     confidence: "HIGH" | "MEDIUM" | "LOW";
     rationale: string;
     sourceReference: string | null;
+    stale?: boolean;
   };
 };
 
@@ -388,19 +389,20 @@ export function predictionToCalendarEntry(
     status: string;
     rationale: string;
     sourceReference: string | null;
+    stale?: boolean;
   },
   timeZone: string,
 ): AssessmentPredictionCalendarEntry | null {
-  if (prediction.status !== "active") return null;
+  if (prediction.status !== "active" || prediction.stale) return null;
   if (prediction.confidence !== "HIGH" && prediction.confidence !== "MEDIUM") return null;
 
   const date = prediction.predictedDate;
   const start = prediction.predictedTime
     ? fromZonedInputValue(`${date}T${prediction.predictedTime}`, timeZone)
-    : `${date}T00:00:00Z`;
+    : fromZonedInputValue(`${date}T00:00`, timeZone);
   const end = prediction.predictedTime
     ? fromZonedInputValue(`${date}T${prediction.predictedTime}`, timeZone)
-    : `${date}T23:59:59Z`;
+    : fromZonedInputValue(`${addDays(date, 1)}T00:00`, timeZone);
 
   return {
     key: `assessment-prediction:${prediction.id}`,

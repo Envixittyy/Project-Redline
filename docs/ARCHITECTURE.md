@@ -46,6 +46,34 @@ retention job, alternate calendar store, generic executor, or future phase was
 introduced. See `docs/SCHOOL_INTELLIGENCE_SECURITY_REVIEW.md` for findings and
 verification.
 
+### School Intelligence repair — Pass 2 prediction adapter
+
+Migration `20260831190000_school_prediction_generation.sql` activates only local
+assessment prediction generation. The user explicitly selects one canonical
+Course and one saved Course Material whose type is `syllabus`. A Pass-1 version-2
+manifest binds the Course and its complete meeting collection plus the selected
+syllabus. SQL assembles the minimized context and opaque handles; model output
+cannot name Course, source, URL, or database IDs.
+
+The finite Pass-1 registries now include the exact prediction schema. A School-only
+prepare/record/revise surface delegates to the same source locks, freshness checks,
+sealed reviews, strict successors, mutation-policy check, and transaction-bound
+begin/finish helpers. Apply inserts predictions from the persisted step and records
+the generation request, batch, ordinal, source manifest and local relay provenance.
+Generated fields are immutable apart from the guarded active-to-dismissed or
+active-to-superseded lifecycle. Explicit recalculation supersedes earlier generated
+active rows but preserves their historical basis. Page reads compare current
+canonical fingerprints without inference; stale predictions remain visible in
+School for explanation but are excluded from Home and Calendar.
+
+This adapter is local or private-mesh local text only. The dedicated assessment
+cloud flag remains a stored preference with no egress authority. Task/Event
+conversion remains denied. Schedule and Blackboard screenshots remain disabled
+because every runtime/provider still rejects binary input and no immutable image
+source/modality/disclosure lifecycle is installed. Academic Calendar import remains
+disabled because no stable import-source/source-entry/baseline/divergence model has
+been implemented. PDF/DOCX and every Pass-3 capability remain contained.
+
 ## Directory structure
 
 ```text

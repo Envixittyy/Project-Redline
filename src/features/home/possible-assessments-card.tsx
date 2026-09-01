@@ -1,16 +1,14 @@
 "use client";
 
-import { Check, Sparkles, X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { Surface } from "@/components/ui/surface";
 import type { SchoolAssessmentPrediction } from "@/services/school/prediction-service";
 import {
   getActivePredictionsAction,
   dismissPredictionAction,
-  confirmPredictionAsTaskAction,
 } from "@/features/school/prediction-actions";
 import styles from "./home-dashboard.module.css";
-import { SCHOOL_INTELLIGENCE_UNAVAILABLE } from "@/services/integrations/ai/school-intelligence-policy";
 
 export function PossibleAssessmentsCard() {
   const [predictions, setPredictions] = useState<SchoolAssessmentPrediction[]>([]);
@@ -44,23 +42,6 @@ export function PossibleAssessmentsCard() {
       }
       setError(null);
       setPredictions((prev) => prev.filter((p) => p.id !== id));
-    });
-  }
-
-  function handleConfirm(pred: SchoolAssessmentPrediction) {
-    startTransition(async () => {
-      const result = await confirmPredictionAsTaskAction(pred.id, {
-        title: pred.title,
-        dueDate: pred.predictedDate,
-        dueAt: pred.predictedTime ? `${pred.predictedDate}T${pred.predictedTime}:00Z` : undefined,
-        courseId: pred.courseId,
-      });
-      if (!result.ok) {
-        setError(SCHOOL_INTELLIGENCE_UNAVAILABLE);
-        return;
-      }
-      setError(null);
-      setPredictions((prev) => prev.filter((p) => p.id !== pred.id));
     });
   }
 
@@ -121,30 +102,9 @@ export function PossibleAssessmentsCard() {
             type="button"
             className="motion-tactile"
             disabled={pending}
-            onClick={() => handleConfirm(topPrediction)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.3rem",
-              padding: "0.35rem 0.75rem",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--accent)",
-              color: "var(--accent-foreground)",
-              border: "1px solid var(--accent-border, transparent)",
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            <Check size={13} /> Confirm as Task
-          </button>
-
-          <button
-            type="button"
-            className="motion-tactile"
-            disabled={pending}
             onClick={() => handleDismiss(topPrediction.id)}
             style={{
+              minHeight: 44,
               display: "inline-flex",
               alignItems: "center",
               gap: "0.3rem",

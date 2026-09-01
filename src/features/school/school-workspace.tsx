@@ -474,6 +474,7 @@ export function SchoolWorkspace({
                 <CoursePredictionsPanel
                   courseId={course.id}
                   courseCode={course.code}
+                  syllabuses={courseMaterials.filter(m => m.type === "syllabus").map(m => ({ id: m.id, title: m.title }))}
                 />
 
                 <button

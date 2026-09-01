@@ -15,14 +15,14 @@ describe("Assessment Prediction Contract", () => {
       source_handle: validHandle,
       predictions: [
         {
-          courseId: "course-123",
+          courseHandle: validHandle,
           title: "Midterm Exam",
           predictionType: "exam",
           predictedDate: "2026-03-20",
           predictedTime: "10:00",
           confidence: "HIGH",
           rationale: "Syllabus specifies Midterm in Week 8 Friday session.",
-          sourceReference: "Syllabus Schedule table",
+          sourceReferences: [validHandle + "_syllabus"],
         },
       ],
     });
@@ -52,12 +52,13 @@ describe("Assessment Prediction Contract", () => {
       source_handle: validHandle,
       predictions: [
         {
-          courseId: "course-123",
+          courseHandle: validHandle,
           title: "Quiz 1",
           predictionType: "quiz",
           predictedDate: "03/20/2026", // Invalid format
           confidence: "HIGH",
           rationale: "Rationale",
+          sourceReferences: [validHandle + "_syllabus"],
         },
       ],
     });
@@ -78,12 +79,13 @@ describe("Assessment Prediction Contract", () => {
       source_handle: validHandle,
       predictions: [
         {
-          courseId: "course-123",
+          courseHandle: validHandle,
           title: "Quiz 1",
           predictionType: "quiz",
           predictedDate: "2026-03-20",
           confidence: "VERY_CONFIDENT", // Invalid
           rationale: "Rationale",
+          sourceReferences: [validHandle + "_syllabus"],
         },
       ],
     });

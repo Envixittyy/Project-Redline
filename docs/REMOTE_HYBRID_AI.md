@@ -4,7 +4,7 @@ Phase 10B, 2026-08-31. Adds inference routes only. See `PHASE10B_REMOTE_HYBRID_R
 
 ## What is supported
 
-- Auto, Local, Gemini and OpenRouter modes for task checklist proposals and selected-text course import only.
+- Auto, Local, Gemini and OpenRouter modes for task checklist proposals and selected-text course import. Pass 2 additionally supports Auto/Local assessment prediction generation using one explicitly selected saved syllabus and its Course, through same-PC or private-mesh local inference. Gemini/OpenRouter prediction egress remains disabled.
 - Local means the selected Companion connection: same-PC loopback **or** the configured home-PC private-mesh connection. Auto does not guess which PC is yours or scan the LAN.
 - Inference never applies changes. Review, edit/re-review, ID-only approval, stale checks and atomic domain-write/audit remain mandatory.
 - TXT/MD/CSV/ICS are the only course formats. No OCR, PDF/DOCX/XLSX, Notes/journal/Wellness AI, background mutation, shell, tools, filesystem access or browsing was added.

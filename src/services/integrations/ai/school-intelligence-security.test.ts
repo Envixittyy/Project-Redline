@@ -4,7 +4,7 @@ const dependencies = vi.hoisted(() => ({ auth: vi.fn(), task: vi.fn(), event: vi
 vi.mock("@/services/supabase/request", () => ({ requireAuthenticatedSupabase: dependencies.auth }));
 vi.mock("@/services/tasks/task-repository", () => ({ createTask: dependencies.task }));
 vi.mock("@/services/calendar-events/calendar-event-repository", () => ({ createCalendarEvent: dependencies.event }));
-import { capabilityFor, cloudAllowed, mayFallback, type RequestKind, type RoutingPreferences } from "./routing-contract";
+import { capabilityFor, cloudAllowed, mayFallback, routingChain, type RequestKind, type RoutingPreferences } from "./routing-contract";
 import { inferCloud } from "./cloud-provider";
 import { OllamaAdapter } from "@/companion/adapters/ollama-adapter";
 import { LlamaCppAdapter } from "@/companion/adapters/llamacpp-adapter";
@@ -15,7 +15,6 @@ const denied = [
   ["schedule_image", "schoolScheduleImage.propose"],
   ["blackboard_image", "blackboardCourseImage.propose"],
   ["academic_calendar", "academicCalendarImport.propose"],
-  ["assessment_prediction", "schoolAssessmentPrediction.propose"],
   ["note_summary", "noteSummary.propose"],
   ["note_rewrite", "noteRewrite.propose"],
   ["note_action_items", "noteActionItems.propose"],
@@ -30,6 +29,19 @@ beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal("fetch", fetchMock); });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("School Intelligence containment", () => {
+  it("permits predictions only through local routing even when assessment cloud consent is stored", () => {
+    const prefs: RoutingPreferences = {
+      aiMode: "auto", cloudEnabled: true, cloudFallbackMode: "ask_each_time",
+      preferredCloud: "gemini", secondaryCloud: true, assessmentPredictionCloud: true,
+      checklistCloud: false, courseImportCloud: false,
+    };
+    expect(capabilityFor("assessment_prediction").id).toBe("schoolAssessmentPrediction.propose");
+    expect(cloudAllowed("schoolAssessmentPrediction.propose", prefs)).toBe(false);
+    expect(routingChain(prefs, "schoolAssessmentPrediction.propose")).toEqual(["local"]);
+    expect(() => routingChain({ ...prefs, aiMode: "gemini" }, "schoolAssessmentPrediction.propose"))
+      .toThrow("cloud_privacy_denied");
+  });
+
   it.each(denied)("%s cannot inherit existing cloud preferences or preparation authority", (kind, capability) => {
     for (const aiMode of ["auto", "local", "gemini", "openrouter"] as const) {
       const prefs: RoutingPreferences = { aiMode, cloudEnabled: true, cloudFallbackMode: "ask_each_time", preferredCloud: "gemini", secondaryCloud: true, checklistCloud: true, courseImportCloud: true,
@@ -44,7 +56,6 @@ describe("School Intelligence containment", () => {
     () => import("./schedule-import-repository"),
     () => import("./blackboard-screenshot-repository"),
     () => import("./academic-calendar-repository"),
-    () => import("./assessment-prediction-repository"),
     () => import("./note-intelligence-repository"),
     () => import("./quick-capture-repository"),
     () => import("./daily-plan-repository"),

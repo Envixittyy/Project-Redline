@@ -86,7 +86,7 @@ export type RoutedPreparation = {
 };
 
 export function capabilityFor(kind: RequestKind) {
-  if (kind !== "checklist" && kind !== "course") schoolIntelligenceUnavailable();
+  if (kind !== "checklist" && kind !== "course" && kind !== "assessment_prediction") schoolIntelligenceUnavailable();
   if (kind === "checklist") return CHECKLIST_CAPABILITY;
   if (kind === "course") return COURSE_IMPORT_CAPABILITY;
   if (kind === "schedule_image") return SCHEDULE_IMAGE_CAPABILITY;

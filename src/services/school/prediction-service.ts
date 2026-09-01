@@ -21,6 +21,7 @@ export type SchoolAssessmentPrediction = {
   sourceReference: string | null;
   createdAt: string;
   updatedAt: string;
+  stale?: boolean;
 };
 
 type PredictionRow = {
@@ -37,6 +38,7 @@ type PredictionRow = {
   source_reference: string | null;
   created_at: string;
   updated_at: string;
+  generation_request_id: string;
   courses?: {
     code: string;
     name: string;
@@ -65,6 +67,16 @@ function toPrediction(row: PredictionRow): SchoolAssessmentPrediction {
   };
 }
 
+async function withFreshness(rows: PredictionRow[]): Promise<SchoolAssessmentPrediction[]> {
+  const { client } = await requireAuthenticatedSupabase();
+  const freshness = new Map<string, boolean>();
+  await Promise.all([...new Set(rows.map(row => row.generation_request_id))].map(async requestId => {
+    const { data, error } = await client.rpc("ai_school_prediction_fresh", { p_request_id: requestId });
+    freshness.set(requestId, !error && data === true);
+  }));
+  return rows.map(row => ({ ...toPrediction(row), stale: freshness.get(row.generation_request_id) !== true }));
+}
+
 export async function listActivePredictions(): Promise<SchoolAssessmentPrediction[]> {
   const { client, userId } = await requireAuthenticatedSupabase();
   const { data, error } = await client
@@ -72,14 +84,15 @@ export async function listActivePredictions(): Promise<SchoolAssessmentPredictio
     .select("*, courses(code, name, color)")
     .eq("user_id", userId)
     .eq("status", "active")
-    .order("predicted_date", { ascending: true });
+    .not("generation_request_id", "is", null)
+    .order("predicted_date", { ascending: true }).limit(100);
 
   if (error) {
     console.error("Failed to list active predictions:", error);
     return [];
   }
 
-  return (data as PredictionRow[]).map(toPrediction);
+  return (await withFreshness(data as PredictionRow[])).filter(p => !p.stale && p.confidence !== "LOW");
 }
 
 export async function listPredictionsForCourse(courseId: string): Promise<SchoolAssessmentPrediction[]> {
@@ -89,14 +102,15 @@ export async function listPredictionsForCourse(courseId: string): Promise<School
     .select("*, courses(code, name, color)")
     .eq("user_id", userId)
     .eq("course_id", courseId)
-    .order("predicted_date", { ascending: true });
+    .not("generation_request_id", "is", null)
+    .order("predicted_date", { ascending: true }).limit(100);
 
   if (error) {
     console.error(`Failed to list predictions for course ${courseId}:`, error);
     return [];
   }
 
-  return (data as PredictionRow[]).map(toPrediction);
+  return withFreshness(data as PredictionRow[]);
 }
 
 export async function dismissPrediction(predictionId: string): Promise<boolean> {

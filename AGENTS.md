@@ -40,12 +40,12 @@ Do not rely on assumptions or training-data defaults. Verify all constraints aga
 - Tasks and calendar events are separate entities.
 - A task may have a deadline, have a scheduled time, or have multiple work sessions (`task_work_sessions`), and appear visually on a calendar. Rendering it on a calendar does NOT turn it into a native calendar event.
 - External calendar events and Blackboard feed items must remain source-aware.
-- Blackboard ingestion must NEVER automatically create standard application tasks. Newly detected school items must go through the Universal Capture proposal flow for user review.
+- Phase S1 Blackboard email ingestion deterministically creates one linked Task for each reliably resolved assignment, quiz, or exam. Materials and announcements do not create Tasks. Unresolved inputs require review. AI mutations still require explicit proposal approval.
 - External calendar records must not be automatically converted into native tasks or native events.
 
 ## Blackboard & school scope
 
-- Blackboard synchronization is limited to calendar-related information and reviewable task proposals.
+- Phase S1 uses forwarded/redirected Blackboard notification emails. Blackboard Calendar synchronization is removed; do not restore it or build calendar reconciliation.
 - Do NOT build brittle web scraping, grade, messaging, or document synchronization.
 - Unused `announcements` database table is inert technical debt.
 

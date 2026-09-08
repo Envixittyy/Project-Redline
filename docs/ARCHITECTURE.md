@@ -1,5 +1,42 @@
 # Architecture
 
+## Phase S1 School email automation (2026-09-08)
+
+The explicit S1 product decision supersedes historical Blackboard Calendar and
+proposal-only ingestion descriptions below. Blackboard Calendar configuration and
+sync now fail closed; the active fetch/reconciliation implementation was removed.
+Historical read models and stored source records remain available without syncing.
+
+`POST /api/inbound/postmark` verifies Postmark's supported Basic authentication,
+the configured recipient, exact sender/forwarder allowlists and aligned DKIM
+evidence before interpreting notification content. Postmark handles MIME decoding;
+`services/integrations/email` normalizes its structured payload. The deterministic
+Blackboard parser produces a bounded, provider-independent `ParsedSchoolEvent`.
+No AI or Blackboard network request participates.
+
+The existing privileged Supabase client is used exclusively at verified webhook
+ingress with a deployment-configured owner. `ingest_school_email` is executable
+only by `service_role`; it atomically resolves a course and logical item, creates
+or updates the linked ordinary Task, and records the processing outcome. UI reads
+and mapping writes use the authenticated request client and RLS. ID-only retry
+uses immutable owner-checked stored evidence through a narrow definer RPC.
+
+Migration `20260908090000_school_email_ingestion.sql` adds `school_items`,
+`school_email_events`, and `school_course_mappings`. The old mapping table depends
+on a calendar integration account and encrypted feed credential, so it is not
+repurposed with fake email credentials. New mappings use the Blackboard host and
+course identifier, falling back to a normalized exact course hint. Canonical
+`courses` and `tasks` remain the domain sources of truth; no second backend,
+database, calendar store, or job system is introduced.
+
+Assignments, quizzes and exams get one Task; materials, announcements and known
+course-opened notices remain School activity. Unknown courses/types and ambiguous
+dates/identities are retained safely. Deadline changes update both linked records
+without changing Task status, personal scheduling or title edits. Deleted Tasks
+are never silently recreated. Bodies, HTML, attachments and arbitrary headers are
+discarded after parsing; only bounded selected evidence and provenance are retained.
+See `docs/SCHOOL_EMAIL_INGESTION.md` for configuration, limitations and the UI contract.
+
 ## Goals
 
 The repository is a deliberately small foundation for Forward, a personal, single-user application. It separates framework concerns, reusable interface code, feature ownership, and external systems without introducing speculative layers. Project Redline and existing `life_os` identifiers are historical/internal names, not architectural namespaces. Cross-phase contracts are indexed in `docs/FORWARD_ARCHITECTURE.md`.

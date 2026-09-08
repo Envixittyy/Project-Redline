@@ -3,6 +3,18 @@
 Last updated: August 2026.
 Authoritative source of truth for Project Redline / Forward product direction, feature status, dependency ordering, and architectural gates.
 
+**Phase S1 override (2026-09-08):** The current explicit assignment replaces
+Blackboard Calendar synchronization with deterministic notification-email
+ingestion. Calendar sync is removed, not a prerequisite or fallback. S1 core
+implements provider normalization, parsing, course/item identity, transactional
+School/Task persistence, deadline changes and duplicate suppression. Reliable
+assignments/quizzes/exams create linked Tasks directly; informational messages do
+not. Unresolved inputs remain reviewable. This supersedes historical Blackboard
+calendar/proposal-only descriptions and calendar-specific mapping assumptions
+below. AI approval rules and unrelated deferred phases are unchanged. Live
+Postmark/Outlook provisioning and the parallel School UI remain separate setup
+and integration work. See `docs/SCHOOL_EMAIL_INGESTION.md`.
+
 ---
 
 ## Status Classification Legend

@@ -71,6 +71,7 @@ export function ContextualAssistantModal({
 
       const answer = ((result as unknown) as { ok: true; review: { answer: ContextualAssistantProposal } }).review.answer;
       setHistory((prev) => [...prev, { question: q, answer }]);
+    } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to get answer.");
     } finally {
       setLoading(false);

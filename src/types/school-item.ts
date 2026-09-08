@@ -1,3 +1,5 @@
+import type { TaskStatus } from "./task";
+
 export const schoolItemTypes = ["assignment", "quiz", "exam", "material", "announcement", "course_opened", "unknown"] as const;
 export type SchoolItemType = (typeof schoolItemTypes)[number];
 export type SchoolNotificationType = SchoolItemType | "deadline_changed" | "reminder";
@@ -39,6 +41,7 @@ export type SchoolItem = {
   sourceUrl: string | null;
   weight: number | null;
   taskId: string | null;
+  taskStatus?: TaskStatus | null;
   createdAt: string;
   updatedAt: string;
 };

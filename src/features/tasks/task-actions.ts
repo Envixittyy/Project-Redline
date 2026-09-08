@@ -29,12 +29,14 @@ const TASKS_PATH = "/tasks";
 const CALENDAR_PATH = "/calendar";
 const HOME_PATH = "/";
 const FOCUS_PATH = "/focus";
+const SCHOOL_PATH = "/school";
 
 function revalidateTaskConsumers() {
   revalidatePath(TASKS_PATH);
   revalidatePath(CALENDAR_PATH);
   revalidatePath(HOME_PATH);
   revalidatePath(FOCUS_PATH);
+  revalidatePath(SCHOOL_PATH);
 }
 
 class InvalidInputError extends Error {}

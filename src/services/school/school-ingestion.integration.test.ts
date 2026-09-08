@@ -110,12 +110,24 @@ describe("School email through actual PostgreSQL migrations", () => {
     expect((await ingest(assignmentEmail({ ...deadlineEmail(), MessageID: "after-delete", Date: "Fri, 11 Sep 2026 10:00:00 +0800" }))).status).toBe("unresolved_task");
     expect((await db.query("select id from tasks")).rows).toHaveLength(0);
   });
-  it("promotes a title-only identity when a later email supplies a stable ID", async () => {
+  it("does not auto-promote a title-only identity when a later email supplies a stable ID", async () => {
     const first = await ingest(assignmentEmail({ TextBody: "Course: CS101\nTitle: Assignment 1" }));
     const later = await ingest(assignmentEmail({ MessageID: "later-with-id" }));
-    expect(later.itemId).toBe(first.itemId);
+    expect(later).toMatchObject({ status: "unresolved_item", itemId: null, taskId: null });
+    expect(first.itemId).toBeTruthy();
     expect(await rows()).toHaveLength(1);
-    expect((await rows())[0]).toMatchObject({ due_date: "2026-09-15", task_due: "2026-09-15" });
+    expect((await rows())[0]).toMatchObject({ due_date: null, task_due: null });
+  });
+  it("does not merge a same-title no-URL notification into an existing strong item", async () => {
+    const first = await ingest();
+    const ambiguous = await ingest(assignmentEmail({
+      MessageID: "same-title-without-id",
+      TextBody: "Course: CS101\nItem Type: Assignment\nTitle: Assignment 1\nDue Date: 2026-10-01",
+    }));
+    expect(ambiguous).toMatchObject({ status: "unresolved_item", itemId: null, taskId: null });
+    expect(await rows()).toHaveLength(1);
+    expect((await rows())[0]).toMatchObject({ id: first.itemId, due_date: "2026-09-15" });
+    expect((await db.query("select id from tasks")).rows).toHaveLength(1);
   });
   it("deduplicates changed delivery IDs using the original message ID", async () => {
     const payload = assignmentEmail({ Headers: [...assignmentEmail().Headers, { Name: "Message-ID", Value: "<original@learn.example.edu>" }] });

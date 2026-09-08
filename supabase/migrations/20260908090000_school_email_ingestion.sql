@@ -147,9 +147,9 @@ begin
           where user_id=p_user_id and course_id=v_course and title_key=p_event->>'titleKey'
           and (item_type=v_type or (v_type='unknown' and v_kind in ('deadline_changed','reminder') and item_type in ('assignment','quiz','exam')))
           and (v_source is null or source_key is null);
-        if cardinality(v_candidates)=1 then
-          select * into v_item from public.school_items where id=v_candidates[1] for update;
-        elsif cardinality(v_candidates)>1 then v_status:='unresolved_item'; end if;
+        -- A title is not stable identity. When either side lacks a strong source
+        -- key, fail closed instead of merging unrelated same-title course work.
+        if cardinality(v_candidates)>0 then v_status:='unresolved_item'; end if;
       end if;
       if v_item.id is not null and v_type<>'unknown' and v_type<>v_item.item_type then v_status:='unresolved_item'; end if;
       if v_item.id is null and (v_kind in ('deadline_changed','reminder') or v_type='unknown') then v_status:='unresolved_item'; end if;

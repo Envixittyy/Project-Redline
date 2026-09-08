@@ -138,10 +138,10 @@ const commands: readonly Command[] = [
   },
   {
     label: "Blackboard",
-    description: "Review secure calendar sync",
+    description: "Review secure School email ingestion",
     href: "/integrations/blackboard",
     icon: ShieldCheck,
-    keywords: "school integration feed sync",
+    keywords: "school integration email postmark outlook",
   },
   {
     label: "Notification Preferences",

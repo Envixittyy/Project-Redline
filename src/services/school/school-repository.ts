@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
-import type { ParsedSchoolEvent, SchoolIngestionResult, SchoolIngestionStatus, SchoolItem } from "@/types/school-item";
+import type { SchoolEmailEvent, SchoolIngestionResult, SchoolItem } from "@/types/school-item";
 import type { TaskStatus } from "@/types/task";
 
 type ItemRow = { id: string; course_id: string; item_type: SchoolItem["itemType"]; title: string; due_date: string | null; due_at: string | null; source_url: string | null; weight: number | null; task_id: string | null; created_at: string; updated_at: string };
@@ -15,7 +15,8 @@ export async function listSchoolItems(courseId?: string): Promise<SchoolItem[]> 
   const taskIds = rows.map(r => r.task_id).filter((id): id is string => Boolean(id));
   const taskStatusMap = new Map<string, TaskStatus>();
   if (taskIds.length > 0) {
-    const { data: taskData } = await client.from("tasks").select("id,status").in("id", taskIds);
+    const { data: taskData, error: taskError } = await client.from("tasks").select("id,status").in("id", taskIds);
+    if (taskError) throw new Error("Could not load linked School tasks.");
     for (const t of (taskData ?? []) as { id: string; status: TaskStatus }[]) {
       taskStatusMap.set(t.id, t.status);
     }
@@ -36,12 +37,28 @@ export async function listSchoolItems(courseId?: string): Promise<SchoolItem[]> 
   }));
 }
 
-export type SchoolEmailEvent = { id: string; status: SchoolIngestionStatus; itemId: string | null; receivedAt: string; parsedEvent: ParsedSchoolEvent };
 export async function listSchoolEmailEvents(): Promise<SchoolEmailEvent[]> {
   const { client, userId } = await requireAuthenticatedSupabase();
   const { data, error } = await client.from("school_email_events").select("id,status,item_id,received_at,parsed_event").eq("user_id", userId).order("received_at", { ascending: false }).limit(100);
   if (error) throw new Error("Could not load School email activity.");
-  return (data ?? []).map(row => ({ id: row.id, status: row.status, itemId: row.item_id, receivedAt: row.received_at, parsedEvent: row.parsed_event }));
+  const rows = data ?? [];
+  const itemIds = rows.map(row => row.item_id).filter((id): id is string => Boolean(id));
+  const courseByItemId = new Map<string, string>();
+  if (itemIds.length > 0) {
+    const { data: itemData, error: itemError } = await client.from("school_items").select("id,course_id").in("id", itemIds);
+    if (itemError) throw new Error("Could not load School activity courses.");
+    for (const item of (itemData ?? []) as { id: string; course_id: string }[]) {
+      courseByItemId.set(item.id, item.course_id);
+    }
+  }
+  return rows.map(row => ({
+    id: row.id,
+    status: row.status,
+    itemId: row.item_id,
+    courseId: row.item_id ? courseByItemId.get(row.item_id) ?? null : null,
+    receivedAt: row.received_at,
+    parsedEvent: row.parsed_event,
+  }));
 }
 
 export async function saveSchoolCourseMapping(sourceCourseKey: string, courseId: string): Promise<void> {

@@ -11,8 +11,7 @@ import {
 } from "lucide-react";
 import type { CourseWithMeetings } from "@/types/course";
 import type { CourseMaterial } from "@/types/course-material";
-import type { SchoolItem } from "@/types/school-item";
-import type { SchoolEmailEvent } from "@/services/school/school-repository";
+import type { SchoolEmailEvent, SchoolItem } from "@/types/school-item";
 import { Surface } from "@/components/ui/surface";
 import { saveCourseAction } from "./school-actions";
 import { CourseImportModal } from "./course-import-modal";

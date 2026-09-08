@@ -12,8 +12,7 @@ import {
 } from "lucide-react";
 import type { CourseWithMeetings } from "@/types/course";
 import type { CourseMaterial } from "@/types/course-material";
-import type { SchoolItem } from "@/types/school-item";
-import type { SchoolEmailEvent } from "@/services/school/school-repository";
+import type { SchoolEmailEvent, SchoolItem } from "@/types/school-item";
 import { courseMaterialTypes } from "@/types/course-material";
 import { archiveCourseAction, deleteMeetingAction, saveMeetingAction } from "./school-actions";
 import { deleteCourseMaterialAction, saveCourseMaterialAction } from "./school-material-actions";
@@ -22,6 +21,7 @@ import { SchoolActivityFeed } from "./school-activity-feed";
 import { CoursePredictionsPanel } from "./course-predictions-panel";
 import { CourseMaterialIntelligenceModal } from "./course-material-intelligence-modal";
 import { ContextualAssistantModal } from "@/features/ai/contextual-assistant-modal";
+import { schoolEventBelongsToCourse } from "./school-ui-domain";
 import styles from "./school-course-detail.module.css";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -61,14 +61,7 @@ export function SchoolCourseDetail({
   const bbAnnouncements = courseItems.filter((i) => i.itemType === "announcement");
 
   // Events related to this course
-  const courseEvents = events.filter((e) => {
-    const hint = e.parsedEvent.courseHint?.toLowerCase();
-    return (
-      hint === course.code.toLowerCase() ||
-      hint === course.name.toLowerCase() ||
-      e.parsedEvent.courseKey?.includes(course.code.toLowerCase())
-    );
-  });
+  const courseEvents = events.filter((event) => schoolEventBelongsToCourse(event, course.id));
 
   const run = (
     work: () => Promise<{ ok: true; message?: string } | { ok: false; message: string }>,

@@ -151,7 +151,7 @@ provider adapter into UI code.
 | Boundary | Result / usage |
 | --- | --- |
 | `listSchoolItems(courseId?)` | Latest 200 `SchoolItem` rows, optional canonical course filter. |
-| `listSchoolEmailEvents()` | Latest 100 outcomes, selected `parsedEvent` evidence, optional `itemId`. |
+| `listSchoolEmailEvents()` | Latest 100 outcomes, selected `parsedEvent` evidence, optional `itemId`, and canonical `courseId` resolved through the persisted School item. |
 | `saveSchoolCourseMapping(sourceCourseKey, courseId)` | Owner-checked mapping; take the key from the selected event. |
 | `retrySchoolEmailEvent(eventId)` | ID-only retry of stored unresolved evidence. Returns status, eventId, itemId, taskId. |
 | `mapSchoolEmailCourseAction` / `retrySchoolEmailAction` | Validating Server Actions returning `{ok:true,...}` or `{ok:false,message}`; retry revalidates School, Tasks, Calendar and Home. |

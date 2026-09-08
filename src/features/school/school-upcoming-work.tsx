@@ -14,6 +14,7 @@ import type { SchoolItem } from "@/types/school-item";
 import { setTaskCompletionAction } from "@/features/tasks/task-actions";
 import { dueTone, formatDueDate } from "@/features/tasks/task-formatting";
 import { SchoolItemBadge } from "./school-item-badge";
+import { isSchoolItemTaskCompleted } from "./school-ui-domain";
 import styles from "./school-upcoming-work.module.css";
 
 type SchoolUpcomingWorkProps = {
@@ -75,8 +76,7 @@ export function SchoolUpcomingWork({
 
   const handleToggleComplete = (item: SchoolItem) => {
     if (!item.taskId) return;
-    const currentCompleted =
-      item.taskStatus === "completed" || item.taskStatus === "submitted";
+    const currentCompleted = isSchoolItemTaskCompleted(item);
     const nextCompleted = !currentCompleted;
 
     setBusyTaskId(item.taskId);
@@ -105,8 +105,7 @@ export function SchoolUpcomingWork({
         <ul className={styles.list}>
           {sorted.map((item) => {
             const course = courseMap.get(item.courseId);
-            const isCompleted =
-              item.taskStatus === "completed" || item.taskStatus === "submitted";
+            const isCompleted = isSchoolItemTaskCompleted(item);
             const isBusy = busyTaskId === item.taskId;
             const tone = item.dueDate ? dueTone(item.dueDate, today) : "upcoming";
             const dueLabel = item.dueDate

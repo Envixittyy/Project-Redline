@@ -93,7 +93,7 @@ export default function MorePage() {
               </span>
               <div>
                 <h2>Blackboard</h2>
-                <p>Secure calendar sync and notifications</p>
+                <p>Secure School email ingestion and notifications</p>
               </div>
               <span className={styles.open}>Open</span>
             </Surface>

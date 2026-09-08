@@ -97,10 +97,11 @@ MIME decoding; Redline discards attachments and does not silently parse them.
 - Course resolution: saved host/course mapping, then unique normalized exact
   course code, then unique normalized exact course name. Archived/ambiguous
   courses remain unresolved. No global fuzzy matching occurs.
-- Item resolution: course-scoped Blackboard content/assessment/assignment ID,
-  canonical item URL, then unique course/type/normalized-title identity. A later
-  strong identity may promote a title-only item. Different strong IDs sharing a
-  title are separate; a later title-only ambiguous update is unresolved.
+- Item resolution: course-scoped Blackboard content/assessment/assignment ID or
+  canonical item URL. Normalized course/type/title is an ambiguity guard, not an
+  identity: when either side lacks a strong key, a same-title candidate remains
+  unresolved instead of being auto-merged. Different strong IDs sharing a title
+  remain separate.
 - Task identity: a unique relational `school_items.task_id`, plus `task_created`
   preserving the fact that a Task existed even after user deletion. Retry never
   silently recreates a deleted Task. Completed/submitted/cancelled statuses,

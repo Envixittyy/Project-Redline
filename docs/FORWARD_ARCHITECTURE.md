@@ -1,5 +1,15 @@
 # Forward Architecture & Design System
 
+**Phase S1 override (2026-09-08):** The user's current School automation decision
+supersedes the calendar ingestion contracts in sections 7 and 12 below. Blackboard
+notification email is the sole active ingestion channel; Calendar sync is removed.
+Deterministic, reliably resolved assignments/quizzes/exams create one School item
+and one linked ordinary Task transactionally, and matched deadline changes update
+both. Informational and unresolved messages cannot create misleading Tasks.
+Provider normalization, identity, RLS and privileged webhook boundaries are
+documented in `docs/ARCHITECTURE.md` and `docs/SCHOOL_EMAIL_INGESTION.md`. Historical
+calendar data and unrelated AI review/consent contracts remain intact.
+
 Forward (internal project codename: Project Redline) is a private, single-user personal command center and academic operating system. The user-facing product name is **Forward** and the guiding philosophy is **“Be curious, not judgmental.”**
 
 The fundamental operational loop is:

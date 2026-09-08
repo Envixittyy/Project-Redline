@@ -46,6 +46,15 @@ export type SchoolItem = {
   updatedAt: string;
 };
 
+export type SchoolEmailEvent = {
+  id: string;
+  status: SchoolIngestionStatus;
+  itemId: string | null;
+  courseId: string | null;
+  receivedAt: string;
+  parsedEvent: ParsedSchoolEvent;
+};
+
 export type SchoolIngestionResult = {
   status: SchoolIngestionStatus;
   eventId: string;

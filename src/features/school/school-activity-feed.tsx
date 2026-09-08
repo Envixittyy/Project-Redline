@@ -15,11 +15,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { CourseWithMeetings } from "@/types/course";
-import type { SchoolEmailEvent } from "@/services/school/school-repository";
+import type { SchoolEmailEvent } from "@/types/school-item";
 import {
   mapSchoolEmailCourseAction,
   retrySchoolEmailAction,
 } from "./school-email-actions";
+import { findSchoolEventCourse } from "./school-ui-domain";
 import styles from "./school-activity-feed.module.css";
 
 type SchoolActivityFeedProps = {
@@ -216,13 +217,16 @@ export function SchoolActivityFeed({
               label = "Course Opened";
             }
 
-            const course = courses.find(
-              (c) =>
-                (parsed.courseHint &&
-                  c.code.toLowerCase() === parsed.courseHint.toLowerCase()) ||
-                (parsed.courseHint &&
-                  c.name.toLowerCase() === parsed.courseHint.toLowerCase()),
-            );
+            const course = findSchoolEventCourse(event, courses);
+            if (event.status === "unresolved_item") {
+              Icon = AlertTriangle;
+              iconClass = styles.deadlineChangedIcon;
+              label = "Item Match Needs Review";
+            } else if (event.status === "unresolved_task") {
+              Icon = AlertTriangle;
+              iconClass = styles.deadlineChangedIcon;
+              label = "Linked Task Removed";
+            }
 
             return (
               <li key={event.id} className={styles.item}>

@@ -34,6 +34,148 @@
   font-size: clamp(1.25rem, 4vw, 1.7rem);
 }
 
+.tabNav {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.tabButton {
+  min-height: 2.75rem;
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--motion-ease);
+}
+
+.tabButton:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.tabButton[aria-selected="true"] {
+  background: var(--surface-interactive);
+  color: var(--accent-text);
+  border-color: var(--border);
+}
+
+.overviewLayout {
+  display: grid;
+  gap: 1.75rem;
+}
+
+.coursesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 1rem;
+}
+
+.courseCard {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  transition: transform var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease);
+  cursor: pointer;
+}
+
+.courseCard:hover {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-card);
+}
+
+.courseCardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.courseCardSwatch {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  margin-top: 0.25rem;
+  flex-shrink: 0;
+}
+
+.courseCardHeader h4 {
+  margin: 0.15rem 0 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: var(--text-primary);
+}
+
+.courseCardCode {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--accent-text);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.courseCardInstructor {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.courseCardMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.75rem;
+}
+
+.courseCardMetaItem {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.courseCardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.viewCourseButton {
+  min-height: 2.75rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-interactive);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.viewCourseButton:hover {
+  background: var(--surface-hover);
+  color: var(--accent-text);
+}
+
 .toolbar button,
 .formCard button,
 .meetingForm button,

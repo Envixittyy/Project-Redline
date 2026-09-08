@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type { ParsedSchoolEvent, SchoolIngestionResult, SchoolIngestionStatus, SchoolItem } from "@/types/school-item";
+import type { TaskStatus } from "@/types/task";
 
 type ItemRow = { id: string; course_id: string; item_type: SchoolItem["itemType"]; title: string; due_date: string | null; due_at: string | null; source_url: string | null; weight: number | null; task_id: string | null; created_at: string; updated_at: string };
 export async function listSchoolItems(courseId?: string): Promise<SchoolItem[]> {
@@ -10,7 +11,29 @@ export async function listSchoolItems(courseId?: string): Promise<SchoolItem[]> 
   if (courseId) query = query.eq("course_id", z.uuid().parse(courseId));
   const { data, error } = await query;
   if (error) throw new Error("Could not load School items.");
-  return (data as ItemRow[]).map(row => ({ id: row.id, courseId: row.course_id, itemType: row.item_type, title: row.title, dueDate: row.due_date, dueAt: row.due_at, sourceUrl: row.source_url, weight: row.weight, taskId: row.task_id, createdAt: row.created_at, updatedAt: row.updated_at }));
+  const rows = (data ?? []) as ItemRow[];
+  const taskIds = rows.map(r => r.task_id).filter((id): id is string => Boolean(id));
+  const taskStatusMap = new Map<string, TaskStatus>();
+  if (taskIds.length > 0) {
+    const { data: taskData } = await client.from("tasks").select("id,status").in("id", taskIds);
+    for (const t of (taskData ?? []) as { id: string; status: TaskStatus }[]) {
+      taskStatusMap.set(t.id, t.status);
+    }
+  }
+  return rows.map(row => ({
+    id: row.id,
+    courseId: row.course_id,
+    itemType: row.item_type,
+    title: row.title,
+    dueDate: row.due_date,
+    dueAt: row.due_at,
+    sourceUrl: row.source_url,
+    weight: row.weight,
+    taskId: row.task_id,
+    taskStatus: row.task_id ? taskStatusMap.get(row.task_id) ?? null : null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
 }
 
 export type SchoolEmailEvent = { id: string; status: SchoolIngestionStatus; itemId: string | null; receivedAt: string; parsedEvent: ParsedSchoolEvent };

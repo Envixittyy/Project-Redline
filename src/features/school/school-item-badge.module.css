@@ -1,0 +1,55 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.assignment {
+  background: color-mix(in oklch, var(--accent) 15%, transparent);
+  color: var(--accent-text);
+  border-color: color-mix(in oklch, var(--accent) 30%, transparent);
+}
+
+.quiz {
+  background: color-mix(in oklch, var(--warning) 15%, transparent);
+  color: var(--warning);
+  border-color: color-mix(in oklch, var(--warning) 30%, transparent);
+}
+
+.exam {
+  background: color-mix(in oklch, var(--destructive) 15%, transparent);
+  color: var(--destructive);
+  border-color: color-mix(in oklch, var(--destructive) 30%, transparent);
+}
+
+.material {
+  background: color-mix(in oklch, var(--info) 15%, transparent);
+  color: var(--info);
+  border-color: color-mix(in oklch, var(--info) 30%, transparent);
+}
+
+.announcement {
+  background: color-mix(in oklch, var(--text-secondary) 12%, transparent);
+  color: var(--text-primary);
+  border-color: color-mix(in oklch, var(--text-secondary) 25%, transparent);
+}
+
+.course_opened {
+  background: color-mix(in oklch, var(--success) 15%, transparent);
+  color: var(--success);
+  border-color: color-mix(in oklch, var(--success) 30%, transparent);
+}
+
+.unknown {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  border-color: var(--border);
+}

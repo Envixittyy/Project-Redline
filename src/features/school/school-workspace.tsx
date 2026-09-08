@@ -1,65 +1,53 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import {
   BookOpen,
-  CalendarPlus,
-  ExternalLink,
-  FileText,
+  Calendar,
+  ChevronRight,
   MapPin,
   Plus,
   Sparkles,
-  Trash2,
 } from "lucide-react";
-import { useState, useTransition } from "react";
-
-import { Surface } from "@/components/ui/surface";
-import { courseMaterialTypes, type CourseMaterial } from "@/types/course-material";
 import type { CourseWithMeetings } from "@/types/course";
-
-import {
-  archiveCourseAction,
-  deleteMeetingAction,
-  saveCourseAction,
-  saveMeetingAction,
-} from "./school-actions";
-import {
-  deleteCourseMaterialAction,
-  saveCourseMaterialAction,
-} from "./school-material-actions";
+import type { CourseMaterial } from "@/types/course-material";
+import type { SchoolItem } from "@/types/school-item";
+import type { SchoolEmailEvent } from "@/services/school/school-repository";
+import { Surface } from "@/components/ui/surface";
+import { saveCourseAction } from "./school-actions";
 import { CourseImportModal } from "./course-import-modal";
-import { CoursePredictionsPanel } from "./course-predictions-panel";
-import { CourseMaterialIntelligenceModal } from "./course-material-intelligence-modal";
-import { ContextualAssistantModal } from "@/features/ai/contextual-assistant-modal";
+import { SchoolUpcomingWork } from "./school-upcoming-work";
+import { SchoolActivityFeed } from "./school-activity-feed";
+import { SchoolCourseDetail } from "./school-course-detail";
 import styles from "./school-workspace.module.css";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type SchoolWorkspaceProps = {
   courses: CourseWithMeetings[];
+  schoolItems: SchoolItem[];
   materials: CourseMaterial[];
+  emailEvents: SchoolEmailEvent[];
   today: string;
   timeZone: string;
+  initialCourseId?: string | null;
 };
 
 export function SchoolWorkspace({
   courses,
+  schoolItems,
   materials,
+  emailEvents,
   today,
   timeZone,
+  initialCourseId = null,
 }: SchoolWorkspaceProps) {
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(initialCourseId);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const [showAddCourse, setShowAddCourse] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [activeMeetingCourseId, setActiveMeetingCourseId] = useState<string | null>(null);
-  const [activeMaterialCourseId, setActiveMaterialCourseId] = useState<string | null>(null);
-  const [aiStudyMaterials, setAiStudyMaterials] = useState<CourseMaterial[] | null>(null);
-  const [contextualEntity, setContextualEntity] = useState<{
-    type: "course" | "course_material";
-    id: string;
-    title: string;
-  } | null>(null);
 
   const run = (
     work: () => Promise<{ ok: true; message?: string } | { ok: false; message: string }>,
@@ -76,17 +64,37 @@ export function SchoolWorkspace({
     });
   };
 
+  const selectedCourse = courses.find((c) => c.id === selectedCourseId);
+
+  // If a specific course is selected, render Course Detail View
+  if (selectedCourse) {
+    return (
+      <div className={styles.layout}>
+        <SchoolCourseDetail
+          course={selectedCourse}
+          allCourses={courses}
+          items={schoolItems}
+          materials={materials}
+          events={emailEvents}
+          today={today}
+          timeZone={timeZone}
+          onBack={() => setSelectedCourseId(null)}
+        />
+      </div>
+    );
+  }
+
+  // Otherwise render School Overview
   return (
     <div className={styles.layout}>
       {showImport ? (
-        <CourseImportModal
-          onClose={() => setShowImport(false)}
-        />
+        <CourseImportModal onClose={() => setShowImport(false)} />
       ) : null}
 
+      {/* Overview Toolbar */}
       <div className={styles.toolbar}>
         <div>
-          <p className={styles.kicker}>Academic Timetable & Materials</p>
+          <p className={styles.kicker}>Academic Timetable & Course Activity</p>
           <h2>
             {courses.length} active {courses.length === 1 ? "course" : "courses"}
           </h2>
@@ -97,7 +105,8 @@ export function SchoolWorkspace({
             type="button"
             className="motion-interactive"
           >
-            <Sparkles size={16} aria-hidden="true" /> Import Course (Text)
+            <Sparkles size={16} aria-hidden="true" />
+            <span>Import Course (Text)</span>
           </button>
           <button
             onClick={() => setShowAddCourse((v) => !v)}
@@ -105,7 +114,8 @@ export function SchoolWorkspace({
             aria-expanded={showAddCourse}
             className="motion-interactive"
           >
-            <Plus size={17} aria-hidden="true" /> Add course
+            <Plus size={17} aria-hidden="true" />
+            <span>Add course</span>
           </button>
         </div>
       </div>
@@ -116,6 +126,7 @@ export function SchoolWorkspace({
         </Surface>
       ) : null}
 
+      {/* Add Course Form */}
       {showAddCourse ? (
         <Surface variant="glass" className={styles.formCard}>
           <form
@@ -167,347 +178,131 @@ export function SchoolWorkspace({
       {courses.length === 0 ? (
         <Surface variant="subtle" className={styles.empty}>
           <BookOpen size={28} aria-hidden="true" />
-          <h2>No courses yet</h2>
+          <h2>No courses configured yet</h2>
           <p>
-            Add a course, attach its weekly timetable, and organize syllabus, readings, and lecture materials.
+            Add a course, attach weekly timetable meetings, and receive automated Blackboard notifications to track assignments and deadlines.
           </p>
         </Surface>
       ) : (
-        <div className={styles.courses}>
-          {courses.map((course) => {
-            const courseMaterials = materials.filter((m) => m.courseId === course.id);
+        <div className={styles.overviewLayout}>
+          {/* Section 1: Upcoming Actionable Work (Question 1 & 2: What do I have due? Which Course is it for?) */}
+          <SchoolUpcomingWork
+            items={schoolItems}
+            courses={courses}
+            today={today}
+            timeZone={timeZone}
+            onSelectCourse={(courseId) => setSelectedCourseId(courseId)}
+          />
 
-            return (
-              <Surface
-                key={course.id}
-                variant="base"
-                className={styles.course}
-                style={{ "--course-color": course.color ?? "var(--accent)" } as React.CSSProperties}
-              >
-                <header>
-                  <span className={styles.swatch} aria-hidden="true" />
-                  <div>
-                    <p>{course.code}</p>
-                    <h2>{course.name}</h2>
-                    <small>
-                      {[course.instructor, course.location].filter(Boolean).join(" · ") ||
-                        "No instructor or room set"}
-                    </small>
-                  </div>
-                  <div className={styles.courseHeaderActions}>
-                    <button
-                      type="button"
-                      aria-label={`Add meeting to ${course.code}`}
-                      onClick={() =>
-                        setActiveMeetingCourseId(
-                          activeMeetingCourseId === course.id ? null : course.id,
-                        )
-                      }
-                    >
-                      <CalendarPlus size={15} aria-hidden="true" /> Meeting
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Add material to ${course.code}`}
-                      onClick={() =>
-                        setActiveMaterialCourseId(
-                          activeMaterialCourseId === course.id ? null : course.id,
-                        )
-                      }
-                    >
-                      <FileText size={15} aria-hidden="true" /> Material
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`AI Assistant for ${course.code}`}
-                      onClick={() =>
-                        setContextualEntity({
-                          type: "course",
-                          id: course.id,
-                          title: `${course.code} - ${course.name}`,
-                        })
-                      }
-                    >
-                      <Sparkles size={14} aria-hidden="true" /> AI Assistant
-                    </button>
-                  </div>
-                </header>
+          {/* Section 2: Current Courses Grid (Question 4: What Courses am I currently taking?) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div className={styles.sectionHeader}>
+              <span className={styles.sectionTitle}>
+                Current Courses ({courses.length})
+              </span>
+            </div>
 
-                {/* Meeting Form */}
-                {activeMeetingCourseId === course.id ? (
-                  <form
-                    className={styles.meetingForm}
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      const data = new FormData(event.currentTarget);
-                      run(
-                        () =>
-                          saveMeetingAction(null, {
-                            courseId: course.id,
-                            title: String(data.get("title")),
-                            weekdays: data.getAll("weekdays").map(Number),
-                            startDate: String(data.get("startDate")),
-                            endDateExclusive: String(data.get("endDate")),
-                            startTime: String(data.get("startTime")),
-                            endTime: String(data.get("endTime")),
-                            timeZone,
-                            location: String(data.get("location")),
-                          }),
-                        () => setActiveMeetingCourseId(null),
-                      );
+            <div className={styles.coursesGrid}>
+              {courses.map((course) => {
+                const courseItems = schoolItems.filter((i) => i.courseId === course.id);
+                const actionableCount = courseItems.filter(
+                  (i) =>
+                    i.itemType === "assignment" ||
+                    i.itemType === "quiz" ||
+                    i.itemType === "exam",
+                ).length;
+
+                return (
+                  <div
+                    key={course.id}
+                    className={styles.courseCard}
+                    onClick={() => setSelectedCourseId(course.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedCourseId(course.id);
+                      }
                     }}
+                    aria-label={`View course ${course.code} - ${course.name}`}
                   >
-                    <label>
-                      Meeting title
-                      <input name="title" defaultValue="Lecture" required />
-                    </label>
-                    <fieldset>
-                      <legend>Days</legend>
-                      {weekdays.map((day, index) => (
-                        <label key={day}>
-                          <input type="checkbox" name="weekdays" value={index} />
-                          {day}
-                        </label>
-                      ))}
-                    </fieldset>
-                    <div className={styles.formGrid}>
-                      <label>
-                        Starts
-                        <input type="date" name="startDate" defaultValue={today} required />
-                      </label>
-                      <label>
-                        Ends (optional)
-                        <input type="date" name="endDate" />
-                      </label>
-                      <label>
-                        Start time
-                        <input type="time" name="startTime" defaultValue="10:00" required />
-                      </label>
-                      <label>
-                        End time
-                        <input type="time" name="endTime" defaultValue="11:30" required />
-                      </label>
-                      <label>
-                        Room / Location
-                        <input name="location" placeholder={course.location ?? "Room 101"} />
-                      </label>
-                    </div>
-                    <button disabled={pending} type="submit">
-                      {pending ? "Saving..." : "Save meeting"}
-                    </button>
-                  </form>
-                ) : null}
-
-                {/* Material Form */}
-                {activeMaterialCourseId === course.id ? (
-                  <form
-                    className={styles.materialForm}
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      const data = new FormData(event.currentTarget);
-                      run(
-                        () =>
-                          saveCourseMaterialAction(course.id, null, {
-                            title: String(data.get("title")),
-                            type: String(data.get("type")),
-                            url: String(data.get("url")),
-                            description: String(data.get("description")),
-                          }),
-                        () => setActiveMaterialCourseId(null),
-                      );
-                    }}
-                  >
-                    <label>
-                      Material Title
-                      <input
-                        name="title"
-                        maxLength={200}
-                        placeholder="e.g. Week 1 Lecture Slides / Syllabus"
-                        required
-                      />
-                    </label>
-                    <div className={styles.formGrid}>
-                      <label>
-                        Type
-                        <select name="type" defaultValue="document">
-                          {courseMaterialTypes.map((type) => (
-                            <option key={type.id} value={type.id}>
-                              {type.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        Resource URL / File Link (Optional)
-                        <input
-                          name="url"
-                          type="url"
-                          placeholder="https://drive.google.com/... or https://..."
+                    <div>
+                      <div className={styles.courseCardHeader}>
+                        <span
+                          className={styles.courseCardSwatch}
+                          style={{
+                            backgroundColor: course.color ?? "var(--accent)",
+                          }}
+                          aria-hidden="true"
                         />
-                      </label>
-                    </div>
-                    <label>
-                      Description / Notes (Optional)
-                      <textarea
-                        name="description"
-                        rows={2}
-                        placeholder="Key points, required readings, or instructions..."
-                      />
-                    </label>
-                    <button disabled={pending} type="submit">
-                      {pending ? "Saving..." : "Save material"}
-                    </button>
-                  </form>
-                ) : null}
+                        <div>
+                          <p className={styles.courseCardCode}>{course.code}</p>
+                          <h4>{course.name}</h4>
+                          <p className={styles.courseCardInstructor}>
+                            {[course.instructor, course.location].filter(Boolean).join(" · ") ||
+                              "No instructor set"}
+                          </p>
+                        </div>
+                      </div>
 
-                {/* Meetings List */}
-                <div className={styles.subSection}>
-                  <div className={styles.sectionHeader}>
-                    <span className={styles.sectionTitle}>
-                      Timetable ({course.meetings.length})
-                    </span>
-                  </div>
-                  {course.meetings.length > 0 ? (
-                    <ul className={styles.meetings}>
-                      {course.meetings.map((meeting) => (
-                        <li key={meeting.id}>
-                          <div>
-                            <strong>{meeting.title}</strong>
-                            <span>
-                              {meeting.weekdays.map((day) => weekdays[day]).join(", ")} ·{" "}
-                              {meeting.startTime}–{meeting.endTime}
-                            </span>
-                            {meeting.location ? (
-                              <span>
-                                <MapPin size={12} aria-hidden="true" />
-                                {meeting.location}
-                              </span>
-                            ) : null}
+                      <div className={styles.courseCardMeta}>
+                        <div className={styles.courseCardMetaItem}>
+                          <Calendar size={13} aria-hidden="true" />
+                          <span>
+                            {course.meetings.length > 0
+                              ? course.meetings
+                                  .map(
+                                    (m) =>
+                                      `${m.weekdays.map((d) => weekdays[d]).join(", ")} ${m.startTime}`,
+                                  )
+                                  .join(" | ")
+                              : "No weekly meetings configured"}
+                          </span>
+                        </div>
+                        {course.location ? (
+                          <div className={styles.courseCardMetaItem}>
+                            <MapPin size={13} aria-hidden="true" />
+                            <span>{course.location}</span>
                           </div>
-                          <button
-                            className={styles.deleteButton}
-                            aria-label={`Delete ${meeting.title}`}
-                            type="button"
-                            onClick={() => run(() => deleteMeetingAction(meeting.id))}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <small style={{ color: "var(--text-tertiary)" }}>
-                      No weekly meetings configured.
-                    </small>
-                  )}
-                </div>
+                        ) : null}
+                      </div>
+                    </div>
 
-                {/* Materials List */}
-                <div className={styles.subSection}>
-                  <div className={styles.sectionHeader} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span className={styles.sectionTitle}>
-                      Materials ({courseMaterials.length})
-                    </span>
-                    {courseMaterials.length > 0 ? (
-                      <button
-                        type="button"
+                    <div className={styles.courseCardFooter}>
+                      <span
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "0.3rem",
-                          background: "transparent",
-                          border: "none",
-                          color: "var(--accent-text)",
                           fontSize: "0.75rem",
                           fontWeight: 700,
-                          cursor: "pointer",
+                          color:
+                            actionableCount > 0
+                              ? "var(--accent-text)"
+                              : "var(--text-muted)",
                         }}
-                        onClick={() => setAiStudyMaterials(courseMaterials)}
                       >
-                        <Sparkles size={12} /> Study & Summarize
-                      </button>
-                    ) : null}
+                        {actionableCount} upcoming {actionableCount === 1 ? "task" : "tasks"}
+                      </span>
+
+                      <span className={styles.viewCourseButton}>
+                        <span>Details</span>
+                        <ChevronRight size={14} aria-hidden="true" />
+                      </span>
+                    </div>
                   </div>
-                  {courseMaterials.length > 0 ? (
-                    <ul className={styles.materials}>
-                      {courseMaterials.map((mat) => (
-                        <li key={mat.id}>
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                              <span className={styles.materialTypeBadge}>{mat.type}</span>
-                              <strong>{mat.title}</strong>
-                            </div>
-                            {mat.url ? (
-                              <span>
-                                <a
-                                  href={mat.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={styles.materialLink}
-                                >
-                                  Open resource <ExternalLink size={11} aria-hidden="true" />
-                                </a>
-                              </span>
-                            ) : null}
-                            {mat.description ? (
-                              <p className={styles.materialDescription}>{mat.description}</p>
-                            ) : null}
-                          </div>
-                          <button
-                            className={styles.deleteButton}
-                            aria-label={`Delete ${mat.title}`}
-                            type="button"
-                            onClick={() => run(() => deleteCourseMaterialAction(mat.id))}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <small style={{ color: "var(--text-tertiary)" }}>
-                      No course materials attached yet.
-                    </small>
-                  )}
-                </div>
+                );
+              })}
+            </div>
+          </div>
 
-                <CoursePredictionsPanel
-                  courseId={course.id}
-                  courseCode={course.code}
-                />
-
-                <button
-                  className={styles.archive}
-                  type="button"
-                  onClick={() => run(() => archiveCourseAction(course.id))}
-                >
-                  Archive course
-                </button>
-              </Surface>
-            );
-          })}
+          {/* Section 3: Recent Activity (Question 3: What changed recently?) */}
+          <SchoolActivityFeed
+            events={emailEvents}
+            courses={courses}
+            timeZone={timeZone}
+            onSelectCourse={(courseId) => setSelectedCourseId(courseId)}
+          />
         </div>
       )}
-
-      {aiStudyMaterials ? (
-        <CourseMaterialIntelligenceModal
-          materials={aiStudyMaterials.map((m) => ({
-            id: m.id,
-            title: m.title,
-            materialType: m.type,
-          }))}
-          onClose={() => setAiStudyMaterials(null)}
-        />
-      ) : null}
-
-      {contextualEntity ? (
-        <ContextualAssistantModal
-          entityType={contextualEntity.type}
-          entityId={contextualEntity.id}
-          entityTitle={contextualEntity.title}
-          onClose={() => setContextualEntity(null)}
-        />
-      ) : null}
     </div>
   );
 }

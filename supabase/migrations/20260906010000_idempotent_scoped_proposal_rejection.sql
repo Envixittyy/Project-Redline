@@ -1,4 +1,4 @@
-﻿-- A repeated user rejection is a terminal no-op for the same owned review.
+-- A repeated user rejection is a terminal no-op for the same owned review.
 -- Any other state or mismatched request remains fail-closed.
 create or replace function public.ai_reject_scoped_proposal(p_message text, p_mac text) returns void
 language plpgsql security definer set search_path = '' as $$

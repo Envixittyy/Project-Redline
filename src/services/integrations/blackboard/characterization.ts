@@ -75,10 +75,11 @@ function dateShape(value: unknown): ValueShape & { timeZone?: string | null } {
 }
 
 function tokenShape(value: string): string {
-  return value
+  return value.normalize("NFKC")
     .replace(/[A-F0-9]{8}-[A-F0-9-]{27,}/gi, "<uuid>")
+    .replace(/[A-Za-z]+/g, "<alpha>")
     .replace(/\d+/g, "<n>")
-    .replace(/[A-Z]{2,8}/g, "<alpha>")
+    .replace(/[^\s<>:/_.@-]+/g, "<symbol>")
     .slice(0, 120);
 }
 
@@ -104,7 +105,7 @@ function safeUrlShape(value: unknown) {
     shape.host = parsed.hostname.toLowerCase();
     shape.pathShape = parsed.pathname
       .split("/")
-      .map((part) => (part && /\d|_|[0-9a-f]{8}-/i.test(part) ? "<id>" : part))
+      .map((part) => (part ? tokenShape(part) : part))
       .join("/")
       .slice(0, 200);
     shape.queryKeys = [...new Set(parsed.searchParams.keys())].sort().slice(0, 30);
@@ -166,7 +167,7 @@ function descriptionShape(value: ParameterValue | undefined) {
     kind: "text" as const,
     ...(parameters.length ? { parameters } : {}),
     lineCount: text.split(/\r?\n/).length,
-    labelKeys,
+    labelKeys: labelKeys.map(tokenShape),
     containsUrl: /https?:\/\//i.test(text),
   };
 }

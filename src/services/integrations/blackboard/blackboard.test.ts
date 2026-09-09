@@ -49,6 +49,20 @@ describe("Blackboard iCalendar", () => {
     expect(item.proposalRevision).toHaveLength(64);
   });
 
+  it("keeps recognized object identifiers but strips unknown event URL query values", async () => {
+    const privateUrlFeed = feed.replace(
+      "https://learn.example.edu/item/1",
+      "https://learn.example.edu/item?course_id=_101_1&content_id=_201_1&token=private-secret",
+    );
+    const [item] = await parseBlackboardICalendar(privateUrlFeed, {
+      allowedHosts: ["learn.example.edu"],
+      workspaceTimeZone: "Asia/Manila",
+    });
+    expect(item.candidateSourceKey).toBe("learn.example.edu:content_id:_201_1");
+    expect(item.sourceUrl).not.toContain("token");
+    expect(item.sourceUrl).not.toContain("private-secret");
+  });
+
   it("parses all-day date interval as date precision without inventing UTC instant", async () => {
     const allDayFeed =
       "BEGIN:VCALENDAR\r\n" +
@@ -93,6 +107,45 @@ describe("Blackboard iCalendar", () => {
     expect(item.dueAt).toBeNull();
   });
 
+  it("handles a DST fall-back instant deterministically without inventing a floating deadline", async () => {
+    const dstFeed =
+      "BEGIN:VCALENDAR\r\n" +
+      "BEGIN:VEVENT\r\n" +
+      "UID:item-dst-1\r\n" +
+      "SUMMARY:Systems Exam\r\n" +
+      "DTEND;TZID=America/New_York:20261101T013000\r\n" +
+      "END:VEVENT\r\n" +
+      "END:VCALENDAR";
+    const [first] = await parseBlackboardICalendar(dstFeed);
+    const [second] = await parseBlackboardICalendar(dstFeed);
+    expect(first.duePrecision).toBe("instant");
+    expect(first.dueAt).toBe(second.dueAt);
+    expect(["2026-11-01T05:30:00.000Z", "2026-11-01T06:30:00.000Z"]).toContain(
+      first.dueAt,
+    );
+  });
+
+  it("routes recurrence and contradictory course hints to deterministic review", async () => {
+    const reviewFeed =
+      "BEGIN:VCALENDAR\r\n" +
+      "BEGIN:VEVENT\r\n" +
+      "UID:item-recurring-1\r\n" +
+      "SUMMARY:[MATH101] Assignment clinic\r\n" +
+      "CATEGORIES:Assignment,CS101\r\n" +
+      "DTSTART:20260910T100000Z\r\n" +
+      "RRULE:FREQ=WEEKLY;COUNT=3\r\n" +
+      "END:VEVENT\r\n" +
+      "END:VCALENDAR";
+    const [item] = await parseBlackboardICalendar(reviewFeed);
+    expect(item).toMatchObject({
+      itemType: "unknown",
+      classificationReason: "recurrence_not_supported",
+      courseCode: null,
+      courseName: null,
+      recurrence: true,
+    });
+  });
+
   it("computes canonical proposal revision ignoring provider timestamp and URL churn", () => {
     const rev1 = computeProposalRevision({
       title: "  Final Paper  ",
@@ -129,6 +182,24 @@ describe("Blackboard iCalendar", () => {
     await expect(parseBlackboardICalendar(feed.replace("UID:item-1\r\n", ""))).rejects.toMatchObject({
       code: "invalid_event",
     });
+  });
+
+  it("rejects malformed and oversized calendar payloads before reconciliation", async () => {
+    await expect(parseBlackboardICalendar("BEGIN:VCALENDAR\r\nBROKEN"))
+      .rejects.toMatchObject({ code: "invalid_calendar" });
+    await expect(
+      parseBlackboardICalendar(
+        `BEGIN:VCALENDAR\r\n${"X".repeat(2_000_001)}\r\nEND:VCALENDAR`,
+      ),
+    ).rejects.toMatchObject({ code: "calendar_too_large" });
+  });
+
+  it("deduplicates duplicate provider UIDs within one snapshot", async () => {
+    const duplicate = feed.replace(
+      "END:VCALENDAR",
+      "BEGIN:VEVENT\r\nUID:item-1\r\nSUMMARY:Duplicate\r\nDTEND:20300103T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR",
+    );
+    await expect(parseBlackboardICalendar(duplicate)).resolves.toHaveLength(1);
   });
 });
 
@@ -340,6 +411,25 @@ describe("Blackboard calendar projection", () => {
         content_hash: "hash789",
         missing_since: null,
         task_id: "task-uuid-1",
+      },
+      MANILA,
+    );
+
+    expect(projection).toBeNull();
+  });
+
+  it("suppresses S2 observations linked to canonical School work", () => {
+    const projection = blackboardRecordToExternalCalendarProjection(
+      {
+        id: "rec-s2",
+        external_uid: "item-s2",
+        normalized_title: "Reconciled Assignment",
+        due_at: "2030-01-02T09:00:00.000Z",
+        due_precision: "instant",
+        content_hash: "hash-s2",
+        missing_since: null,
+        task_id: null,
+        school_item_id: "school-item-1",
       },
       MANILA,
     );

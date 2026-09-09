@@ -24,6 +24,8 @@ describe("Blackboard calendar S2 migration contract", () => {
   it("uses the exact S1 owner lock and keeps apply authority service-only", () => {
     expect(migration).toContain("pg_advisory_xact_lock(hashtextextended('school-email:'||p_user_id::text,0))");
     expect(migration).toContain("auth.role() is distinct from 'service_role'");
+    expect(migration).toContain("blackboard_s2_sync_mode_activation");
+    expect(migration).toContain("blackboard apply mode requires an operator service role");
     expect(migration).toContain("revoke all on function public.reconcile_blackboard_calendar_snapshot");
     expect(migration).toContain("grant execute on function public.reconcile_blackboard_calendar_snapshot(uuid,uuid,uuid,jsonb) to service_role");
   });

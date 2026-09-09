@@ -145,8 +145,15 @@ function sanitizeSourceUrl(value: string | undefined, allowedHosts: readonly str
     ) {
       return { sourceUrl: null, sourceKey: null, courseKey: null };
     }
+    const retainedQueryKeys = new Set([
+      "course_id",
+      "content_id",
+      "assessment_id",
+      "assignment_id",
+      "announcement_id",
+    ]);
     for (const key of [...url.searchParams.keys()]) {
-      if (/^(utm_|tracking|tracking_id)/i.test(key)) url.searchParams.delete(key);
+      if (!retainedQueryKeys.has(key.toLowerCase())) url.searchParams.delete(key);
     }
     url.searchParams.sort();
     const courseId = url.searchParams.get("course_id") ?? url.pathname.match(/\/courses\/([^/]+)/)?.[1];

@@ -8,6 +8,7 @@ export type BlackboardRecordForCalendar = {
   account_id?: string | null;
   external_uid: string;
   task_id?: string | null;
+  school_item_id?: string | null;
   normalized_title: string;
   course_code?: string | null;
   course_id?: string | null;
@@ -38,7 +39,7 @@ export function blackboardRecordToExternalCalendarProjection(
   record: BlackboardRecordForCalendar,
   timeZone: string,
 ): ExternalCalendarProjection | null {
-  if (record.missing_since || record.task_id) return null;
+  if (record.missing_since || record.task_id || record.school_item_id) return null;
 
   let startsAt: string | null = null;
   let endsAt: string | null = null;

@@ -4,14 +4,17 @@ import { describe, expect, it } from "vitest";
 const file = (path: string) => readFileSync(path, "utf8");
 
 describe("Phase S1 School release UI contract", () => {
-  it("does not offer the removed Blackboard Calendar workflow on active navigation surfaces", () => {
+  it("keeps S1 email active while exposing S2 calendar observation without apply controls", () => {
     const integrationPage = file("src/app/(workspace)/integrations/blackboard/page.tsx");
+    const integrationPanel = file("src/features/integrations/blackboard-panel.tsx");
     const morePage = file("src/app/(workspace)/more/page.tsx");
     const commandPalette = file("src/components/shell/command-palette.tsx");
 
-    expect(integrationPage).not.toContain("BlackboardPanel");
-    expect(integrationPage).not.toContain("getBlackboardStatus");
-    expect(integrationPage).not.toMatch(/iCalendar ingestion|Connect feed|Sync now/);
+    expect(integrationPage).toContain("BlackboardPanel");
+    expect(integrationPage).toContain("getBlackboardStatus");
+    expect(integrationPage).toContain("S1 notification-email ingestion");
+    expect(integrationPanel).toContain("Calendar sync starts in observe mode");
+    expect(integrationPanel).not.toContain("Enable apply");
     expect(morePage).not.toContain("Secure calendar sync");
     expect(commandPalette).not.toContain("Review secure calendar sync");
   });

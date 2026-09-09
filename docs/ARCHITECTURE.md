@@ -1,5 +1,41 @@
 # Architecture
 
+## Phase S2 Blackboard current-state reconciliation (2026-09-10)
+
+S2 restores a narrowly scoped Blackboard Calendar path as a secondary
+current-state observer. It does not change the S1 webhook, email parser,
+`ingest_school_email`, security checks, identity rules, or notification-email
+ownership of S1. The apparent conflict with the S1 removal language below is
+resolved by phase boundary: Calendar remains absent from S1, while S2 is a new
+additive source feeding the same School records.
+
+The runtime boundary is
+`BlackboardCurrentStateAdapter`: the current implementation performs a
+DNS-pinned, exact-host-allowlisted HTTPS fetch, parses already-fetched ICS with
+`node-ical`, and returns a bounded complete snapshot. It does not use
+`node-ical` URL/file helpers. Raw credentials are encrypted with the existing
+AES-256-GCM envelope; raw feeds, bearer URL values, UIDs, titles, descriptions,
+and locations are never emitted by the characterization report.
+
+`reconcile_blackboard_calendar_snapshot` is service-role-only and acquires the
+exact S1 advisory transaction lock before touching shared School state. It
+stores source observations in `external_records`, resolves courses and item
+identity deterministically, records every result in `sync_runs` and
+`sync_changes`, and mutates `school_items`/Tasks only in apply mode. Observe mode
+persists proposed outcomes but cannot mutate canonical work. New accounts default
+off; successful configuration selects observe; only a service-role operator may
+activate apply. There is no scheduled apply runner.
+
+Canonical linkage is many observations to one optional School item, not a new
+canonical model. Provider UID identifies an observation. Exact S1 source/course
+keys have precedence for shared identity; compatible title alone is only an
+ambiguity guard. First calendar sighting cannot overwrite an existing
+email-owned deadline, unchanged calendar data cannot roll it back, and later
+material calendar state may converge it. Snapshot absence marks the observation
+missing only after a successful complete transaction; it never deletes canonical
+data. A missing user-deleted linked Task remains deleted. See
+`docs/BLACKBOARD_CALENDAR_S2.md` for operations and acceptance gates.
+
 ## Phase S1 School email automation (2026-09-08)
 
 The explicit S1 product decision supersedes historical Blackboard Calendar and
@@ -14,8 +50,9 @@ evidence before interpreting notification content. Postmark handles MIME decodin
 Blackboard parser produces a bounded, provider-independent `ParsedSchoolEvent`.
 No AI or Blackboard network request participates.
 
-The existing privileged Supabase client is used exclusively at verified webhook
-ingress with a deployment-configured owner. `ingest_school_email` is executable
+The existing privileged Supabase client is used at verified webhook ingress and,
+in S2, after an authenticated server action completes the trusted calendar fetch.
+It is not exposed to browsers. `ingest_school_email` is executable
 only by `service_role`; it atomically resolves a course and logical item, creates
 or updates the linked ordinary Task, and records the processing outcome. UI reads
 and mapping writes use the authenticated request client and RLS. ID-only retry

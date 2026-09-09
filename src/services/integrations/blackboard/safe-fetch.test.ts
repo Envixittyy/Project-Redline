@@ -15,6 +15,7 @@ import {
   BlackboardUrlError,
   isPublicAddress,
   normalizeFeedHostname,
+  normalizeBlackboardSubscriptionUrl,
   validateFeedUrl,
 } from "./safe-url";
 
@@ -95,6 +96,18 @@ describe("Blackboard public-address classification", () => {
       BlackboardUrlError,
     );
   });
+
+  it("normalizes webcal subscriptions to HTTPS and enforces an exact host allowlist", () => {
+    expect(normalizeBlackboardSubscriptionUrl("webcal://learn.example.edu/feed")).toBe(
+      "https://learn.example.edu/feed",
+    );
+    expect(
+      validateFeedUrl("webcal://learn.example.edu/feed", ["learn.example.edu"]).protocol,
+    ).toBe("https:");
+    expect(() =>
+      validateFeedUrl("https://other.example.edu/feed", ["learn.example.edu"]),
+    ).toThrow(BlackboardUrlError);
+  });
 });
 
 describe("Blackboard DNS validation and pinning", () => {
@@ -158,6 +171,7 @@ describe("Blackboard redirect validation", () => {
     const requested: string[] = [];
 
     const result = await fetchBlackboardCalendar("https://learn.example.edu/private/feed", {
+      allowedHosts: ["learn.example.edu", "cdn.example.edu"],
       resolveAddresses: async (url) => {
         resolved.push(url.hostname);
         return [PUBLIC_V4];
@@ -193,6 +207,20 @@ describe("Blackboard redirect validation", () => {
     expect(requestOnce).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects a redirect to a public but unconfigured host", async () => {
+    const requestOnce = vi
+      .fn()
+      .mockResolvedValue({ status: 302, headers: { location: "https://cdn.example.edu/feed" }, body: "" });
+
+    await expect(
+      fetchBlackboardCalendar("https://learn.example.edu/feed", {
+        resolveAddresses: async () => [PUBLIC_V4],
+        requestOnce,
+      }),
+    ).rejects.toMatchObject({ code: "untrusted_host" });
+    expect(requestOnce).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects a redirect whose DNS set contains a private address", async () => {
     const requestOnce = vi.fn(async (url: URL) =>
       url.hostname === "learn.example.edu"
@@ -202,6 +230,7 @@ describe("Blackboard redirect validation", () => {
 
     await expect(
       fetchBlackboardCalendar("https://learn.example.edu/feed", {
+        allowedHosts: ["learn.example.edu", "redirect.example.edu"],
         resolveAddresses: async (url) => {
           if (url.hostname === "redirect.example.edu") {
             throw new BlackboardFetchError("unsafe_dns", "Unsafe target.");

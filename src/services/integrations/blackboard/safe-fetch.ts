@@ -14,6 +14,7 @@ import {
 
 const MAX_BYTES = 2_000_000;
 const MAX_REDIRECTS = 3;
+const TOTAL_TIMEOUT_MS = 10_000;
 
 type BlackboardResponse = {
   status: number;
@@ -27,6 +28,7 @@ type RequestOnce = (url: URL, addresses: LookupAddress[]) => Promise<BlackboardR
 export type BlackboardFetchDependencies = {
   resolveAddresses?: ResolveAddresses;
   requestOnce?: RequestOnce;
+  allowedHosts?: readonly string[];
 };
 
 export class BlackboardFetchError extends Error {
@@ -149,6 +151,14 @@ function networkFailure(error: unknown): BlackboardFetchError {
 
 async function requestOnce(url: URL, addresses: LookupAddress[]): Promise<BlackboardResponse> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let totalTimer: NodeJS.Timeout | undefined;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (totalTimer) clearTimeout(totalTimer);
+      callback();
+    };
     const req = request(
       url,
       {
@@ -163,6 +173,17 @@ async function requestOnce(url: URL, addresses: LookupAddress[]): Promise<Blackb
         const chunks: Buffer[] = [];
         let size = 0;
 
+        const declaredLength = Number(response.headers["content-length"] ?? 0);
+        if (Number.isFinite(declaredLength) && declaredLength > MAX_BYTES) {
+          req.destroy(
+            new BlackboardFetchError(
+              "response_too_large",
+              "The Blackboard feed exceeds the size limit.",
+            ),
+          );
+          return;
+        }
+
         response.on("data", (chunk: Buffer) => {
           size += chunk.length;
           if (size > MAX_BYTES) {
@@ -176,21 +197,31 @@ async function requestOnce(url: URL, addresses: LookupAddress[]): Promise<Blackb
           }
           chunks.push(chunk);
         });
-        response.on("aborted", () => reject(networkFailure(null)));
-        response.on("end", () =>
-          resolve({
-            status: response.statusCode ?? 0,
-            headers: response.headers,
-            body: Buffer.concat(chunks).toString("utf8"),
-          }),
+        response.on("aborted", () =>
+          finish(() => reject(new BlackboardFetchError("partial_response", "Blackboard returned an incomplete calendar."))),
         );
+        response.on("end", () => {
+          if (!response.complete) {
+            finish(() => reject(new BlackboardFetchError("partial_response", "Blackboard returned an incomplete calendar.")));
+            return;
+          }
+          finish(() => resolve({
+              status: response.statusCode ?? 0,
+              headers: response.headers,
+              body: Buffer.concat(chunks).toString("utf8"),
+            }));
+        });
       },
     );
 
-    req.setTimeout(10_000, () =>
+    totalTimer = setTimeout(() =>
+      req.destroy(new BlackboardFetchError("timeout", "Blackboard did not respond in time.")),
+      TOTAL_TIMEOUT_MS,
+    );
+    req.setTimeout(TOTAL_TIMEOUT_MS, () =>
       req.destroy(new BlackboardFetchError("timeout", "Blackboard did not respond in time.")),
     );
-    req.on("error", (error) => reject(networkFailure(error)));
+    req.on("error", (error) => finish(() => reject(networkFailure(error))));
     req.end();
   });
 }
@@ -201,7 +232,9 @@ export async function fetchBlackboardCalendar(
 ): Promise<string> {
   const resolveAddresses = dependencies.resolveAddresses ?? resolvePublicAddresses;
   const sendRequest = dependencies.requestOnce ?? requestOnce;
-  let url = validateFeedUrl(value);
+  const initial = validateFeedUrl(value, dependencies.allowedHosts);
+  const allowedHosts = dependencies.allowedHosts ?? [normalizeFeedHostname(initial.hostname)];
+  let url = validateFeedUrl(initial.toString(), allowedHosts);
 
   for (let redirect = 0; redirect <= MAX_REDIRECTS; redirect += 1) {
     const addresses = await resolveAddresses(url);
@@ -216,7 +249,7 @@ export async function fetchBlackboardCalendar(
         throw new BlackboardFetchError("redirect", "The Blackboard feed redirected unsafely.");
       }
 
-      url = validateFeedUrl(new URL(location, url).toString());
+      url = validateFeedUrl(new URL(location, url).toString(), allowedHosts);
       continue;
     }
 

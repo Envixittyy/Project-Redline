@@ -75,11 +75,18 @@ export function isPublicAddress(address: string): boolean {
   return false;
 }
 
-export function validateFeedUrl(value: string): URL {
+export function normalizeBlackboardSubscriptionUrl(value: string): string {
+  const trimmed = value.trim();
+  return /^webcal:\/\//i.test(trimmed)
+    ? `https://${trimmed.slice(trimmed.indexOf("://") + 3)}`
+    : trimmed;
+}
+
+export function validateFeedUrl(value: string, allowedHosts?: readonly string[]): URL {
   let url: URL;
 
   try {
-    url = new URL(value);
+    url = new URL(normalizeBlackboardSubscriptionUrl(value));
   } catch {
     throw new BlackboardUrlError("invalid_url", "Enter a valid Blackboard calendar URL.");
   }
@@ -103,6 +110,16 @@ export function validateFeedUrl(value: string): URL {
     (isIP(hostname) !== 0 && !isPublicAddress(hostname))
   ) {
     throw new BlackboardUrlError("unsafe_host", "That feed host is not allowed.");
+  }
+
+  if (
+    allowedHosts &&
+    !allowedHosts.map(normalizeFeedHostname).includes(hostname)
+  ) {
+    throw new BlackboardUrlError(
+      "untrusted_host",
+      "That host is not configured as a trusted Blackboard host.",
+    );
   }
 
   return url;

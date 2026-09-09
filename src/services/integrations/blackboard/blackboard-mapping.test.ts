@@ -34,8 +34,8 @@ describe("Blackboard Manual Course Mapping & Deterministic Task Pipeline (Phase 
     { id: "redline-course-math240", code: "MATH240", name: "Linear Algebra" },
   ];
 
-  it("Stage 1 & 2: parses feed and resolves course strictly when saved in mappings", () => {
-    const items = parseBlackboardICalendar(sampleFeed);
+  it("Stage 1 & 2: parses feed and resolves course strictly when saved in mappings", async () => {
+    const items = await parseBlackboardICalendar(sampleFeed);
     expect(items).toHaveLength(2);
 
     const savedMappings: Record<string, string> = {
@@ -87,8 +87,8 @@ describe("Blackboard Manual Course Mapping & Deterministic Task Pipeline (Phase 
     });
   });
 
-  it("Stage 3: deterministic deduplication and synchronization replay", () => {
-    const items = parseBlackboardICalendar(sampleFeed);
+  it("Stage 3: deterministic deduplication and synchronization replay", async () => {
+    const items = await parseBlackboardICalendar(sampleFeed);
     const existing: ExistingBlackboardRecord[] = [
       {
         id: "rec-1",
@@ -114,12 +114,12 @@ describe("Blackboard Manual Course Mapping & Deterministic Task Pipeline (Phase 
     expect(plan.missing).toHaveLength(0);
   });
 
-  it("Stage 3: upstream deadline change produces update without duplicate item", () => {
+  it("Stage 3: upstream deadline change produces update without duplicate item", async () => {
     const modifiedFeed = sampleFeed.replace(
       "DTEND:20261010T170000Z",
       "DTEND:20261015T190000Z",
     );
-    const items = parseBlackboardICalendar(modifiedFeed);
+    const items = await parseBlackboardICalendar(modifiedFeed);
 
     const existing: ExistingBlackboardRecord[] = [
       {

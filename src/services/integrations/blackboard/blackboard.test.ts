@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import {
   isQuietHours,
@@ -8,7 +8,7 @@ import {
   safeNotificationPayload,
 } from "@/services/notifications/notification-domain";
 
-import { computeProposalRevision, parseBlackboardICalendar } from "./ical";
+import { computeProposalRevision, parseBlackboardICalendar, type BlackboardFeedItem } from "./ical";
 import { isPublicAddress, validateFeedUrl } from "./safe-url";
 import {
   blackboardRecordToExternalCalendarProjection,
@@ -30,8 +30,11 @@ const feed =
   "END:VCALENDAR";
 
 describe("Blackboard iCalendar", () => {
-  it("parses stable identity, deadline, source, and course", () => {
-    const [item] = parseBlackboardICalendar(feed);
+  it("parses stable identity, deadline, source, and course", async () => {
+    const [item] = await parseBlackboardICalendar(feed, {
+      allowedHosts: ["learn.example.edu"],
+      workspaceTimeZone: "Asia/Manila",
+    });
     expect(item).toMatchObject({
       uid: "item-1",
       title: "[CS101] Essay",
@@ -46,7 +49,7 @@ describe("Blackboard iCalendar", () => {
     expect(item.proposalRevision).toHaveLength(64);
   });
 
-  it("parses all-day date interval as date precision without inventing UTC instant", () => {
+  it("parses all-day date interval as date precision without inventing UTC instant", async () => {
     const allDayFeed =
       "BEGIN:VCALENDAR\r\n" +
       "BEGIN:VEVENT\r\n" +
@@ -55,13 +58,13 @@ describe("Blackboard iCalendar", () => {
       "DTSTART;VALUE=DATE:20261120\r\n" +
       "END:VEVENT\r\n" +
       "END:VCALENDAR";
-    const [item] = parseBlackboardICalendar(allDayFeed);
+    const [item] = await parseBlackboardICalendar(allDayFeed);
     expect(item.duePrecision).toBe("date");
     expect(item.dueDate).toBe("2026-11-20");
     expect(item.dueAt).toBeNull();
   });
 
-  it("parses valid TZID into accurate UTC instant", () => {
+  it("parses valid TZID into accurate UTC instant", async () => {
     const tzidFeed =
       "BEGIN:VCALENDAR\r\n" +
       "BEGIN:VEVENT\r\n" +
@@ -70,13 +73,13 @@ describe("Blackboard iCalendar", () => {
       "DTEND;TZID=America/New_York:20261015T140000\r\n" +
       "END:VEVENT\r\n" +
       "END:VCALENDAR";
-    const [item] = parseBlackboardICalendar(tzidFeed);
+    const [item] = await parseBlackboardICalendar(tzidFeed);
     expect(item.duePrecision).toBe("instant");
     expect(item.dueAt).toBe("2026-10-15T18:00:00.000Z"); // EDT is UTC-4
-    expect(item.dueDate).toBe("2026-10-15");
+    expect(item.dueDate).toBe("2026-10-16"); // Same instant on the Manila workspace calendar.
   });
 
-  it("flags floating date-times as unresolved precision", () => {
+  it("flags floating date-times as unresolved precision", async () => {
     const floatingFeed =
       "BEGIN:VCALENDAR\r\n" +
       "BEGIN:VEVENT\r\n" +
@@ -85,7 +88,7 @@ describe("Blackboard iCalendar", () => {
       "DTSTART:20261015T140000\r\n" +
       "END:VEVENT\r\n" +
       "END:VCALENDAR";
-    const [item] = parseBlackboardICalendar(floatingFeed);
+    const [item] = await parseBlackboardICalendar(floatingFeed);
     expect(item.duePrecision).toBe("unresolved");
     expect(item.dueAt).toBeNull();
   });
@@ -122,29 +125,27 @@ describe("Blackboard iCalendar", () => {
     expect(rev1).not.toBe(revChanged);
   });
 
-  it("uses deterministic fallback identity and marks isFallbackUid", () => {
-    const a = parseBlackboardICalendar(
-      feed.replace("UID:item-1\r\n", "").replace("DTEND:20300102", "DTEND:20300103"),
-    )[0];
-    const b = parseBlackboardICalendar(
-      feed.replace("UID:item-1\r\n", "").replace("DTEND:20300102", "DTEND:20300104"),
-    )[0];
-    expect(a.uid).toMatch(/^fallback:/);
-    expect(a.isFallbackUid).toBe(true);
-    expect(a.uid).not.toBe(b.uid);
+  it("rejects UID-less events instead of inventing mutable identity", async () => {
+    await expect(parseBlackboardICalendar(feed.replace("UID:item-1\r\n", ""))).rejects.toMatchObject({
+      code: "invalid_event",
+    });
   });
 });
 
 describe("Blackboard sync plan", () => {
-  const item = parseBlackboardICalendar(feed)[0];
-  const existing: ExistingBlackboardRecord = {
-    id: "r1",
-    externalUid: item.uid,
-    contentHash: "old",
-    taskId: "legacy-linked-task",
-    dueAt: null,
-    missingSince: null,
-  };
+  let item: BlackboardFeedItem;
+  let existing: ExistingBlackboardRecord;
+  beforeAll(async () => {
+    item = (await parseBlackboardICalendar(feed))[0];
+    existing = {
+      id: "r1",
+      externalUid: item.uid,
+      contentHash: "old",
+      taskId: "legacy-linked-task",
+      dueAt: null,
+      missingSince: null,
+    };
+  });
 
   it("deduplicates repeated feed items and plans provider-record fields only", () => {
     const plan = planBlackboardSync([item, item], [existing]);

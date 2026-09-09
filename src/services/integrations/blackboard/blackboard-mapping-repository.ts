@@ -125,6 +125,7 @@ export async function listUnassignedBlackboardRecords(
     .is("course_id", null)
     .is("missing_since", null)
     .is("task_id", null)
+    .is("school_item_id", null)
     .order("due_date", { ascending: true, nullsFirst: false });
 
   if (accountId) {

@@ -30,5 +30,7 @@ describe("Blackboard calendar characterization", () => {
     expect(serialized).not.toContain("Assignment 1");
     expect(serialized).not.toContain("_201_1");
     expect(serialized).not.toContain("uploadAssignment?");
+    expect(serialized).not.toContain("Assignment");
+    expect(serialized).not.toContain("Computer Science");
   });
 });

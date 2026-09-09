@@ -8,9 +8,12 @@ import {
   saveBlackboardCourseMapping,
 } from "@/services/integrations/blackboard/blackboard-mapping-repository";
 import {
+  characterizeConfiguredBlackboardFeed,
   configureBlackboardFeed,
   runBlackboardSync,
 } from "@/services/integrations/blackboard/blackboard-repository";
+import type { BlackboardCalendarCharacterization } from "@/services/integrations/blackboard/characterization";
+import { BlackboardCalendarParseError } from "@/services/integrations/blackboard/ical";
 import { BlackboardFetchError } from "@/services/integrations/blackboard/safe-fetch";
 import {
   BlackboardUrlError,
@@ -21,6 +24,10 @@ import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 export type IntegrationActionResult =
   | { ok: true; message: string }
   | { ok: false; message: string };
+
+export type BlackboardCharacterizationActionResult =
+  | { ok: true; message: string; report: BlackboardCalendarCharacterization }
+  | { ok: false; message: string; report?: never };
 
 function refresh() {
   revalidatePath("/integrations/blackboard");
@@ -35,7 +42,9 @@ function safeDiagnostic(error: unknown) {
   return {
     name: error instanceof Error ? error.name : "UnknownError",
     code:
-      error instanceof BlackboardFetchError || error instanceof BlackboardUrlError
+      error instanceof BlackboardFetchError ||
+      error instanceof BlackboardUrlError ||
+      error instanceof BlackboardCalendarParseError
         ? error.code
         : "unknown",
     message: error instanceof Error ? error.message : "Unknown Blackboard error",
@@ -44,6 +53,7 @@ function safeDiagnostic(error: unknown) {
 
 function syncFailureMessage(error: unknown): string {
   if (error instanceof BlackboardUrlError) return error.message;
+  if (error instanceof BlackboardCalendarParseError) return error.message;
   if (!(error instanceof BlackboardFetchError)) {
     return "Blackboard sync failed safely. Review Sync health and try again.";
   }
@@ -56,6 +66,7 @@ function syncFailureMessage(error: unknown): string {
     case "timeout":
       return "Blackboard did not respond before the secure connection timed out.";
     case "response_too_large":
+    case "partial_response":
     case "redirect":
     case "content_type":
     case "invalid_calendar":
@@ -79,13 +90,13 @@ export async function configureBlackboardAction(
     refresh();
     return {
       ok: true,
-      message: "Blackboard calendar connected. The credential is encrypted and will not be shown again.",
+      message: "Blackboard calendar connected in observe mode. The credential is encrypted and will not be shown again.",
     };
   } catch (error) {
     console.error("[blackboard] configuration failed:", safeDiagnostic(error));
     return {
       ok: false,
-      message: error instanceof BlackboardUrlError ? error.message : "Blackboard could not be connected.",
+      message: syncFailureMessage(error),
     };
   }
 }
@@ -94,13 +105,30 @@ export async function syncBlackboardAction(): Promise<IntegrationActionResult> {
   try {
     const result = await runBlackboardSync();
     refresh();
-    const unassignedMsg = result.unassigned > 0 ? ` (${result.unassigned} unassigned to review)` : "";
+    const unresolvedMsg = result.unresolved > 0 ? ` (${result.unresolved} unresolved to review)` : "";
+    const modeMessage = result.mode === "observe"
+      ? "Observe-only sync complete; no School or Task records were changed"
+      : `Apply sync complete: ${result.applied} canonical change${result.applied === 1 ? "" : "s"} applied`;
     return {
       ok: true,
-      message: `Sync complete: ${result.created} new, ${result.updated} updated, ${result.missing} missing-source${unassignedMsg}.`,
+      message: `${modeMessage}. ${result.created} new observations, ${result.updated} updated, ${result.missing} missing-source${unresolvedMsg}.`,
     };
   } catch (error) {
     console.error("[blackboard] sync failed:", safeDiagnostic(error));
+    return { ok: false, message: syncFailureMessage(error) };
+  }
+}
+
+export async function characterizeBlackboardAction(): Promise<BlackboardCharacterizationActionResult> {
+  try {
+    const report = await characterizeConfiguredBlackboardFeed();
+    return {
+      ok: true,
+      message: `Redacted characterization complete for ${report.calendar.eventCount} event${report.calendar.eventCount === 1 ? "" : "s"}.`,
+      report,
+    };
+  } catch (error) {
+    console.error("[blackboard] characterization failed:", safeDiagnostic(error));
     return { ok: false, message: syncFailureMessage(error) };
   }
 }

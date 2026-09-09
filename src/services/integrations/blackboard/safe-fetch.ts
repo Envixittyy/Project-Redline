@@ -152,11 +152,11 @@ function networkFailure(error: unknown): BlackboardFetchError {
 async function requestOnce(url: URL, addresses: LookupAddress[]): Promise<BlackboardResponse> {
   return new Promise((resolve, reject) => {
     let settled = false;
-    let totalTimer: NodeJS.Timeout | undefined;
+    const timeout: { timer?: NodeJS.Timeout } = {};
     const finish = (callback: () => void) => {
       if (settled) return;
       settled = true;
-      if (totalTimer) clearTimeout(totalTimer);
+      if (timeout.timer) clearTimeout(timeout.timer);
       callback();
     };
     const req = request(
@@ -214,7 +214,7 @@ async function requestOnce(url: URL, addresses: LookupAddress[]): Promise<Blackb
       },
     );
 
-    totalTimer = setTimeout(() =>
+    timeout.timer = setTimeout(() =>
       req.destroy(new BlackboardFetchError("timeout", "Blackboard did not respond in time.")),
       TOTAL_TIMEOUT_MS,
     );

@@ -173,6 +173,14 @@ describe("Blackboard S2 calendar reconciliation through actual PostgreSQL migrat
     await db.exec("set role service_role");
   });
 
+  it("requires an operator service role to activate apply mode", async () => {
+    await db.exec(`reset role; select set_config('request.jwt.claim.sub','${owner}',false); set role authenticated`);
+    await expect(
+      db.query("update integration_accounts set blackboard_sync_mode='apply' where id=$1", [account]),
+    ).rejects.toThrow(/operator service role/i);
+    await db.exec("reset role; set role service_role");
+  });
+
   it("stores repeated identical snapshots idempotently in observe mode without School mutations", async () => {
     const firstObservation = observation();
     const first = await reconcile("observe", [firstObservation]);

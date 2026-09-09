@@ -5,6 +5,7 @@ import {
   Bell,
   BookOpen,
   CheckCircle2,
+  FileSearch,
   Layers,
   Plus,
   RefreshCw,
@@ -16,9 +17,11 @@ import { useState, useTransition } from "react";
 
 import { Surface } from "@/components/ui/surface";
 import type { BlackboardStatus } from "@/services/integrations/blackboard/blackboard-repository";
+import type { BlackboardCalendarCharacterization } from "@/services/integrations/blackboard/characterization";
 
 import {
   assignBlackboardRecordsAction,
+  characterizeBlackboardAction,
   configureBlackboardAction,
   deleteCourseMappingAction,
   saveCourseMappingAction,
@@ -35,6 +38,8 @@ type BlackboardPanelProps = {
 export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [characterization, setCharacterization] =
+    useState<BlackboardCalendarCharacterization | null>(null);
 
   // Manual mapping state
   const [newSourceCourse, setNewSourceCourse] = useState("");
@@ -58,6 +63,14 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
+    });
+  }
+
+  function inspectStructure() {
+    startTransition(async () => {
+      const res = await characterizeBlackboardAction();
+      setMessage(res.message);
+      if (res.ok) setCharacterization(res.report);
     });
   }
 
@@ -107,8 +120,13 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
             {status.syncState}
           </span>
         </header>
+        <p className={styles.modeLine}>
+          Current mode: <strong>{status.mode}</strong>
+        </p>
         <p className={styles.copy}>
-          The feed URL is encrypted server-side with AES-256-GCM. Only calendar-related Blackboard records are imported.
+          S1 email ingestion remains active. Calendar sync starts in observe mode, records
+          auditable proposals, and cannot mutate School or Tasks until an operator enables apply mode.
+          The private feed URL is encrypted server-side with AES-256-GCM.
         </p>
         <form
           className={styles.form}
@@ -141,13 +159,30 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
         {status.connected ? (
           <button
             className={styles.buttonSecondary}
-            disabled={pending || status.syncState === "syncing"}
+            disabled={pending || status.syncState === "syncing" || status.mode === "off"}
             type="button"
             onClick={() => run(syncBlackboardAction)}
           >
             <RefreshCw size={16} />
             Sync now
           </button>
+        ) : null}
+        {status.connected ? (
+          <button
+            className={styles.buttonSecondary}
+            disabled={pending || status.mode === "off"}
+            type="button"
+            onClick={inspectStructure}
+          >
+            <FileSearch size={16} />
+            Inspect redacted structure
+          </button>
+        ) : null}
+        {characterization ? (
+          <details className={styles.report}>
+            <summary>Redacted feed characterization</summary>
+            <pre>{JSON.stringify(characterization, null, 2)}</pre>
+          </details>
         ) : null}
         {message ? (
           <p role="status" className={styles.message}>
@@ -161,7 +196,7 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
         <header>
           <BookOpen size={20} />
           <div>
-            <p>Manual Course Mapping (Phase 7C)</p>
+            <p>Deterministic course mapping</p>
             <h2>{status.mappings.length} Saved {status.mappings.length === 1 ? "Mapping" : "Mappings"}</h2>
           </div>
         </header>
@@ -248,15 +283,15 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
         )}
       </Surface>
 
-      {/* 3. Unassigned Blackboard Queue (Full Width) */}
+      {/* 3. Unresolved Blackboard Queue (Full Width) */}
       <Surface variant="glass" className={`${styles.card} ${styles.fullWidth}`}>
         <header>
           <Layers size={20} />
           <div>
-            <p>Unassigned Events Queue</p>
+            <p>Unresolved observations</p>
             <h2>
               {status.unassigned.length > 0
-                ? `${status.unassigned.length} Unassigned ${status.unassigned.length === 1 ? "Item" : "Items"}`
+                ? `${status.unassigned.length} Unresolved ${status.unassigned.length === 1 ? "Item" : "Items"}`
                 : "Queue Clear"}
             </h2>
           </div>
@@ -265,7 +300,8 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
         {status.unassigned.length > 0 ? (
           <div className={styles.unassignedQueue}>
             <p className={styles.copy}>
-              These items arrived from Blackboard but do not match any saved course mapping. Assign them to a Redline course below.
+              These observations do not match a single canonical course. Map them explicitly;
+              title similarity is never used as an automatic identity.
             </p>
 
             {status.courses.length > 0 ? (

@@ -6,6 +6,23 @@ alter table public.integration_accounts
   add column blackboard_sync_mode text not null default 'off'
     check (blackboard_sync_mode in ('off','observe','apply'));
 
+create function public.enforce_blackboard_sync_mode_activation() returns trigger
+language plpgsql set search_path='' as $$
+begin
+  if new.provider='blackboard'
+    and new.blackboard_sync_mode='apply'
+    and auth.role() is distinct from 'service_role'
+  then
+    raise exception 'Blackboard apply mode requires an operator service role' using errcode='42501';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger blackboard_s2_sync_mode_activation
+  before insert or update of blackboard_sync_mode on public.integration_accounts
+  for each row execute function public.enforce_blackboard_sync_mode_activation();
+
 alter table public.sync_runs
   add column sync_mode text check (sync_mode in ('observe','apply')),
   add column snapshot_complete boolean not null default false;

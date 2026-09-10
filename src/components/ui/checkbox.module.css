@@ -1,0 +1,81 @@
+.container {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.75rem; /* Touch target minimum on mobile */
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.containerDisabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control, 0.375rem);
+  background: var(--input);
+  color: #ffffff;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .container:hover:not(.containerDisabled) .box {
+    border-color: var(--accent-border);
+    background: var(--surface-hover);
+  }
+}
+
+.input:focus-visible + .box {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
+.boxChecked {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.boxIndeterminate {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.label {
+  font-size: 0.875rem;
+  font-weight: 550;
+  line-height: 1.4;
+}
+
+.description {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

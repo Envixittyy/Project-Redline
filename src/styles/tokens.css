@@ -80,6 +80,17 @@
   --radius-md: 1rem;
   --radius-lg: 1.35rem;
   --radius-xl: 1.75rem;
+  --radius-pill: 9999px;
+
+  /* Semantic status color-mix helpers */
+  --success-muted: color-mix(in oklch, var(--success) 16%, transparent);
+  --success-text: color-mix(in oklch, var(--success) 82%, var(--text-primary));
+  --warning-muted: color-mix(in oklch, var(--warning) 16%, transparent);
+  --warning-text: color-mix(in oklch, var(--warning) 82%, var(--text-primary));
+  --destructive-muted: color-mix(in oklch, var(--destructive) 16%, transparent);
+  --destructive-text: color-mix(in oklch, var(--destructive) 82%, var(--text-primary));
+  --info-muted: color-mix(in oklch, var(--info) 16%, transparent);
+  --info-text: color-mix(in oklch, var(--info) 82%, var(--text-primary));
   --motion-instant: 80ms;
   --motion-press: 120ms;
   --motion-fast: 140ms;

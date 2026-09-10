@@ -61,3 +61,21 @@
     transform: none;
   }
 }
+
+/* Padding presets */
+.padNone {
+  padding: 0;
+}
+
+.padSm {
+  padding: 0.75rem;
+}
+
+.padMd {
+  padding: 1rem;
+}
+
+.padLg {
+  padding: 1.5rem;
+}
+

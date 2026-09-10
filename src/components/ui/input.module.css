@@ -1,0 +1,182 @@
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control, 0.625rem);
+  background: var(--input);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 1rem; /* 16px prevents iOS Safari automatic zoom */
+  line-height: 1.4;
+  outline: none;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease);
+}
+
+@media (min-width: 48rem) {
+  .input {
+    font-size: 0.875rem;
+  }
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .input:hover:not(:disabled) {
+    border-color: var(--border-strong);
+  }
+}
+
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface-subtle);
+}
+
+.invalid,
+.input[aria-invalid="true"] {
+  border-color: var(--destructive);
+}
+
+.invalid:focus,
+.input[aria-invalid="true"]:focus {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 2px var(--destructive-muted);
+}
+
+/* Input with prefix icon / element */
+.hasPrefix {
+  padding-left: 2.5rem;
+}
+
+.prefix {
+  position: absolute;
+  left: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Input with suffix element / button */
+.hasSuffix {
+  padding-right: 2.5rem;
+}
+
+.suffix {
+  position: absolute;
+  right: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+/* Textarea */
+.textarea {
+  width: 100%;
+  min-height: 5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control, 0.625rem);
+  background: var(--input);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease);
+}
+
+@media (min-width: 48rem) {
+  .textarea {
+    font-size: 0.875rem;
+  }
+}
+
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .textarea:hover:not(:disabled) {
+    border-color: var(--border-strong);
+  }
+}
+
+.textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+.textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface-subtle);
+}
+
+.textarea[aria-invalid="true"] {
+  border-color: var(--destructive);
+}
+
+.textarea[aria-invalid="true"]:focus {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 2px var(--destructive-muted);
+}
+
+/* Search input specific */
+.clearButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .clearButton:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+}
+
+.searchKbd {
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
+  font-weight: 600;
+  pointer-events: none;
+}

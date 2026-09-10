@@ -11,7 +11,7 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
   (
     {
       className = "",
-      checked = false,
+      checked,
       disabled = false,
       label,
       description,
@@ -45,10 +45,9 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
             role="switch"
             checked={checked}
             disabled={disabled}
-            readOnly={props.readOnly ?? (!onChange && checked !== undefined)}
             onChange={onChange}
             className={styles.input}
-            aria-checked={checked}
+            aria-checked={checked !== undefined ? Boolean(checked) : undefined}
             {...props}
           />
           <span className={styles.track} aria-hidden="true">

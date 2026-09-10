@@ -12,6 +12,7 @@ export type ModalFrameProps = {
   size?: ModalSize;
   className?: string;
   onClose: () => void;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
 };
 
 /** Native modal supplies focus containment, Escape, and return-focus semantics. */
@@ -21,20 +22,55 @@ export function ModalFrame({
   size = "md",
   className = "",
   onClose,
+  initialFocusRef,
 }: ModalFrameProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    previousActiveElement.current = document.activeElement as HTMLElement | null;
     const dialog = ref.current;
     if (dialog && !dialog.open) {
       dialog.showModal();
+
+      // Enter focus appropriately
+      if (typeof window !== "undefined") {
+        window.requestAnimationFrame(() => {
+          if (!dialog.isConnected) return;
+          if (initialFocusRef?.current) {
+            initialFocusRef.current.focus();
+          } else {
+            const autoFocusElement =
+              dialog.querySelector<HTMLElement>("[autofocus]");
+            if (autoFocusElement) {
+              autoFocusElement.focus();
+            } else {
+              const firstFocusable = dialog.querySelector<HTMLElement>(
+                'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+              );
+              if (firstFocusable) {
+                firstFocusable.focus();
+              } else {
+                dialog.focus();
+              }
+            }
+          }
+        });
+      }
     }
+
     return () => {
       if (dialog && dialog.open) {
         dialog.close();
       }
+      if (
+        previousActiveElement.current &&
+        typeof previousActiveElement.current.focus === "function"
+      ) {
+        previousActiveElement.current.focus();
+      }
     };
-  }, []);
+  }, [initialFocusRef]);
 
   const sizeClass =
     size === "sm"
@@ -48,6 +84,9 @@ export function ModalFrame({
   return (
     <dialog
       ref={ref}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
       aria-label={label}
       className={`${styles.dialog} ${sizeClass} ${className}`}
       onKeyDown={(event) => {
@@ -57,19 +96,42 @@ export function ModalFrame({
           onClose();
         }
         if (event.key === "Tab") {
-          const elements = Array.from(
+          const focusable = Array.from(
             ref.current?.querySelectorAll<HTMLElement>(
-              "button:enabled, input:enabled, select:enabled, textarea:enabled, [tabindex]:not([tabindex='-1'])",
+              'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
             ) ?? [],
-          ).filter((element) => element.getClientRects().length > 0);
-          const first = elements.at(0);
-          const last = elements.at(-1);
-          if (event.shiftKey && document.activeElement === first) {
+          ).filter(
+            (element) =>
+              element.offsetParent !== null ||
+              element.getClientRects().length > 0 ||
+              (typeof window !== "undefined" &&
+                window.getComputedStyle(element).display !== "none"),
+          );
+
+          if (focusable.length === 0) {
             event.preventDefault();
-            last?.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first?.focus();
+            return;
+          }
+
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+
+          if (event.shiftKey) {
+            if (
+              document.activeElement === first ||
+              !ref.current?.contains(document.activeElement)
+            ) {
+              event.preventDefault();
+              last.focus();
+            }
+          } else {
+            if (
+              document.activeElement === last ||
+              !ref.current?.contains(document.activeElement)
+            ) {
+              event.preventDefault();
+              first.focus();
+            }
           }
         }
       }}
@@ -180,6 +242,7 @@ export type ModalProps = {
   footer?: ReactNode;
   size?: ModalSize;
   className?: string;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
 };
 
 export function Modal({
@@ -191,6 +254,7 @@ export function Modal({
   footer,
   size = "md",
   className = "",
+  initialFocusRef,
 }: ModalProps) {
   if (!isOpen) return null;
 
@@ -200,6 +264,7 @@ export function Modal({
       size={size}
       className={className}
       onClose={onClose}
+      initialFocusRef={initialFocusRef}
     >
       <ModalHeader onClose={onClose}>
         <ModalTitle>{title}</ModalTitle>

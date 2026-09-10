@@ -88,7 +88,46 @@
 .captureField textarea:focus,
 .proposal input:focus,
 .proposal textarea:focus {
-  border-color: var(--accent-border);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+  outline: none;
+}
+
+.proposalCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.proposalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.proposalTitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.proposalMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.proposalActions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
 }
 
 .composerFooter,
@@ -322,25 +361,44 @@
 
 .launcherBackdrop {
   position: fixed;
-  z-index: 90;
+  z-index: 100;
   inset: 0;
   display: grid;
   align-items: end;
-  padding: 1rem;
+  padding:
+    max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
   background: var(--scrim);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .launcherPanel {
   width: min(100%, 38rem);
-  max-height: calc(100svh - 2rem);
+  max-height: calc(
+    100svh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+  );
   margin-inline: auto;
-  overflow: auto;
-  padding: 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem;
   border: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-highlight);
   border-radius: var(--radius-xl);
-  background: var(--surface-elevated);
-  box-shadow: var(--shadow-elevated);
+  background: var(--surface-modal, oklch(19.5% 0.03 255 / 92%));
+  box-shadow: var(--shadow-modal);
+  backdrop-filter: blur(var(--blur-surface, 16px));
+  -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
+}
+
+.launcherHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
 }
 
 .launcherHeading > div:nth-child(2) {
@@ -352,30 +410,57 @@
   color: var(--accent-text);
   font-size: 0.68rem;
   font-weight: 750;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .launcherHeading > button {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
   place-items: center;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control, 0.5rem);
+  background: var(--surface-subtle);
   cursor: pointer;
   color: var(--text-secondary);
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .launcherHeading > button:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+  }
+}
+
+.launcherHeading > button:active {
+  transform: scale(0.96);
 }
 
 .inboxLink {
   display: block;
-  margin-top: 0.9rem;
+  margin-top: 0.95rem;
   color: var(--accent-text);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 700;
   text-align: center;
   text-decoration: none;
+  transition: color var(--motion-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .inboxLink:hover {
+    color: var(--accent-bright);
+    text-decoration: underline;
+  }
 }
 
 @media (max-width: 34rem) {

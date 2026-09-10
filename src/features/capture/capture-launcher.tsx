@@ -87,14 +87,14 @@ export function CaptureLauncher() {
 
   return (
     <div className={styles.launcherBackdrop} onMouseDown={(event) => event.target === event.currentTarget && close()}>
-      <div ref={panelRef} className={`${styles.launcherPanel} motion-enter`} role="dialog" aria-modal="true" aria-labelledby="capture-dialog-title" onKeyDown={trapFocus}>
+      <div ref={panelRef} className={`${styles.launcherPanel} motion-modal-enter`} role="dialog" aria-modal="true" aria-labelledby="capture-dialog-title" onKeyDown={trapFocus}>
         <div className={styles.launcherHeading}>
-          <span className={styles.launcherIcon} aria-hidden="true"><Inbox size={19} /></span>
+          <span className={styles.launcherIcon} aria-hidden="true"><Inbox size={18} /></span>
           <div>
             <p>Universal capture</p>
             <h2 id="capture-dialog-title">Get it out of your head</h2>
           </div>
-          <button type="button" aria-label="Close universal capture" onClick={close}><X size={19} /></button>
+          <button type="button" aria-label="Close universal capture" onClick={close}><X size={18} aria-hidden="true" /></button>
         </div>
         <CaptureComposer compact onCaptured={close} />
         <Link className={styles.inboxLink} href="/inbox" onClick={close}>Open Capture Inbox</Link>

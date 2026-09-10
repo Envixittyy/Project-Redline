@@ -353,7 +353,7 @@ export function CommandPalette() {
         >
           <div
             ref={panelRef}
-            className={`${styles.panel} motion-enter`}
+            className={`${styles.panel} motion-modal-enter`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="command-palette-title"

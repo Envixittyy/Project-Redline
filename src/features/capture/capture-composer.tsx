@@ -1,9 +1,11 @@
 "use client";
 
-import { Check, Inbox, Loader2, Send, Sparkles, X } from "lucide-react";
+import { Check, Inbox, Send, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Surface } from "@/components/ui/surface";
 import { createCaptureAction } from "@/features/capture/capture-actions";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
@@ -127,48 +129,48 @@ export function CaptureComposer({
 
       {/* AI Parsed Proposal Preview Card */}
       {aiProposal ? (
-        <div
-          style={{
-            padding: "0.85rem",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--accent-border, var(--border-strong))",
-            background: "var(--surface)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.45rem",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <Sparkles size={14} color="var(--accent-text)" />
-              <strong style={{ fontSize: "0.82rem", color: "var(--accent-text)", textTransform: "uppercase" }}>
-                Parsed as {aiProposal.captured.entityType === "task" ? "Task" : "Calendar Event"}
-              </strong>
-            </div>
-            <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "var(--text-secondary)" }}>
-              [{aiProposal.confidence} CONFIDENCE]
-            </span>
+        <div className={styles.proposalCard}>
+          <div className={styles.proposalHeader}>
+            <Badge
+              tone="accent"
+              size="sm"
+              icon={<Sparkles size={13} />}
+            >
+              Parsed as {aiProposal.captured.entityType === "task" ? "Task" : "Calendar Event"}
+            </Badge>
+            <Badge tone="neutral" size="sm">
+              {aiProposal.confidence.toUpperCase()} CONFIDENCE
+            </Badge>
           </div>
 
-          <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--text-primary)" }}>
+          <div className={styles.proposalTitle}>
             {aiProposal.captured.title}
           </div>
 
           {aiProposal.captured.entityType === "task" ? (
-            <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "flex", gap: "0.6rem" }}>
+            <div className={styles.proposalMeta}>
               {(aiProposal.captured as ProposedTaskCapture).dueDate ? (
-                <span>Due: {(aiProposal.captured as ProposedTaskCapture).dueDate} {(aiProposal.captured as ProposedTaskCapture).dueTime || ""}</span>
+                <span>
+                  Due: {(aiProposal.captured as ProposedTaskCapture).dueDate}{" "}
+                  {(aiProposal.captured as ProposedTaskCapture).dueTime || ""}
+                </span>
               ) : null}
-              <span>Priority: {(aiProposal.captured as ProposedTaskCapture).priority || "medium"}</span>
+              <span>
+                Priority: {(aiProposal.captured as ProposedTaskCapture).priority || "medium"}
+              </span>
               {(aiProposal.captured as ProposedTaskCapture).courseCode ? (
-                <span>Course: {(aiProposal.captured as ProposedTaskCapture).courseCode}</span>
+                <span>
+                  Course: {(aiProposal.captured as ProposedTaskCapture).courseCode}
+                </span>
               ) : null}
             </div>
           ) : (
-            <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "flex", gap: "0.6rem" }}>
+            <div className={styles.proposalMeta}>
               <span>
                 Date: {(aiProposal.captured as ProposedEventCapture).startDate}
-                {(aiProposal.captured as ProposedEventCapture).startTime ? ` ${(aiProposal.captured as ProposedEventCapture).startTime}–${(aiProposal.captured as ProposedEventCapture).endTime || ""}` : " (All Day)"}
+                {(aiProposal.captured as ProposedEventCapture).startTime
+                  ? ` ${(aiProposal.captured as ProposedEventCapture).startTime}–${(aiProposal.captured as ProposedEventCapture).endTime || ""}`
+                  : " (All Day)"}
               </span>
               {(aiProposal.captured as ProposedEventCapture).location ? (
                 <span>Location: {(aiProposal.captured as ProposedEventCapture).location}</span>
@@ -176,48 +178,25 @@ export function CaptureComposer({
             </div>
           )}
 
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.4rem" }}>
-            <button
-              type="button"
-              className="motion-tactile"
+          <div className={styles.proposalActions}>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Check size={14} />}
               disabled={pending}
               onClick={handleCreateFromProposal}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.3rem",
-                padding: "0.35rem 0.75rem",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--accent)",
-                color: "var(--accent-foreground)",
-                border: "none",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
             >
-              <Check size={13} /> Create {aiProposal.captured.entityType === "task" ? "Task" : "Event"}
-            </button>
-            <button
-              type="button"
-              className="motion-tactile"
+              Create {aiProposal.captured.entityType === "task" ? "Task" : "Event"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<X size={14} />}
               disabled={pending}
               onClick={() => setAiProposal(null)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.3rem",
-                padding: "0.35rem 0.65rem",
-                borderRadius: "var(--radius-sm)",
-                background: "transparent",
-                color: "var(--text-secondary)",
-                border: "1px solid var(--border-subtle)",
-                fontSize: "0.78rem",
-                cursor: "pointer",
-              }}
             >
-              <X size={13} /> Cancel
-            </button>
+              Cancel
+            </Button>
           </div>
         </div>
       ) : null}
@@ -227,19 +206,26 @@ export function CaptureComposer({
           {message ?? "Saved as immutable evidence. You decide what it becomes next."}
         </p>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button
-            className={`${styles.secondaryButton} motion-interactive`}
-            type="button"
+          <Button
+            variant="secondary"
+            size="md"
             onClick={handleAiParse}
             disabled={pending || aiParsing}
+            loading={aiParsing}
+            icon={aiParsing ? undefined : <Sparkles size={16} />}
           >
-            {aiParsing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
             {aiParsing ? "Parsing…" : "Parse with AI"}
-          </button>
-          <button className={`${styles.primaryButton} motion-interactive`} type="submit" disabled={pending || aiParsing}>
-            <Send size={17} aria-hidden="true" />
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            type="submit"
+            disabled={pending || aiParsing}
+            loading={pending}
+            icon={pending ? undefined : <Send size={16} />}
+          >
             {pending ? "Saving…" : "Send to Inbox"}
-          </button>
+          </Button>
         </div>
       </div>
     </form>

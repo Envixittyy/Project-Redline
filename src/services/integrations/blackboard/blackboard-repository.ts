@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { resolveTimeZone } from "@/lib/date/day";
 import { getSupabaseAdminClient } from "@/services/supabase/admin";
+import { formatPostgrestErrorDiagnostic } from "@/services/supabase/errors";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type { ExternalCalendarProjection } from "@/types/external-calendar";
 
@@ -385,7 +386,9 @@ export async function listBlackboardCalendarProjectionsInRange(
     .limit(500);
 
   if (error) {
-    console.error("[blackboard] Failed to load calendar records:", error);
+    console.error(
+      `[blackboard] Failed to load calendar records: ${formatPostgrestErrorDiagnostic(error)}`,
+    );
     throw error;
   }
 

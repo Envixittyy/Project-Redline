@@ -9,8 +9,10 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
+import { Button } from "@/components/ui/button";
+import buttonStyles from "@/components/ui/button.module.css";
 import { Surface } from "@/components/ui/surface";
 import type { CalendarItem } from "@/features/calendar/calendar-items";
 import type { Task } from "@/types/task";
@@ -27,12 +29,14 @@ type WhatShouldIDoNowProps = {
   tasks: Task[];
   scheduleItems: CalendarItem[];
   timeZone: string;
+  children?: ReactNode;
 };
 
 export function WhatShouldIDoNow({
   tasks,
   scheduleItems,
   timeZone,
+  children,
 }: WhatShouldIDoNowProps) {
   const [planningModalOpen, setPlanningModalOpen] = useState(false);
 
@@ -67,11 +71,15 @@ export function WhatShouldIDoNow({
     }
   }
 
+  const isLiveAction =
+    recommendation.kind === "active_work_session" ||
+    recommendation.kind === "imminent_commitment";
+
   return (
     <>
       <Surface
         variant="glass"
-        className={`${styles.container} motion-enter`}
+        className={`${styles.container} ${isLiveAction ? styles.containerLive : ""} motion-enter`}
         data-dashboard-widget="planning"
       >
         <div className={styles.header}>
@@ -94,31 +102,33 @@ export function WhatShouldIDoNow({
         <div className={styles.actions}>
           <Link
             href="/focus"
-            className={styles.planButton}
+            className={`${buttonStyles.button} ${buttonStyles.primary} ${buttonStyles.md}`}
             title="Open distraction-free Focus Mode"
           >
-            <Zap size={15} aria-hidden="true" />
-            Focus Mode
+            <Zap size={16} aria-hidden="true" />
+            <span>Focus Mode</span>
           </Link>
 
-          <button
-            type="button"
-            className={styles.secondaryLink}
+          <Button
+            variant="secondary"
+            size="md"
+            icon={<Compass size={16} />}
             onClick={() => setPlanningModalOpen(true)}
           >
-            <Compass size={15} aria-hidden="true" />
             Plan My Day
-          </button>
+          </Button>
 
           {"task" in recommendation && recommendation.task ? (
             <Link
               href={`/tasks?view=today`}
-              className={styles.secondaryLink}
+              className={`${buttonStyles.button} ${buttonStyles.ghost} ${buttonStyles.md}`}
             >
-              Open Task
+              <span>Open Task</span>
             </Link>
           ) : null}
         </div>
+
+        {children ? <div className={styles.extraContent}>{children}</div> : null}
       </Surface>
 
       {planningModalOpen ? (

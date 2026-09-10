@@ -1,9 +1,9 @@
 .toolbar {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .toolbar h2,
@@ -13,54 +13,58 @@
   margin: 0;
 }
 
-.toolbar h2 {
-  margin-top: 0.22rem;
-  font-size: clamp(1.25rem, 4vw, 1.7rem);
-  letter-spacing: -0.04em;
-}
-
 .kicker {
-  color: var(--text-tertiary);
+  color: var(--accent-text);
   font-size: 0.7rem;
-  font-weight: 740;
-  letter-spacing: 0.11em;
+  font-weight: 750;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.editButton,
-.toggleButton {
+.toolbar h2 {
+  margin-top: 0.15rem;
+  font-size: clamp(1.15rem, 3vw, 1.45rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.editButton {
   display: inline-flex;
-  min-height: 2.75rem;
+  min-height: 2.25rem;
   align-items: center;
   justify-content: center;
-  gap: 0.48rem;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control, var(--radius-md));
   background: var(--surface-interactive);
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 0.78rem;
-  font-weight: 690;
-}
-
-.editButton {
-  flex: none;
-  padding: 0.55rem 0.76rem;
+  font-weight: 650;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .controls {
   display: grid;
   gap: 1rem;
-  margin-bottom: 1rem;
-  padding: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.15rem;
+  border-radius: var(--radius-lg);
 }
 
 .controls h3 {
   font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .controls p {
-  margin-top: 0.28rem;
+  margin-top: 0.25rem;
   color: var(--text-tertiary);
   font-size: 0.76rem;
   line-height: 1.45;
@@ -73,8 +77,22 @@
 }
 
 .toggleButton {
-  min-height: 2.65rem;
-  padding: 0.46rem 0.66rem;
+  display: inline-flex;
+  min-height: 2.35rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control, var(--radius-md));
+  background: var(--surface-interactive);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 650;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .toggleButton[data-visible] {
@@ -85,43 +103,54 @@
 
 .check {
   display: grid;
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.1rem;
+  height: 1.1rem;
   place-items: center;
   border: 1px solid var(--border-strong);
-  border-radius: 0.38rem;
+  border-radius: 0.32rem;
+  flex-shrink: 0;
 }
 
 .toggleButton[data-visible] .check {
   border-color: var(--accent-border);
+  background: var(--accent-muted);
 }
 
-.grid {
-  display: grid;
-  gap: 1rem;
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
-.grid[data-hide-planning] > [data-dashboard-widget="planning"],
-.grid[data-hide-next-class] > [data-dashboard-widget="next_class"],
-.grid[data-hide-today-classes] > [data-dashboard-widget="today_classes"],
-.grid[data-hide-schedule] > [data-dashboard-widget="schedule"],
-.grid[data-hide-today] > [data-dashboard-widget="today"],
-.grid[data-hide-overdue] > [data-dashboard-widget="overdue"],
-.grid[data-hide-upcoming] > [data-dashboard-widget="upcoming"],
-.grid[data-hide-school] > [data-dashboard-widget="school"],
-.grid[data-hide-notes] > [data-dashboard-widget="notes"] {
-  display: none;
+/* Support toggling widgets anywhere in descendant tree */
+.container[data-hide-planning] [data-dashboard-widget="planning"],
+.container[data-hide-next-class] [data-dashboard-widget="next_class"],
+.container[data-hide-today-classes] [data-dashboard-widget="today_classes"],
+.container[data-hide-schedule] [data-dashboard-widget="schedule"],
+.container[data-hide-today] [data-dashboard-widget="today"],
+.container[data-hide-overdue] [data-dashboard-widget="overdue"],
+.container[data-hide-upcoming] [data-dashboard-widget="upcoming"],
+.container[data-hide-school] [data-dashboard-widget="school"],
+.container[data-hide-notes] [data-dashboard-widget="notes"] {
+  display: none !important;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .editButton:hover,
   .toggleButton:hover {
     border-color: var(--border-strong);
+    background: var(--surface-hover);
     color: var(--text-primary);
   }
 }
 
-@media (min-width: 38rem) {
+.editButton:focus-visible,
+.toggleButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (min-width: 42rem) {
   .controls {
     grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
     align-items: center;
@@ -129,35 +158,5 @@
 
   .toggleList {
     justify-content: flex-end;
-  }
-}
-
-@media (min-width: 44rem) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .grid > [data-dashboard-widget="planning"],
-  .grid > [data-dashboard-widget="today"],
-  .grid > [data-dashboard-widget="notes"] {
-    grid-column: 1 / -1;
-  }
-}
-
-@media (min-width: 76rem) {
-  .grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .grid > [data-dashboard-widget="planning"] {
-    grid-column: 1 / -1;
-  }
-
-  .grid > [data-dashboard-widget="today"] {
-    grid-column: auto;
-  }
-
-  .grid > [data-dashboard-widget="notes"] {
-    grid-column: span 2;
   }
 }

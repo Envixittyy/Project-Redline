@@ -1,0 +1,156 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-sans);
+  font-weight: 650;
+  line-height: 1;
+  border-radius: var(--radius-pill, 9999px);
+  white-space: nowrap;
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+/* Sizes */
+.sm {
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+}
+
+.md {
+  padding: 0.25rem 0.65rem;
+  font-size: 0.76rem;
+}
+
+/* Variants & Tones */
+/* Subtle (default) */
+.subtle.neutral {
+  background: var(--surface-subtle);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.subtle.info {
+  background: var(--info-muted);
+  border-color: color-mix(in oklch, var(--info) 30%, transparent);
+  color: var(--info-text);
+}
+
+.subtle.success {
+  background: var(--success-muted);
+  border-color: color-mix(in oklch, var(--success) 30%, transparent);
+  color: var(--success-text);
+}
+
+.subtle.warning {
+  background: var(--warning-muted);
+  border-color: color-mix(in oklch, var(--warning) 30%, transparent);
+  color: var(--warning-text);
+}
+
+.subtle.destructive {
+  background: var(--destructive-muted);
+  border-color: color-mix(in oklch, var(--destructive) 30%, transparent);
+  color: var(--destructive-text);
+}
+
+.subtle.accent {
+  background: var(--accent-muted);
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+}
+
+.subtle.course {
+  background: color-mix(in oklch, var(--course-color, var(--accent)) 15%, transparent);
+  border-color: color-mix(in oklch, var(--course-color, var(--accent)) 30%, transparent);
+  color: color-mix(in oklch, var(--course-color, var(--accent)) 85%, var(--text-primary));
+}
+
+/* Outline */
+.outline {
+  background: transparent;
+}
+
+.outline.neutral {
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.outline.info {
+  border-color: var(--info);
+  color: var(--info-text);
+}
+
+.outline.success {
+  border-color: var(--success);
+  color: var(--success-text);
+}
+
+.outline.warning {
+  border-color: var(--warning);
+  color: var(--warning-text);
+}
+
+.outline.destructive {
+  border-color: var(--destructive);
+  color: var(--destructive-text);
+}
+
+.outline.accent {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.outline.course {
+  border-color: var(--course-color, var(--accent));
+  color: color-mix(in oklch, var(--course-color, var(--accent)) 85%, var(--text-primary));
+}
+
+/* Solid */
+.solid.neutral {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.solid.info {
+  background: var(--info);
+  color: #ffffff;
+}
+
+.solid.success {
+  background: var(--success);
+  color: #ffffff;
+}
+
+.solid.warning {
+  background: var(--warning);
+  color: oklch(18% 0.02 255);
+}
+
+.solid.destructive {
+  background: var(--destructive);
+  color: #ffffff;
+}
+
+.solid.accent {
+  background: var(--accent);
+  color: var(--accent-foreground, #ffffff);
+}
+
+.solid.course {
+  background: var(--course-color, var(--accent));
+  color: #ffffff;
+}
+
+/* Dot indicator */
+.dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.courseDot {
+  background: var(--course-color, var(--accent));
+}

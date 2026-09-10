@@ -4,17 +4,6 @@
   overflow-x: clip;
 }
 
-.ambient {
-  position: fixed;
-  z-index: -1;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 14% 8%, var(--accent-muted), transparent 30rem),
-    radial-gradient(circle at 88% 90%, var(--ambient-secondary), transparent 34rem),
-    var(--background);
-}
-
 .skipLink {
   position: fixed;
   z-index: 100;
@@ -22,6 +11,7 @@
   left: 0.75rem;
   translate: 0 -180%;
   padding: 0.7rem 1rem;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--surface-elevated);
   box-shadow: var(--shadow-elevated);
@@ -32,6 +22,8 @@
 
 .skipLink:focus {
   translate: 0 0;
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 
 .sidebar {
@@ -43,23 +35,24 @@
   z-index: 40;
   top: 0;
   display: flex;
-  min-height: calc(3.7rem + env(safe-area-inset-top));
+  min-height: calc(3.75rem + env(safe-area-inset-top));
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   padding:
-    max(0.65rem, env(safe-area-inset-top))
-    max(1rem, env(safe-area-inset-right))
-    0.65rem
-    max(1rem, env(safe-area-inset-left));
-  border-bottom: 1px solid var(--border-subtle);
+    max(0.75rem, env(safe-area-inset-top))
+    max(1.15rem, env(safe-area-inset-right))
+    0.75rem
+    max(1.15rem, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--border-hairline, var(--border-subtle));
   background: var(--navigation-surface);
-  backdrop-filter: blur(var(--blur-navigation)) saturate(1.2);
+  backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
 }
 
 .mobileIdentity {
   color: var(--text-primary);
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 760;
   letter-spacing: -0.03em;
   text-decoration: none;
@@ -75,10 +68,10 @@
   width: min(100%, var(--content-max-width));
   margin-inline: auto;
   padding:
-    1.5rem
-    max(1rem, env(safe-area-inset-right))
-    calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 2rem)
-    max(1rem, env(safe-area-inset-left));
+    1.75rem
+    max(1.15rem, env(safe-area-inset-right))
+    calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 2.25rem)
+    max(1.15rem, env(safe-area-inset-left));
 }
 
 .mobileNav {
@@ -103,10 +96,12 @@
   margin-inline: auto;
   padding: 0.38rem;
   border: 1px solid var(--border-strong);
-  border-radius: 1.45rem;
+  border-top: 1px solid var(--border-highlight);
+  border-radius: var(--radius-floating, 1.5rem);
   background: var(--navigation-surface);
-  box-shadow: var(--shadow-navigation);
-  backdrop-filter: blur(var(--blur-navigation)) saturate(1.25);
+  box-shadow: 0 1px 0 var(--border-highlight) inset, var(--shadow-navigation);
+  backdrop-filter: blur(var(--blur-navigation)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur-navigation)) saturate(1.2);
   pointer-events: auto;
 }
 
@@ -125,8 +120,8 @@
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 0.18rem;
-  border-radius: 1.05rem;
+  gap: 0.2rem;
+  border-radius: var(--radius-card, 1.1rem);
   color: var(--text-tertiary);
   font-size: clamp(0.61rem, 2.7vw, 0.7rem);
   font-weight: 650;
@@ -134,18 +129,19 @@
   transition:
     color var(--motion-fast) ease,
     background-color var(--motion-fast) ease,
-    scale var(--motion-fast) var(--motion-ease);
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 .mobileLink[data-active] {
   background: var(--accent-muted);
   color: var(--accent-text);
+  box-shadow: 0 0 16px var(--accent-muted);
 }
 
 .mobileLink:active,
 .desktopLink:active,
 .appearanceLink:active {
-  scale: 0.97;
+  transform: scale(0.975);
 }
 
 .iconFrame {
@@ -158,7 +154,7 @@
 .identity {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.85rem;
   padding-inline: 0.45rem;
 }
 
@@ -168,7 +164,8 @@
   height: 2.55rem;
   place-items: center;
   border: 1px solid var(--border-strong);
-  border-radius: 0.95rem;
+  border-top: 1px solid var(--border-highlight);
+  border-radius: var(--radius-md);
   background: var(--accent-muted);
   box-shadow: var(--shadow-card);
   color: var(--accent-text);
@@ -180,20 +177,20 @@
 }
 
 .productName {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 750;
   letter-spacing: -0.025em;
 }
 
 .productNote {
-  margin-top: 0.12rem;
+  margin-top: 0.15rem;
   color: var(--text-tertiary);
   font-size: 0.72rem;
 }
 
 .desktopNav {
   display: grid;
-  gap: 0.32rem;
+  gap: 0.35rem;
   margin-top: 2.25rem;
 }
 
@@ -203,20 +200,24 @@
   min-height: 2.9rem;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.55rem 0.75rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 650;
   transition:
     color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
     background-color var(--motion-fast) ease,
-    scale var(--motion-fast) var(--motion-ease);
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 .desktopLink[data-active] {
+  border-color: var(--accent-border);
   background: var(--accent-muted);
   color: var(--accent-text);
+  box-shadow: 0 0 16px var(--accent-muted);
 }
 
 .sidebarFooter {
@@ -233,6 +234,7 @@
 @media (hover: hover) and (pointer: fine) {
   .desktopLink:hover,
   .appearanceLink:hover {
+    border-color: var(--border-subtle);
     background: var(--surface-hover);
     color: var(--text-primary);
   }
@@ -242,7 +244,7 @@
   .mobileLink:active,
   .desktopLink:active,
   .appearanceLink:active {
-    scale: 1;
+    transform: none;
   }
 }
 
@@ -257,13 +259,14 @@
     width: var(--sidebar-width);
     flex-direction: column;
     padding:
-      max(1.5rem, env(safe-area-inset-top))
-      1.1rem
-      max(1.5rem, env(safe-area-inset-bottom))
-      max(1.1rem, env(safe-area-inset-left));
-    border-right: 1px solid var(--border-subtle);
+      max(1.75rem, env(safe-area-inset-top))
+      1.25rem
+      max(1.75rem, env(safe-area-inset-bottom))
+      max(1.25rem, env(safe-area-inset-left));
+    border-right: 1px solid var(--border-hairline, var(--border-subtle));
     background: var(--navigation-surface);
-    backdrop-filter: blur(var(--blur-navigation)) saturate(1.2);
+    backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
+    -webkit-backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
   }
 
   .contentFrame {
@@ -276,10 +279,10 @@
 
   .main {
     padding:
-      max(3rem, env(safe-area-inset-top))
-      max(3rem, env(safe-area-inset-right))
-      max(3rem, env(safe-area-inset-bottom))
-      3rem;
+      max(3.5rem, env(safe-area-inset-top))
+      max(3.5rem, env(safe-area-inset-right))
+      max(3.5rem, env(safe-area-inset-bottom))
+      3.5rem;
   }
 
   .mobileNav {

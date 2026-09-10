@@ -1,16 +1,26 @@
 .shell {
+  position: relative;
   display: grid;
   min-height: 100svh;
   place-items: center;
   padding:
-    calc(1.5rem + env(safe-area-inset-top))
-    calc(1.25rem + env(safe-area-inset-right))
-    calc(1.5rem + env(safe-area-inset-bottom))
-    calc(1.25rem + env(safe-area-inset-left));
+    calc(2rem + env(safe-area-inset-top))
+    calc(1.5rem + env(safe-area-inset-right))
+    calc(2rem + env(safe-area-inset-bottom))
+    calc(1.5rem + env(safe-area-inset-left));
+  overflow-x: clip;
 }
 
 .frame {
   display: grid;
-  gap: 1.15rem;
-  width: min(100%, 26rem);
+  gap: 1.5rem;
+  width: min(100%, 27rem);
+  padding: 2.25rem 2rem;
+  border: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-highlight);
+  border-radius: var(--radius-floating, 1.5rem);
+  background: var(--surface-glass);
+  box-shadow: 0 1px 0 var(--border-highlight) inset, var(--shadow-modal);
+  backdrop-filter: blur(var(--blur-surface, 18px)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--blur-surface, 18px)) saturate(1.15);
 }

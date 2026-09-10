@@ -2,13 +2,134 @@
   color: var(--text-primary);
   margin: auto;
   width: calc(100% - 2rem);
+  max-width: 36rem;
   max-height: calc(
     100dvh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)
   );
   overflow-y: auto;
   overscroll-behavior: contain;
+  border: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-highlight);
+  border-radius: var(--radius-xl);
+  background: var(--surface-modal, oklch(19.5% 0.03 255 / 92%));
+  box-shadow: var(--shadow-modal);
+  backdrop-filter: blur(var(--blur-surface, 16px));
+  -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
+  padding: 0;
+  outline: none;
+  animation: forward-modal-enter var(--motion-modal, 190ms) var(--motion-spring) both;
 }
+
 .dialog::backdrop {
   background: var(--scrim);
-  backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Modal sizes */
+.sizeSm {
+  max-width: 26rem;
+}
+
+.sizeMd {
+  max-width: 36rem;
+}
+
+.sizeLg {
+  max-width: 48rem;
+}
+
+.sizeFull {
+  max-width: min(92vw, 72rem);
+}
+
+/* Structured Subcomponents */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.25rem 0.75rem;
+}
+
+.titleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.12rem, 3.5vw, 1.25rem);
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+}
+
+.description {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.closeButton {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control, 0.5rem);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .closeButton:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+}
+
+.closeButton:active {
+  transform: scale(0.96);
+}
+
+.closeButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.body {
+  padding: 0.75rem 1.25rem 1.25rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 0.85rem 1.25rem 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 32rem) {
+  .footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
 }

@@ -9,20 +9,26 @@
   justify-content: space-between;
   gap: 0.6rem;
   width: 100%;
-  min-height: 2.5rem;
-  padding: 0.5rem 0.75rem;
+  min-height: 2.75rem; /* Touch target >= 44px on mobile */
+  padding: 0.55rem 0.85rem;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control, 0.625rem);
   background: var(--input);
   color: var(--text-primary);
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 1rem;
   text-align: left;
   cursor: pointer;
   transition:
     border-color var(--motion-fast) var(--motion-ease),
     background-color var(--motion-fast) var(--motion-ease),
     box-shadow var(--motion-fast) var(--motion-ease);
+}
+
+@media (min-width: 48rem) {
+  .trigger {
+    font-size: 0.875rem;
+  }
 }
 
 .trigger:hover:not(:disabled) {
@@ -77,8 +83,8 @@
   list-style: none;
   border: 1px solid var(--border-strong);
   border-top: 1px solid var(--border-highlight);
-  border-radius: var(--radius-md);
-  background: var(--surface-dropdown, oklch(21.5% 0.034 255 / 96%));
+  border-radius: var(--radius-popover, 1.25rem);
+  background: var(--surface-dropdown, oklch(21.5% 0.034 255 / 94%));
   backdrop-filter: blur(var(--blur-surface, 16px));
   -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
   box-shadow: var(--shadow-dropdown);

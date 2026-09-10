@@ -22,7 +22,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
   (
     {
       className = "",
-      checked = false,
+      checked,
       indeterminate = false,
       disabled = false,
       label,
@@ -40,7 +40,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
       }
     }, [indeterminate]);
 
-    const isChecked = Boolean(checked);
+    const isChecked = checked !== undefined ? Boolean(checked) : undefined;
 
     return (
       <label
@@ -58,9 +58,8 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
             }
           }}
           type="checkbox"
-          checked={isChecked}
+          checked={checked}
           disabled={disabled}
-          readOnly={props.readOnly ?? (!onChange && checked !== undefined)}
           onChange={onChange}
           className={styles.input}
           {...props}
@@ -71,11 +70,8 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
           } ${indeterminate ? styles.boxIndeterminate : ""}`}
           aria-hidden="true"
         >
-          {indeterminate ? (
-            <Minus size={13} strokeWidth={3} />
-          ) : isChecked ? (
-            <Check size={13} strokeWidth={3} />
-          ) : null}
+          <Minus size={13} strokeWidth={3} className={styles.minusIcon} />
+          <Check size={13} strokeWidth={3} className={styles.checkIcon} />
         </span>
         {label || description ? (
           <div>

@@ -92,6 +92,35 @@ describe("S7 Shared UI Primitives", () => {
       expect(html).toContain("invalid");
     });
 
+    it("renders input with label, error text, and accessible aria attributes", () => {
+      const html = renderToStaticMarkup(
+        <Input
+          label="Project Title"
+          error="Title is required"
+          id="project-title"
+        />,
+      );
+      expect(html).toContain("Project Title");
+      expect(html).toContain("Title is required");
+      expect(html).toContain("role=\"alert\"");
+      expect(html).toContain("aria-invalid=\"true\"");
+      expect(html).toContain("aria-describedby=\"project-title-error\"");
+      expect(html).toContain("id=\"project-title\"");
+    });
+
+    it("renders input with helper text associated via aria-describedby", () => {
+      const html = renderToStaticMarkup(
+        <Input
+          label="Due Date"
+          helperText="Format: YYYY-MM-DD"
+          id="due-date"
+        />,
+      );
+      expect(html).toContain("Due Date");
+      expect(html).toContain("Format: YYYY-MM-DD");
+      expect(html).toContain("aria-describedby=\"due-date-helper\"");
+    });
+
     it("renders input with prefix and suffix slots", () => {
       const html = renderToStaticMarkup(
         <Input
@@ -104,13 +133,19 @@ describe("S7 Shared UI Primitives", () => {
       expect(html).toContain("kbd");
     });
 
-    it("renders textarea with invalid and custom rows", () => {
+    it("renders textarea with label and error", () => {
       const html = renderToStaticMarkup(
-        <Textarea rows={4} invalid placeholder="Description" />,
+        <Textarea
+          rows={4}
+          label="Description"
+          error="Description is too short"
+          id="desc"
+        />,
       );
       expect(html).toContain("rows=\"4\"");
       expect(html).toContain("aria-invalid=\"true\"");
-      expect(html).toContain("placeholder=\"Description\"");
+      expect(html).toContain("Description is too short");
+      expect(html).toContain("aria-describedby=\"desc-error\"");
     });
 
     it("renders SearchInput with search icon and shortcut badge", () => {
@@ -130,7 +165,7 @@ describe("S7 Shared UI Primitives", () => {
       expect(unchecked).toContain("Remember me");
 
       const checked = renderToStaticMarkup(
-        <Checkbox checked readOnly label="Remember me" />,
+        <Checkbox checked onChange={() => {}} label="Remember me" />,
       );
       expect(checked).toContain("boxChecked");
 
@@ -141,13 +176,21 @@ describe("S7 Shared UI Primitives", () => {
       expect(disabled).toContain("containerDisabled");
     });
 
+    it("supports uncontrolled checkbox without forced readOnly", () => {
+      const html = renderToStaticMarkup(
+        <Checkbox defaultChecked label="Enable auto-sync" />,
+      );
+      expect(html).toContain("checked=\"\"");
+      expect(html).not.toContain("readonly");
+    });
+
     it("renders Toggle switch with role='switch' and accessibility labels", () => {
       const html = renderToStaticMarkup(
         <Toggle
           label="Push notifications"
           description="Receive real-time alerts"
           checked
-          readOnly
+          onChange={() => {}}
         />,
       );
       expect(html).toContain("role=\"switch\"");
@@ -156,6 +199,14 @@ describe("S7 Shared UI Primitives", () => {
       expect(html).toContain("Receive real-time alerts");
       expect(html).toContain("track");
       expect(html).toContain("thumb");
+    });
+
+    it("supports uncontrolled Toggle without forced readOnly", () => {
+      const html = renderToStaticMarkup(
+        <Toggle defaultChecked label="Night mode" />,
+      );
+      expect(html).toContain("checked=\"\"");
+      expect(html).not.toContain("readonly");
     });
   });
 
@@ -303,6 +354,16 @@ describe("S7 Shared UI Primitives", () => {
         </Tooltip>,
       );
       expect(html).toContain("Hover me");
+      expect(html).toContain("wrapper");
+    });
+
+    it("attaches aria-describedby to trigger child when tooltip is active", () => {
+      const html = renderToStaticMarkup(
+        <Tooltip content="Helper text">
+          <button type="button">Hover me</button>
+        </Tooltip>,
+      );
+      expect(html).toContain("<button");
     });
   });
 
@@ -314,6 +375,8 @@ describe("S7 Shared UI Primitives", () => {
         </ModalFrame>,
       );
       expect(html).toContain("<dialog");
+      expect(html).toContain("role=\"dialog\"");
+      expect(html).toContain("aria-modal=\"true\"");
       expect(html).toContain("aria-label=\"Settings dialog\"");
       expect(html).toContain("sizeLg");
       expect(html).toContain("Modal content");
@@ -341,10 +404,33 @@ describe("S7 Shared UI Primitives", () => {
   });
 
   describe("Popover & Menu", () => {
-    it("renders trigger and panel when open with menuitems", () => {
+    it("renders generic popover panel with role='dialog' and associated trigger", () => {
       const html = renderToStaticMarkup(
         <Popover
           isOpen
+          onClose={() => {}}
+          trigger={<Button>Filters</Button>}
+          panelId="filter-panel"
+          ariaLabel="Filter options"
+        >
+          <div>Filter contents</div>
+        </Popover>,
+      );
+      expect(html).toContain("Filters");
+      expect(html).toContain("aria-haspopup=\"dialog\"");
+      expect(html).toContain("aria-expanded=\"true\"");
+      expect(html).toContain("aria-controls=\"filter-panel\"");
+      expect(html).toContain("role=\"dialog\"");
+      expect(html).toContain("aria-modal=\"false\"");
+      expect(html).toContain("aria-label=\"Filter options\"");
+      expect(html).toContain("Filter contents");
+    });
+
+    it("renders menu when role='menu' is specified with menuitem roles", () => {
+      const html = renderToStaticMarkup(
+        <Popover
+          isOpen
+          role="menu"
           onClose={() => {}}
           trigger={<Button>Options</Button>}
           placement="bottom-end"
@@ -356,9 +442,11 @@ describe("S7 Shared UI Primitives", () => {
         </Popover>,
       );
       expect(html).toContain("Options");
+      expect(html).toContain("aria-haspopup=\"menu\"");
       expect(html).toContain("role=\"menu\"");
       expect(html).toContain("aria-label=\"User menu\"");
       expect(html).toContain("bottomEnd");
+      expect(html).toContain("role=\"menuitem\"");
       expect(html).toContain("Profile");
       expect(html).toContain("Sign out");
       expect(html).toContain("itemDestructive");

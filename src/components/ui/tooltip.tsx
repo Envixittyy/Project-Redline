@@ -1,6 +1,13 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useId,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 
 import styles from "./tooltip.module.css";
 
@@ -20,6 +27,25 @@ export function Tooltip({
   const [isVisible, setIsVisible] = useState(false);
   const tooltipId = useId();
 
+  let renderedChild = children;
+  if (isValidElement(children)) {
+    const childProps = children.props as { "aria-describedby"?: string };
+    const mergedDescribedBy =
+      [
+        childProps["aria-describedby"],
+        isVisible && content ? tooltipId : null,
+      ]
+        .filter(Boolean)
+        .join(" ") || undefined;
+
+    renderedChild = cloneElement(
+      children as ReactElement<{ "aria-describedby"?: string }>,
+      {
+        "aria-describedby": mergedDescribedBy,
+      },
+    );
+  }
+
   return (
     <div
       className={`${styles.wrapper} ${className}`}
@@ -27,10 +53,14 @@ export function Tooltip({
       onMouseLeave={() => setIsVisible(false)}
       onFocus={() => setIsVisible(true)}
       onBlur={() => setIsVisible(false)}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && isVisible) {
+          e.stopPropagation();
+          setIsVisible(false);
+        }
+      }}
     >
-      <div aria-describedby={isVisible ? tooltipId : undefined}>
-        {children}
-      </div>
+      {renderedChild}
       {isVisible && content ? (
         <div
           id={tooltipId}

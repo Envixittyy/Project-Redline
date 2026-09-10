@@ -154,14 +154,23 @@
 .identity {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  padding-inline: 0.45rem;
+  padding-inline: 0.25rem;
+}
+
+.identityLink {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .brandMark {
   display: grid;
-  width: 2.55rem;
-  height: 2.55rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
   place-items: center;
   border: 1px solid var(--border-strong);
   border-top: 1px solid var(--border-highlight);
@@ -169,6 +178,11 @@
   background: var(--accent-muted);
   box-shadow: var(--shadow-card);
   color: var(--accent-text);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.identityLink:hover .brandMark {
+  transform: scale(1.04);
 }
 
 .productName,
@@ -177,35 +191,68 @@
 }
 
 .productName {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 750;
   letter-spacing: -0.025em;
+  color: var(--text-primary);
 }
 
 .productNote {
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
   color: var(--text-tertiary);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
+}
+
+.sidebarActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1.15rem;
 }
 
 .desktopNav {
-  display: grid;
-  gap: 0.35rem;
-  margin-top: 2.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 1.15rem;
+  overflow-y: auto;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.navSectionTitle {
+  padding: 0.4rem 0.75rem 0.2rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.navDivider {
+  height: 1px;
+  margin: 0.55rem 0.5rem;
+  background: var(--border-subtle);
 }
 
 .desktopLink,
 .appearanceLink {
   display: flex;
-  min-height: 2.9rem;
+  min-height: 2.5rem;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.55rem 0.85rem;
+  padding: 0.45rem 0.75rem;
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control, var(--radius-md));
   color: var(--text-secondary);
-  font-size: 0.9rem;
-  font-weight: 650;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
   transition:
     color var(--motion-fast) ease,
     border-color var(--motion-fast) ease,
@@ -213,22 +260,37 @@
     transform var(--motion-fast) var(--motion-ease);
 }
 
+.linkLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .desktopLink[data-active] {
   border-color: var(--accent-border);
   background: var(--accent-muted);
   color: var(--accent-text);
-  box-shadow: 0 0 16px var(--accent-muted);
+  box-shadow: 0 0 12px var(--accent-muted);
+}
+
+.desktopLink:focus-visible,
+.appearanceLink:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .sidebarFooter {
   margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
 }
 
-.sidebarFooter > p {
-  margin: 0.9rem 0.75rem 0;
-  color: var(--text-tertiary);
-  font-size: 0.72rem;
-  line-height: 1.45;
+.footerUtilities {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -243,7 +305,8 @@
 @media (prefers-reduced-motion: reduce) {
   .mobileLink:active,
   .desktopLink:active,
-  .appearanceLink:active {
+  .appearanceLink:active,
+  .identityLink:hover .brandMark {
     transform: none;
   }
 }
@@ -259,10 +322,10 @@
     width: var(--sidebar-width);
     flex-direction: column;
     padding:
-      max(1.75rem, env(safe-area-inset-top))
-      1.25rem
-      max(1.75rem, env(safe-area-inset-bottom))
-      max(1.25rem, env(safe-area-inset-left));
+      max(1.5rem, env(safe-area-inset-top))
+      1rem
+      max(1.5rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
     border-right: 1px solid var(--border-hairline, var(--border-subtle));
     background: var(--navigation-surface);
     backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
@@ -279,10 +342,10 @@
 
   .main {
     padding:
-      max(3.5rem, env(safe-area-inset-top))
-      max(3.5rem, env(safe-area-inset-right))
-      max(3.5rem, env(safe-area-inset-bottom))
-      3.5rem;
+      2.5rem
+      clamp(1.5rem, 3.5vw, 3rem)
+      3.5rem
+      clamp(1.5rem, 3.5vw, 3rem);
   }
 
   .mobileNav {

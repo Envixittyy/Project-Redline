@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CalendarSync,
   Compass,
+  Ellipsis,
   GraduationCap,
   House,
   Inbox,
@@ -149,6 +150,13 @@ const commands: readonly Command[] = [
     href: "/settings/notifications",
     icon: Bell,
     keywords: "notifications alerts preferences quiet hours push bell",
+  },
+  {
+    label: "More",
+    description: "Access secondary areas, integrations, and preferences",
+    href: "/more",
+    icon: Ellipsis,
+    keywords: "more settings integrations account appearance preferences",
   },
 ] as const;
 

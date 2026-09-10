@@ -23,26 +23,36 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <aside className={styles.sidebar}>
           <div className={styles.identity}>
-            <span className={styles.brandMark} aria-hidden="true">
-              <Sparkles size={18} strokeWidth={2} />
-            </span>
-            <div>
-              <p className={styles.productName}>Forward</p>
-              <p className={styles.productNote}>Be curious, not judgmental.</p>
-            </div>
+            <Link href="/" className={styles.identityLink}>
+              <span className={styles.brandMark} aria-hidden="true">
+                <Sparkles size={17} strokeWidth={2.2} />
+              </span>
+              <div>
+                <p className={styles.productName}>Forward</p>
+                <p className={styles.productNote}>Be curious, not judgmental.</p>
+              </div>
+            </Link>
+          </div>
+
+          <div className={styles.sidebarActions}>
+            <CommandPaletteTrigger />
+            <CaptureTrigger />
           </div>
 
           <DesktopNavigation />
-          <NotificationTrigger />
-          <CaptureTrigger />
-          <CommandPaletteTrigger />
 
           <div className={styles.sidebarFooter}>
-            <Link className={styles.appearanceLink} href="/more#appearance">
-              <Settings2 size={18} aria-hidden="true" />
-              <span>Appearance</span>
-            </Link>
-            <p>Quietly shaping the day ahead.</p>
+            <div className={styles.footerUtilities}>
+              <NotificationTrigger />
+              <Link
+                className={styles.appearanceLink}
+                href="/more#appearance"
+                aria-label="Appearance settings"
+              >
+                <Settings2 size={17} aria-hidden="true" />
+                <span>Appearance</span>
+              </Link>
+            </div>
           </div>
         </aside>
 

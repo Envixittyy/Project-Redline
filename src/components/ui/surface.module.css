@@ -1,6 +1,6 @@
 .surface {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-hairline, var(--border-subtle));
+  border-radius: var(--radius-card, var(--radius-xl));
 }
 
 .base {
@@ -9,42 +9,55 @@
 }
 
 .glass {
+  border: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border-highlight);
+  border-radius: var(--radius-card, var(--radius-xl));
   background: var(--surface-translucent);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(var(--blur-surface)) saturate(1.2);
+  box-shadow: 0 1px 0 var(--border-highlight) inset, var(--shadow-soft);
+  backdrop-filter: blur(var(--blur-surface)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--blur-surface)) saturate(1.15);
 }
 
 .elevated {
+  border: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-highlight);
   background: var(--surface-elevated);
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-elevated);
+  box-shadow: 0 1px 0 var(--border-highlight) inset, var(--shadow-elevated);
 }
 
 .subtle {
+  border-color: var(--border-hairline);
   background: var(--surface-subtle);
 }
 
 .interactive {
+  border: 1px solid var(--border-subtle);
   background: var(--surface-interactive);
   box-shadow: var(--shadow-card);
   transition:
-    translate var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease),
     border-color var(--motion-fast) ease,
     background-color var(--motion-fast) ease,
-    box-shadow var(--motion-standard) var(--motion-ease);
+    box-shadow var(--motion-fast) var(--motion-ease);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .interactive:hover {
-    translate: 0 -2px;
+    transform: translateY(-1px);
     border-color: var(--border-strong);
     background: var(--surface-hover);
-    box-shadow: var(--shadow-elevated);
+    box-shadow: var(--shadow-elevated), var(--glow-blue);
   }
 }
 
+.interactive:active {
+  transform: translateY(0) scale(0.985);
+  background: var(--surface-active, var(--surface-hover));
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .interactive:hover {
-    translate: none;
+  .interactive:hover,
+  .interactive:active {
+    transform: none;
   }
 }

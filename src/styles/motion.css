@@ -34,13 +34,18 @@
   animation: forward-enter var(--motion-standard) var(--motion-spring) both;
 }
 
-.motion-dropdown-enter {
-  animation: forward-dropdown-enter var(--motion-fast) var(--motion-ease) both;
+.motion-dropdown-enter,
+.motion-popover-enter {
+  animation: forward-dropdown-enter var(--motion-popover, var(--motion-fast)) var(--motion-ease) both;
   transform-origin: top center;
 }
 
 .motion-modal-enter {
-  animation: forward-modal-enter var(--motion-standard) var(--motion-spring) both;
+  animation: forward-modal-enter var(--motion-modal, var(--motion-standard)) var(--motion-spring) both;
+}
+
+.motion-shell-enter {
+  animation: forward-enter var(--motion-shell, var(--motion-standard)) var(--motion-ease) both;
 }
 
 .motion-interactive {
@@ -88,10 +93,17 @@
 :root[data-motion="reduced"] {
   --motion-distance: 0.125rem;
   --motion-instant: 1ms;
-  --motion-fast: 80ms;
-  --motion-standard: 120ms;
-  --motion-slow: 160ms;
-  --motion-deliberate: 180ms;
+  --motion-press: 1ms;
+  --motion-fast: 60ms;
+  --motion-popover: 60ms;
+  --motion-standard: 80ms;
+  --motion-modal: 80ms;
+  --motion-shell: 80ms;
+  --motion-slow: 100ms;
+  --motion-deliberate: 120ms;
+  --motion-spring-timing: 80ms;
+  --motion-ambient-drift-1: 0.01ms;
+  --motion-ambient-drift-2: 0.01ms;
 }
 
 :root[data-motion="off"] *,

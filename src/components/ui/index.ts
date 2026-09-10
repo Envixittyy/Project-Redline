@@ -5,6 +5,7 @@ export * from "./empty-state";
 export * from "./input";
 export * from "./modal-frame";
 export * from "./page-header";
+export * from "./popover";
 export * from "./search-input";
 export * from "./segmented-control";
 export * from "./select";

@@ -1,0 +1,107 @@
+.wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.panel {
+  position: absolute;
+  z-index: 70;
+  min-width: 12rem;
+  max-width: 24rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-highlight);
+  border-radius: var(--radius-popover, 1.25rem);
+  background: var(--surface-dropdown, oklch(21.5% 0.034 255 / 94%));
+  box-shadow: var(--shadow-dropdown);
+  backdrop-filter: blur(var(--blur-surface, 16px));
+  -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
+  outline: none;
+  animation: forward-dropdown-enter var(--motion-popover, 160ms) var(--motion-ease) both;
+}
+
+.bottomStart {
+  top: calc(100% + 6px);
+  left: 0;
+  transform-origin: top left;
+}
+
+.bottomEnd {
+  top: calc(100% + 6px);
+  right: 0;
+  transform-origin: top right;
+}
+
+.topStart {
+  bottom: calc(100% + 6px);
+  left: 0;
+  transform-origin: bottom left;
+}
+
+.topEnd {
+  bottom: calc(100% + 6px);
+  right: 0;
+  transform-origin: bottom right;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-control, 0.5rem);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.84rem;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .item:hover:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+}
+
+.item:active:not(:disabled) {
+  background: var(--surface-active);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.itemDestructive {
+  color: var(--destructive);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .itemDestructive:hover:not(:disabled) {
+    background: var(--destructive-muted);
+    color: var(--destructive-text);
+  }
+}
+
+.separator {
+  height: 1px;
+  margin: 0.35rem 0;
+  background: var(--border-subtle);
+  border: 0;
+}

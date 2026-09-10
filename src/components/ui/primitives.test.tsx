@@ -13,6 +13,8 @@ import { Surface } from "./surface";
 import { SegmentedControl } from "./segmented-control";
 import { EmptyState } from "./empty-state";
 import { Tooltip } from "./tooltip";
+import { Modal, ModalFrame } from "./modal-frame";
+import { Popover, PopoverItem, PopoverSeparator } from "./popover";
 
 describe("S7 Shared UI Primitives", () => {
   describe("Button", () => {
@@ -301,6 +303,66 @@ describe("S7 Shared UI Primitives", () => {
         </Tooltip>,
       );
       expect(html).toContain("Hover me");
+    });
+  });
+
+  describe("Modal & ModalFrame", () => {
+    it("renders ModalFrame with dialog element, size class, and accessibility label", () => {
+      const html = renderToStaticMarkup(
+        <ModalFrame label="Settings dialog" size="lg" onClose={() => {}}>
+          <div>Modal content</div>
+        </ModalFrame>,
+      );
+      expect(html).toContain("<dialog");
+      expect(html).toContain("aria-label=\"Settings dialog\"");
+      expect(html).toContain("sizeLg");
+      expect(html).toContain("Modal content");
+    });
+
+    it("renders high-level Modal with header, title, description, and footer", () => {
+      const html = renderToStaticMarkup(
+        <Modal
+          isOpen
+          title="Delete project"
+          description="This action cannot be undone."
+          onClose={() => {}}
+          footer={<Button variant="destructive">Confirm delete</Button>}
+        >
+          Are you sure?
+        </Modal>,
+      );
+      expect(html).toContain("Delete project");
+      expect(html).toContain("This action cannot be undone.");
+      expect(html).toContain("Are you sure?");
+      expect(html).toContain("Confirm delete");
+      expect(html).toContain("destructive");
+      expect(html).toContain("closeButton");
+    });
+  });
+
+  describe("Popover & Menu", () => {
+    it("renders trigger and panel when open with menuitems", () => {
+      const html = renderToStaticMarkup(
+        <Popover
+          isOpen
+          onClose={() => {}}
+          trigger={<Button>Options</Button>}
+          placement="bottom-end"
+          ariaLabel="User menu"
+        >
+          <PopoverItem>Profile</PopoverItem>
+          <PopoverSeparator />
+          <PopoverItem destructive>Sign out</PopoverItem>
+        </Popover>,
+      );
+      expect(html).toContain("Options");
+      expect(html).toContain("role=\"menu\"");
+      expect(html).toContain("aria-label=\"User menu\"");
+      expect(html).toContain("bottomEnd");
+      expect(html).toContain("Profile");
+      expect(html).toContain("Sign out");
+      expect(html).toContain("itemDestructive");
+      expect(html).toContain("<hr");
     });
   });
 });

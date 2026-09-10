@@ -115,17 +115,52 @@ export async function saveGoogleCalendarConnection(input: {
   if (error) fail("save the Google Calendar connection", error);
 }
 
+function isDynamicServerError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE"
+  );
+}
+
 /** Read-only mirror projection for the visible half-open Calendar range across external calendars and Blackboard. */
 export async function listExternalCalendarEventsInRange(
   start: string,
   end: string,
 ): Promise<ExternalCalendarProjection[]> {
-  const [genericEvents, blackboardEvents] = await Promise.all([
+  const [genericResult, blackboardResult] = await Promise.allSettled([
     listGenericExternalCalendarEventsInRange(start, end),
     listBlackboardCalendarProjectionsInRange(start, end),
   ]);
 
-  return [...genericEvents, ...blackboardEvents];
+  if (genericResult.status === "rejected" && isDynamicServerError(genericResult.reason)) {
+    throw genericResult.reason;
+  }
+  if (blackboardResult.status === "rejected" && isDynamicServerError(blackboardResult.reason)) {
+    throw blackboardResult.reason;
+  }
+
+  const projections: ExternalCalendarProjection[] = [];
+
+  if (genericResult.status === "fulfilled") {
+    projections.push(...genericResult.value);
+  } else {
+    console.error(
+      "[external-calendar] Generic external calendars provider failed to load events:",
+      genericResult.reason,
+    );
+  }
+
+  if (blackboardResult.status === "fulfilled") {
+    projections.push(...blackboardResult.value);
+  } else {
+    console.error(
+      "[external-calendar] Blackboard calendar provider failed to load events:",
+      blackboardResult.reason,
+    );
+  }
+
+  return projections;
 }
 
 async function listGenericExternalCalendarEventsInRange(

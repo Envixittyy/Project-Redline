@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
 import {
   buildCalendarItems,
@@ -109,34 +108,27 @@ export default async function HomePage() {
         dueSoonCount: workload.dueToday,
         overdueCount: workload.overdue,
         todayClassCount: todayClassesCount,
-      }).telemetryText
-    : "Workload unavailable";
+      })
+    : null;
 
-  return (
-    <>
-      <PageHeader
-        eyebrow={greeting.eyebrow}
-        title={`${greeting.greeting} ${greeting.subtext}`}
-        description={`${telemetry} — Classes, deadlines, notes, unfinished business, and whatever else has made its way into the system.`}
-      />
-      {configured ? (
-        <HomeDashboard
-          courses={courses}
-          overdue={overdueTasks}
-          schedule={schedule}
-          timeZone={timeZone}
-          today={todayTasks}
-          upcoming={upcomingTasks}
-        />
-      ) : (
-        <Surface variant="glass" style={{ padding: "1rem" }}>
-          <h2>Connect Supabase to load Home</h2>
-          <p>
-            Configure the public Supabase URL and publishable key, then apply
-            the migrations. No demo data is inserted automatically.
-          </p>
-        </Surface>
-      )}
-    </>
+  return configured ? (
+    <HomeDashboard
+      courses={courses}
+      greeting={greeting}
+      overdue={overdueTasks}
+      schedule={schedule}
+      telemetry={telemetry}
+      timeZone={timeZone}
+      today={todayTasks}
+      upcoming={upcomingTasks}
+    />
+  ) : (
+    <Surface variant="glass" style={{ padding: "2rem" }}>
+      <h2>Connect Supabase to load Home</h2>
+      <p style={{ color: "var(--text-secondary)", marginTop: "0.5rem" }}>
+        Configure the public Supabase URL and publishable key, then apply the
+        migrations. No demo data is inserted automatically.
+      </p>
+    </Surface>
   );
 }

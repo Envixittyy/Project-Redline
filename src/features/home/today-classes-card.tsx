@@ -18,23 +18,27 @@ export function TodayClassesCard({ courses, timeZone }: TodayClassesCardProps) {
   return (
     <Surface
       variant="base"
-      className={`${styles.card} motion-enter`}
+      className={`${styles.sectionCard} motion-enter`}
       data-dashboard-widget="today_classes"
     >
-      <header>
-        <span aria-hidden="true">
-          <BookOpen size={18} />
-        </span>
-        <div>
-          <p>Today’s Classes</p>
-          <h3>
-            {occurrences.length
-              ? `${occurrences.length} class${occurrences.length === 1 ? "" : "es"} today`
-              : "No classes today"}
-          </h3>
+      <div className={styles.sectionHeader}>
+        <div className={styles.sectionTitleGroup}>
+          <span className={styles.sectionIconWrap} aria-hidden="true">
+            <BookOpen size={16} />
+          </span>
+          <div>
+            <p className={styles.sectionKicker}>School</p>
+            <h3 className={styles.sectionTitle}>
+              {occurrences.length
+                ? `${occurrences.length} class${occurrences.length === 1 ? "" : "es"} today`
+                : "No classes today"}
+            </h3>
+          </div>
         </div>
-        <Link href="/school">School</Link>
-      </header>
+        <Link href="/school" className={styles.sectionAction}>
+          School →
+        </Link>
+      </div>
 
       {occurrences.length > 0 ? (
         <ul className={styles.todayClassesList}>

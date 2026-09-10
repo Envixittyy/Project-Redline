@@ -2,6 +2,8 @@
 
 import { Check, Sparkles, X } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Surface } from "@/components/ui/surface";
 import type { SchoolAssessmentPrediction } from "@/services/school/prediction-service";
 import {
@@ -66,100 +68,67 @@ export function PossibleAssessmentsCard() {
 
   return (
     <Surface
-      variant="glass"
-      className={`${styles.card} motion-enter`}
+      variant="subtle"
+      className={`${styles.predictionBanner} motion-enter`}
       data-dashboard-widget="possible_assessments"
-      style={{
-        border: "1px dashed var(--accent-border, var(--border-strong))",
-        background: "var(--surface-subtle)",
-      }}
     >
-      <div className={styles.header}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <Sparkles size={16} color="var(--accent-text)" />
-          <h3>School Pulse · Possible Assessment</h3>
+      <div className={styles.predictionHeader}>
+        <div className={styles.predictionTitleGroup}>
+          <Sparkles size={16} className={styles.predictionIcon} aria-hidden="true" />
+          <h4 className={styles.predictionHeading}>School Pulse · Possible Assessment</h4>
         </div>
-        <span
-          style={{
-            fontSize: "0.72rem",
-            fontWeight: 750,
-            padding: "0.2rem 0.5rem",
-            borderRadius: "var(--radius-pill)",
-            background: topPrediction.confidence === "HIGH" ? "color-mix(in srgb, var(--accent) 15%, transparent)" : "var(--surface)",
-            color: "var(--accent-text)",
-            border: "1px solid var(--border-subtle)",
-          }}
+        <Badge
+          tone={topPrediction.confidence === "HIGH" ? "accent" : "neutral"}
+          size="sm"
         >
           {topPrediction.confidence} CONFIDENCE
-        </span>
+        </Badge>
       </div>
 
-      <div style={{ padding: "0.25rem 0", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-        {error ? <p role="alert">{error}</p> : null}
-        <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+      <div className={styles.predictionBody}>
+        {error ? <p role="alert" className={styles.predictionError}>{error}</p> : null}
+        <div className={styles.predictionItemRow}>
           {topPrediction.courseCode ? (
-            <strong style={{ color: "var(--accent-text)", fontSize: "0.95rem" }}>
+            <strong className={styles.predictionCourseCode}>
               {topPrediction.courseCode}
             </strong>
           ) : null}
-          <span style={{ fontSize: "0.92rem", fontWeight: 700, color: "var(--text-primary)" }}>
+          <span className={styles.predictionItemTitle}>
             ◇ Possible {topPrediction.title}
           </span>
         </div>
 
-        <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+        <p className={styles.predictionEstimate}>
           Estimated: <strong>{topPrediction.predictedDate}</strong>
           {topPrediction.predictedTime ? ` at ${topPrediction.predictedTime}` : ""}
         </p>
 
-        <p style={{ margin: "0.25rem 0 0", fontSize: "0.78rem", color: "var(--text-muted)", fontStyle: "italic" }}>
-          &ldquo;{topPrediction.rationale}&rdquo;
-        </p>
+        {topPrediction.rationale ? (
+          <p className={styles.predictionRationale}>
+            &ldquo;{topPrediction.rationale}&rdquo;
+          </p>
+        ) : null}
 
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.6rem" }}>
-          <button
-            type="button"
-            className="motion-tactile"
+        <div className={styles.predictionActions}>
+          <Button
+            variant="primary"
+            size="sm"
             disabled={pending}
+            icon={<Check size={14} />}
             onClick={() => handleConfirm(topPrediction)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.3rem",
-              padding: "0.35rem 0.75rem",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--accent)",
-              color: "var(--accent-foreground)",
-              border: "1px solid var(--accent-border, transparent)",
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
           >
-            <Check size={13} /> Confirm as Task
-          </button>
+            Confirm as Task
+          </Button>
 
-          <button
-            type="button"
-            className="motion-tactile"
+          <Button
+            variant="ghost"
+            size="sm"
             disabled={pending}
+            icon={<X size={14} />}
             onClick={() => handleDismiss(topPrediction.id)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.3rem",
-              padding: "0.35rem 0.65rem",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--surface)",
-              color: "var(--text-secondary)",
-              border: "1px solid var(--border-subtle)",
-              fontSize: "0.78rem",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
           >
-            <X size={13} /> Dismiss
-          </button>
+            Dismiss
+          </Button>
         </div>
       </div>
     </Surface>

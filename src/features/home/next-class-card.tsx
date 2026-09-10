@@ -1,6 +1,7 @@
 import { BookOpen, CalendarCheck, Clock, MapPin, Sparkles } from "lucide-react";
 import Link from "next/link";
 
+import { Badge } from "@/components/ui/badge";
 import { Surface } from "@/components/ui/surface";
 import type { CourseWithMeetings } from "@/types/course";
 
@@ -18,22 +19,26 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
   if (result.kind === "none_configured") {
     return (
       <Surface
-        variant="glass"
-        className={`${styles.card} motion-enter`}
+        variant="base"
+        className={`${styles.sectionCard} motion-enter`}
         data-dashboard-widget="next_class"
       >
-        <header>
-          <span aria-hidden="true">
-            <BookOpen size={18} />
-          </span>
-          <div>
-            <p>Next Class</p>
-            <h3>No classes set</h3>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionTitleGroup}>
+            <span className={styles.sectionIconWrap} aria-hidden="true">
+              <BookOpen size={16} />
+            </span>
+            <div>
+              <p className={styles.sectionKicker}>School</p>
+              <h3 className={styles.sectionTitle}>Next Class</h3>
+            </div>
           </div>
-          <Link href="/school">Setup</Link>
-        </header>
+          <Link href="/school" className={styles.sectionAction}>
+            Setup →
+          </Link>
+        </div>
         <p className={styles.empty}>
-          Add courses and your weekly timetable in School to see your next class here.
+          Add courses and your weekly timetable in School to track classes here.
         </p>
       </Surface>
     );
@@ -45,20 +50,26 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
 
     return (
       <Surface
-        variant="glass"
-        className={`${styles.card} motion-enter`}
+        variant="base"
+        className={`${styles.sectionCard} motion-enter`}
         data-dashboard-widget="next_class"
       >
-        <header>
-          <span aria-hidden="true">
-            <CalendarCheck size={18} />
-          </span>
-          <div>
-            <p>Next Class</p>
-            <h3>{isDone ? "All done for today" : "No classes today"}</h3>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionTitleGroup}>
+            <span className={styles.sectionIconWrap} aria-hidden="true">
+              <CalendarCheck size={16} />
+            </span>
+            <div>
+              <p className={styles.sectionKicker}>School</p>
+              <h3 className={styles.sectionTitle}>
+                {isDone ? "Classes Finished" : "No Classes Today"}
+              </h3>
+            </div>
           </div>
-          <Link href="/school">School</Link>
-        </header>
+          <Link href="/school" className={styles.sectionAction}>
+            School →
+          </Link>
+        </div>
 
         {nextOcc ? (
           <div className={styles.nextClassUpcomingBox}>
@@ -93,28 +104,32 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
 
   return (
     <Surface
-      variant="glass"
-      className={`${styles.card} ${isInProgress ? styles.cardActive : ""} motion-enter`}
+      variant="base"
+      className={`${styles.sectionCard} ${isInProgress ? styles.cardActive : ""} motion-enter`}
       data-dashboard-widget="next_class"
     >
-      <header>
-        <span
-          style={{
-            background: occurrence.courseColor
-              ? `color-mix(in srgb, ${occurrence.courseColor} 20%, transparent)`
-              : undefined,
-            color: occurrence.courseColor ?? undefined,
-          }}
-          aria-hidden="true"
-        >
-          {isInProgress ? <Sparkles size={18} /> : <BookOpen size={18} />}
-        </span>
-        <div>
-          <p>{isInProgress ? "Current Class" : "Next Class"}</p>
-          <h3>{occurrence.relativeTimeText}</h3>
+      <div className={styles.sectionHeader}>
+        <div className={styles.sectionTitleGroup}>
+          <span
+            className={styles.sectionIconWrap}
+            style={{
+              color: occurrence.courseColor ?? undefined,
+            }}
+            aria-hidden="true"
+          >
+            {isInProgress ? <Sparkles size={16} /> : <BookOpen size={16} />}
+          </span>
+          <div>
+            <p className={styles.sectionKicker}>
+              {isInProgress ? "Current Class" : "Next Class"}
+            </p>
+            <h3 className={styles.sectionTitle}>{occurrence.relativeTimeText}</h3>
+          </div>
         </div>
-        <Link href="/school">Open</Link>
-      </header>
+        <Link href="/school" className={styles.sectionAction}>
+          School →
+        </Link>
+      </div>
 
       <div className={styles.nextClassBody}>
         <div className={styles.nextClassHeaderRow}>
@@ -124,21 +139,24 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
             aria-hidden="true"
           />
           <strong className={styles.nextClassCode}>{occurrence.courseCode}</strong>
-          <span className={styles.nextClassPill} data-status={occurrence.status}>
+          <Badge
+            tone={isInProgress ? "accent" : "neutral"}
+            size="sm"
+          >
             {isInProgress ? "In progress" : "Upcoming"}
-          </span>
+          </Badge>
         </div>
 
         <h4 className={styles.nextClassTitle}>{occurrence.courseName}</h4>
 
         <div className={styles.nextClassMetaList}>
           <div className={styles.nextClassMetaItem}>
-            <Clock size={14} aria-hidden="true" />
+            <Clock size={13} aria-hidden="true" />
             <span>{occurrence.timeRangeFormatted}</span>
           </div>
           {occurrence.location ? (
             <div className={styles.nextClassMetaItem}>
-              <MapPin size={14} aria-hidden="true" />
+              <MapPin size={13} aria-hidden="true" />
               <span>{occurrence.location}</span>
             </div>
           ) : null}

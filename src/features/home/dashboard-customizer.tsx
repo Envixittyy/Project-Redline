@@ -154,7 +154,7 @@ export function DashboardCustomizer({ children }: { children: ReactNode }) {
       ) : null}
 
       <div
-        className={styles.grid}
+        className={styles.container}
         data-hide-planning={!visibility.planning || undefined}
         data-hide-next-class={!visibility.next_class || undefined}
         data-hide-today-classes={!visibility.today_classes || undefined}

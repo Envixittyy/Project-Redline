@@ -19,9 +19,10 @@ export const metadata: Metadata = { title: "Tasks" };
 function TaskSkeleton() {
   return (
     <Surface variant="base" className={styles.skeleton} aria-busy="true" aria-label="Loading tasks">
-      <span />
-      <span />
-      <span />
+      <span style={{ width: "28%" }} />
+      <span style={{ width: "92%" }} />
+      <span style={{ width: "75%" }} />
+      <span style={{ width: "60%" }} />
     </Surface>
   );
 }
@@ -36,12 +37,21 @@ async function TaskResults({
   timeZone: string;
 }) {
   let tasks: Task[] | null = null;
+  let overdueTasks: Task[] = [];
   let failure: string | null = null;
 
   try {
-    tasks = await listTasksForView(view);
+    if (view === "today") {
+      const [todayList, overdueList] = await Promise.all([
+        listTasksForView("today"),
+        listTasksForView("overdue"),
+      ]);
+      tasks = todayList;
+      overdueTasks = overdueList;
+    } else {
+      tasks = await listTasksForView(view);
+    }
   } catch (error) {
-    // The repository has already logged the underlying cause.
     failure = error instanceof Error ? error.message : "Something went wrong reading your tasks.";
   }
 
@@ -54,7 +64,15 @@ async function TaskResults({
     );
   }
 
-  return <TaskCollection tasks={tasks} view={view} today={today} timeZone={timeZone} />;
+  return (
+    <TaskCollection
+      tasks={tasks}
+      overdueTasks={overdueTasks}
+      view={view}
+      today={today}
+      timeZone={timeZone}
+    />
+  );
 }
 
 export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
@@ -69,16 +87,18 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
     view === "today" ? today : view === "tomorrow" ? addDays(today, 1) : undefined;
 
   return (
-    <>
-      <PageHeader
-        title="Tasks"
-        description="A focused home for what needs doing. A task can carry a deadline and a scheduled time without becoming a calendar event."
-      />
+    <div className={styles.pageContainer}>
+      <div className={styles.pageHeaderWrap}>
+        <PageHeader
+          title="Tasks"
+          description="A focused execution surface for what needs doing today, upcoming commitments, and overdue triage."
+        />
+      </div>
 
       {isSupabaseConfigured() ? (
         <div className={styles.layout}>
-          <QuickAdd defaultDueDate={prefillDueDate} />
           <TaskViewNav current={view} />
+          <QuickAdd defaultDueDate={prefillDueDate} />
           {/* Keyed so switching views re-shows the skeleton instead of stale rows. */}
           <Suspense key={view} fallback={<TaskSkeleton />}>
             <TaskResults view={view} today={today} timeZone={timeZone} />
@@ -96,6 +116,6 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
           </p>
         </Surface>
       )}
-    </>
+    </div>
   );
 }

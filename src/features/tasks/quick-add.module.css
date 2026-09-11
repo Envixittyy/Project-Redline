@@ -1,16 +1,19 @@
-.card {
-  padding: 0.9rem;
+.composer {
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .form {
-  display: grid;
-  gap: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
 }
 
-.primaryRow {
+.inputRow {
   display: flex;
-  align-items: stretch;
-  gap: 0.55rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .titleField {
@@ -30,17 +33,16 @@
 
 .titleInput {
   width: 100%;
-  min-height: 2.9rem;
-  padding: 0.6rem 0.8rem;
+  min-height: 2.6rem;
+  padding: 0.5rem 0.8rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--surface-interactive);
   color: var(--text-primary);
-  /* 1rem keeps iOS from zooming the viewport on focus. */
-  font-size: 1rem;
+  font-size: 0.94rem;
   transition:
-    border-color var(--motion-fast) ease,
-    background-color var(--motion-fast) ease;
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
 }
 
 .titleInput::placeholder {
@@ -50,92 +52,144 @@
 .titleInput:focus {
   border-color: var(--accent-border);
   background: var(--surface-hover);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
 }
 
-.submit {
+.submitButton {
   display: inline-flex;
-  min-height: 2.9rem;
+  min-height: 2.6rem;
   flex: none;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0 0.95rem;
+  gap: 0.35rem;
+  padding: 0 0.9rem;
   border: 1px solid var(--accent-border);
   border-radius: var(--radius-md);
   background: var(--accent-muted);
   color: var(--accent-text);
   cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 700;
+  font-size: 0.84rem;
+  font-weight: 650;
   transition:
-    scale var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) ease;
+    transform var(--motion-fast) var(--motion-spring),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
 }
 
-.submit:disabled {
+.submitButton:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.submitButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.submitButton:disabled {
   cursor: progress;
-  opacity: 0.72;
+  opacity: 0.65;
 }
 
-.submit:not(:disabled):active {
-  scale: 0.97;
+.spinner {
+  animation: spin 900ms linear infinite;
 }
 
-.optionsRow {
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+.optionsStrip {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem;
-}
-
-.option {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 9rem;
   align-items: center;
-  gap: 0.45rem;
-  color: var(--text-tertiary);
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  gap: 0.5rem;
 }
 
-.control {
-  min-width: 0;
-  min-height: 2.75rem;
-  flex: 1;
-  padding: 0.45rem 0.6rem;
+.optionPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.55rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--surface-interactive);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 580;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
+}
+
+.optionPill:focus-within {
+  border-color: var(--accent-border);
+  background: var(--surface-hover);
+}
+
+.optionIcon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.optionLabel {
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.dateControl,
+.selectControl {
+  border: 0;
+  background: transparent;
   color: var(--text-primary);
-  font-size: 1rem;
-  letter-spacing: normal;
-  text-transform: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
+  outline: none;
+}
+
+.dateControl:disabled,
+.selectControl:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.selectControl option {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
 }
 
 .error {
   margin: 0;
-  color: var(--accent-text);
+  color: var(--destructive);
   font-size: 0.8rem;
-  font-weight: 650;
-  line-height: 1.5;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .submit:hover:not(:disabled) {
-    background: var(--accent-muted);
-    border-color: var(--accent);
+@media (max-width: 30rem) {
+  .composer {
+    padding: 0.65rem 0.75rem;
+  }
+
+  .titleInput {
+    font-size: 1rem; /* prevents iOS zoom */
+  }
+
+  .submitButton {
+    min-height: 2.75rem;
+    padding: 0 0.8rem;
+  }
+
+  .submitLabel {
+    display: none;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .submit:not(:disabled):active {
-    scale: 1;
-  }
-}
-
-@media (min-width: 34rem) {
-  .option {
-    flex: 0 1 14rem;
-  }
-}

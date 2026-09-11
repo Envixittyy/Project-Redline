@@ -43,10 +43,11 @@ describe("Phase 1 foundation security contract",()=>{
 
   it("uses durable offline identities and truthful queue states",()=>{
     const queue=file("src/lib/offline/queue.ts");
+    const compactQueue=queue.replace(/\s+/g,"");
     const replay=file("src/app/api/offline/mutations/route.ts");
     expect(queue).toContain("indexedDB.open");
-    expect(queue).toContain('state:"pending"');
-    expect(queue).toContain('"failed"|"conflict"');
+    expect(compactQueue).toContain('state:"pending"');
+    expect(compactQueue).toContain('"failed"|"conflict"');
     expect(replay.replace(/\s+/g,"")).toContain("clientOperationId:operationId");
     expect(migration).toContain("tasks_owner_operation_unique");
     expect(migration).toContain("notes_owner_operation_unique");

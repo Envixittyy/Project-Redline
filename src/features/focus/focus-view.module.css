@@ -4,7 +4,7 @@
   gap: 1.5rem;
   max-width: 46rem;
   margin: 0 auto;
-  padding: 1.25rem 1rem max(2rem, env(safe-area-inset-bottom));
+  padding: 1.25rem 1rem max(5.5rem, calc(4rem + env(safe-area-inset-bottom, 0px)));
   width: 100%;
 }
 

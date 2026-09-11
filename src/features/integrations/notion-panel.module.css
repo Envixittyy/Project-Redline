@@ -72,7 +72,7 @@
   border: 1px solid var(--border-subtle);
   background: var(--surface-interactive);
   color: var(--text-primary);
-  font-size: 0.875rem;
+  font-size: 1rem; /* 16px prevents iOS Safari automatic zoom */
   transition: border-color var(--motion-fast);
 }
 
@@ -111,6 +111,22 @@
   flex-wrap: wrap;
 }
 
+@media (max-width: 36rem) {
+  .linkItem {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .linkControls {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .linkControls select {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
+
 .linkInfo {
   display: flex;
   flex-direction: column;
@@ -124,6 +140,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .linkMeta {

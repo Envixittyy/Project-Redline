@@ -100,6 +100,8 @@
   border-top: 1px solid var(--border-subtle);
   font-size: 0.75rem;
   white-space: pre-wrap;
+  word-break: break-all;
+  -webkit-overflow-scrolling: touch;
 }
 
 .form {
@@ -122,7 +124,7 @@
   border-radius: var(--radius-md);
   background: var(--surface-interactive);
   color: var(--text-primary);
-  font-size: 0.875rem;
+  font-size: 1rem; /* 16px prevents iOS Safari automatic zoom */
   transition: border-color var(--motion-fast);
 }
 
@@ -163,6 +165,19 @@
   border-radius: var(--radius-md);
   background: var(--surface-subtle);
   border: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 36rem) {
+  .mappingItem {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  .mappingTarget {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 .mappingSource {
@@ -175,9 +190,8 @@
 .mappingSource strong {
   font-size: 0.875rem;
   color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .mappingSource small {
@@ -246,6 +260,16 @@
   min-width: 12rem;
 }
 
+@media (max-width: 36rem) {
+  .batchBar select {
+    width: 100%;
+    min-width: 0;
+  }
+  .batchBar button {
+    width: 100%;
+  }
+}
+
 .unassignedList {
   display: flex;
   flex-direction: column;
@@ -257,7 +281,7 @@
 
 .unassignedItem {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 0.625rem 0.75rem;
   border-radius: var(--radius-md);
@@ -276,9 +300,8 @@
 .itemDetails strong {
   font-size: 0.875rem;
   color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .itemMeta {

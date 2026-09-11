@@ -1,491 +1,270 @@
-.composerCard,
-.captureCard,
-.emptyState {
-  padding: 1rem;
+/* Capture Composer */
+.composerCard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
+  border: 1px solid var(--border-subtle);
 }
 
-.composerHeading,
-.launcherHeading,
-.cardAction,
-.proposalReview,
-.composerFooter {
+.composerHeading {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.composerHeading > span,
-.launcherIcon {
+.composerIcon {
   display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
-  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
   place-items: center;
   border-radius: var(--radius-md);
   background: var(--accent-muted);
   color: var(--accent-text);
+  flex-shrink: 0;
 }
 
-.composerHeading h2,
-.composerHeading p,
-.launcherHeading h2,
-.launcherHeading p,
-.emptyState h2,
-.emptyState p {
+.composerHeading h2 {
   margin: 0;
-}
-
-.composerHeading h2,
-.launcherHeading h2,
-.emptyState h2 {
   font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
 }
 
-.composerHeading p,
-.launcherHeading p,
-.emptyState p,
-.composerFooter p,
-.cardAction p,
-.proposalReview p,
-.finalState {
-  color: var(--text-tertiary);
-  font-size: 0.8rem;
-  line-height: 1.5;
-}
-
-.composerForm,
-.proposal {
-  display: grid;
-  gap: 0.8rem;
-  margin-top: 1rem;
-}
-
-.captureField,
-.proposal label {
-  display: grid;
-  gap: 0.45rem;
+.composerHeading p {
+  margin: 0.15rem 0 0;
+  font-size: 0.8125rem;
   color: var(--text-secondary);
-  font-size: 0.75rem;
-  font-weight: 700;
 }
 
-.captureField textarea,
-.proposal input,
-.proposal textarea {
+.composerForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.textarea {
   width: 100%;
-  min-height: 3rem;
-  padding: 0.75rem;
-  resize: vertical;
+  min-height: 4.5rem;
+  padding: 0.75rem 0.85rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--surface-interactive);
   color: var(--text-primary);
-  font-size: 1rem;
-  font-weight: 500;
+  font-size: 0.9375rem;
   line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--motion-fast) var(--motion-ease);
 }
 
-.captureField textarea:focus,
-.proposal input:focus,
-.proposal textarea:focus {
+.textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-muted);
-  outline: none;
+}
+
+.composerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.composerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 
 .proposalCard {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0.85rem;
-  border: 1px solid var(--accent-border);
+  padding: 0.85rem 1rem;
   border-radius: var(--radius-md);
-  background: var(--surface);
-}
-
-.proposalHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.proposalTitle {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.proposalMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-}
-
-.proposalActions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.35rem;
-}
-
-.composerFooter,
-.proposalReview,
-.cardAction {
-  justify-content: space-between;
-}
-
-.composerFooter p,
-.proposalReview p,
-.cardAction p,
-.finalState {
-  margin: 0;
-}
-
-.primaryButton,
-.secondaryButton,
-.dismissButton,
-.captureTrigger,
-.compactTrigger {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: 0.82rem;
-  font-weight: 720;
-}
-
-.primaryButton {
-  padding: 0.55rem 0.85rem;
+  background: var(--surface-subtle);
   border: 1px solid var(--accent-border);
-  background: var(--accent-muted);
-  color: var(--accent-text);
 }
 
-.secondaryButton {
-  padding: 0.55rem 0.8rem;
-  border: 1px solid var(--border-strong);
-  background: var(--surface-interactive);
-  color: var(--text-secondary);
-}
-
-.dismissButton {
-  padding: 0.55rem 0.8rem;
-  border: 1px solid var(--border-subtle);
-  background: transparent;
-  color: var(--text-tertiary);
-}
-
-.dismissButton:hover {
-  background: var(--surface-interactive);
-  color: var(--text-secondary);
-}
-
-.primaryButton:disabled,
-.secondaryButton:disabled,
-.dismissButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-.inboxList {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.captureCard {
-  display: grid;
-  gap: 0.9rem;
-}
-
-.captureCard[data-targeted="true"] {
-  border-color: var(--accent-border);
-  box-shadow: 0 0 0 1px var(--accent-border), var(--shadow-soft);
-}
-
-.captureMeta {
+/* Triage Queue */
+.triageQueue {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   gap: 1rem;
+  width: 100%;
+}
+
+.queueHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.queueList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.queueItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-base);
+  transition: border-color var(--motion-fast) var(--motion-ease),
+              box-shadow var(--motion-fast) var(--motion-ease);
+}
+
+.queueItem[data-targeted="true"] {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+.itemMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.itemBadges {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.timeLabel {
+  font-size: 0.75rem;
   color: var(--text-tertiary);
-  font-size: 0.7rem;
-  font-weight: 750;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
-.sourceBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent-muted) 60%, transparent);
-  border: 1px solid var(--accent-border);
-  color: var(--accent-text);
-  font-size: 0.68rem;
-  font-weight: 750;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.rawText {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.courseBadge {
-  display: inline-flex;
+.sourceDetails {
+  display: flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.2rem 0.5rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
   background: var(--surface-subtle);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  font-size: 0.72rem;
-  font-weight: 650;
-}
-
-.proposalDetails {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
 }
 
 .sourceLink {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.35rem;
   color: var(--accent-text);
-  font-size: 0.75rem;
-  font-weight: 600;
   text-decoration: none;
+  font-weight: 500;
+  font-size: 0.78rem;
+  margin-left: auto;
 }
 
 .sourceLink:hover {
   text-decoration: underline;
 }
 
-.divergenceNotice {
-  padding: 0.65rem 0.85rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  background: color-mix(in srgb, var(--surface-elevated) 80%, transparent);
+/* Proposal Review Section */
+.proposalForm {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.divergenceNotice p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.78rem;
-  line-height: 1.4;
-}
-
-.missingNotice {
-  padding: 0.65rem 0.85rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-sm);
   background: var(--surface-subtle);
-  color: var(--text-tertiary);
-  font-size: 0.78rem;
-  line-height: 1.4;
+  border: 1px solid var(--border-subtle);
 }
 
-.actionButtons {
+.proposalTitleGroup {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
-.rawText {
-  margin: 0;
-  overflow-wrap: anywhere;
-  color: var(--text-primary);
-  font-size: 0.95rem;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.cardAction,
-.proposal {
-  padding-top: 0.8rem;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.actionError {
-  margin: 0;
-  color: var(--accent-text);
-  font-size: 0.8rem;
-  font-weight: 650;
-}
-
-.emptyState {
-  text-align: center;
-}
-
-.emptyState p {
-  margin-top: 0.35rem;
-}
-
-.captureTrigger {
-  width: 100%;
-  margin-top: 0.65rem;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--accent-border);
-  background: var(--accent-muted);
-  color: var(--accent-text);
-}
-
-.captureTrigger span {
-  margin-right: auto;
-}
-
-.captureTrigger kbd {
+.proposalTitleGroup label {
+  font-size: 0.75rem;
+  font-weight: 600;
   color: var(--text-tertiary);
-  font-size: 0.67rem;
-}
-
-.compactTrigger {
-  width: 2.75rem;
-  padding: 0;
-  border: 1px solid var(--accent-border);
-  background: var(--accent-muted);
-  color: var(--accent-text);
-}
-
-.launcherBackdrop {
-  position: fixed;
-  z-index: 100;
-  inset: 0;
-  display: grid;
-  align-items: end;
-  padding:
-    max(1rem, env(safe-area-inset-top))
-    max(1rem, env(safe-area-inset-right))
-    max(1rem, env(safe-area-inset-bottom))
-    max(1rem, env(safe-area-inset-left));
-  background: var(--scrim);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.launcherPanel {
-  width: min(100%, 38rem);
-  max-height: calc(
-    100svh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)
-  );
-  margin-inline: auto;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 1.25rem;
-  border: 1px solid var(--border-strong);
-  border-top: 1px solid var(--border-highlight);
-  border-radius: var(--radius-xl);
-  background: var(--surface-modal, oklch(19.5% 0.03 255 / 92%));
-  box-shadow: var(--shadow-modal);
-  backdrop-filter: blur(var(--blur-surface, 16px));
-  -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
-}
-
-.launcherHeading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.85rem;
-}
-
-.launcherHeading > div:nth-child(2) {
-  min-width: 0;
-  flex: 1;
-}
-
-.launcherHeading > div:nth-child(2) > p {
-  color: var(--accent-text);
-  font-size: 0.68rem;
-  font-weight: 750;
-  letter-spacing: 0.08em;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.launcherHeading > button {
-  display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
-  min-width: 2.5rem;
-  min-height: 2.5rem;
-  place-items: center;
+.proposalInput {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-control, 0.5rem);
-  background: var(--surface-subtle);
-  cursor: pointer;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  outline: none;
+  transition: border-color var(--motion-fast) var(--motion-ease);
+}
+
+.proposalInput:focus {
+  border-color: var(--accent);
+}
+
+.proposalActionsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.proposalHelpText {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+.buttonGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+/* Committed & Undo Row */
+.committedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
   color: var(--text-secondary);
-  transition:
-    background-color var(--motion-fast) ease,
-    border-color var(--motion-fast) ease,
-    color var(--motion-fast) ease,
-    transform var(--motion-fast) var(--motion-spring);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .launcherHeading > button:hover {
-    background: var(--surface-hover);
-    border-color: var(--border-strong);
-    color: var(--text-primary);
-  }
-}
-
-.launcherHeading > button:active {
-  transform: scale(0.96);
-}
-
-.inboxLink {
-  display: block;
-  margin-top: 0.95rem;
-  color: var(--accent-text);
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-align: center;
-  text-decoration: none;
-  transition: color var(--motion-fast) ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .inboxLink:hover {
-    color: var(--accent-bright);
-    text-decoration: underline;
-  }
-}
-
-@media (max-width: 34rem) {
-  .composerFooter,
-  .proposalReview,
-  .cardAction,
-  .divergenceNotice {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .actionButtons {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .primaryButton,
-  .secondaryButton,
-  .dismissButton {
-    width: 100%;
-  }
-}
-
-@media (min-width: 40rem) {
-  .launcherBackdrop {
-    align-items: center;
-  }
+.finalStateText {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+  margin: 0;
+  font-style: italic;
 }

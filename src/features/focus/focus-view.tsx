@@ -23,6 +23,9 @@ import {
   type ReactNode,
 } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { setTaskCompletionAction } from "@/features/tasks/task-actions";
 
 import type { FocusNow, FocusReadModel, FocusTodayItem } from "./focus-domain";
@@ -121,12 +124,11 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
       });
 
       return (
-        <span className={styles.focalTimerBadge}>
-          <Clock size={13} aria-hidden="true" />
+        <Badge tone="accent" size="sm" icon={<Clock size={12} aria-hidden="true" />}>
           {remainingMinutes > 0
             ? `${remainingMinutes}m remaining · until ${timeFormat.format(new Date(item.endsAt))}`
             : `Ending now (${timeFormat.format(new Date(item.endsAt))})`}
-        </span>
+        </Badge>
       );
     }
 
@@ -136,19 +138,17 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
       const minsUntil = Math.max(1, Math.round((startMs - nowMs) / 60_000));
 
       return (
-        <span className={styles.focalTimerBadge}>
-          <Clock size={13} aria-hidden="true" />
+        <Badge tone="warning" size="sm" icon={<Clock size={12} aria-hidden="true" />}>
           {`Starts in ${minsUntil}m`}
-        </span>
+        </Badge>
       );
     }
 
     if (item.kind === "next_action_task") {
       return (
-        <span className={styles.focalTimerBadge}>
-          <Sparkles size={13} aria-hidden="true" />
+        <Badge tone="info" size="sm" icon={<Sparkles size={12} aria-hidden="true" />}>
           {`~${item.estimatedMinutes}m focus`}
-        </span>
+        </Badge>
       );
     }
 
@@ -179,14 +179,14 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
   function renderItemIcon(item: FocusTodayItem): ReactNode {
     switch (item.kind) {
       case "course_meeting":
-        return <BookOpen size={15} aria-hidden="true" />;
+        return <BookOpen size={14} aria-hidden="true" />;
       case "work_session":
       case "scheduled_task":
-        return <Clock size={15} aria-hidden="true" />;
+        return <Clock size={14} aria-hidden="true" />;
       case "overdue_deadline":
-        return <AlertCircle size={15} aria-hidden="true" />;
+        return <AlertCircle size={14} aria-hidden="true" />;
       default:
-        return <CalendarDays size={15} aria-hidden="true" />;
+        return <CalendarDays size={14} aria-hidden="true" />;
     }
   }
 
@@ -202,19 +202,18 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
       {/* Top Floating Bar */}
       <header className={`${styles.topbar} motion-enter`}>
         <div className={styles.topbarLeft}>
-          <Link
-            href="/"
-            className={`${styles.exitButton} motion-interactive`}
-            aria-label="Exit Focus Mode (or press Escape)"
-            title="Exit Focus Mode"
-          >
-            <ArrowLeft size={16} aria-hidden="true" />
-            <span>Exit Focus</span>
+          <Link href="/" style={{ textDecoration: "none" }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ArrowLeft size={15} aria-hidden="true" />}
+            >
+              Exit Focus
+            </Button>
           </Link>
-          <div className={styles.modeBadge}>
-            <span className={styles.pulseDot} aria-hidden="true" />
-            <span>Goldfish Mode</span>
-          </div>
+          <Badge tone="accent" size="sm" dot>
+            Goldfish Mode
+          </Badge>
         </div>
 
         <div className={styles.clockDisplay}>
@@ -228,8 +227,6 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
         className={`${styles.focalCard} motion-enter`}
         aria-labelledby="focus-now-title"
       >
-        <div className={styles.focalGlow} aria-hidden="true" />
-
         <div className={styles.focalHeader}>
           <div className={styles.focalEyebrow}>
             {renderNowIcon(now)}
@@ -265,21 +262,19 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
         {/* Focal Actions */}
         {nowTaskId ? (
           <div className={styles.focalActions}>
-            <button
-              type="button"
-              className={`${styles.completeButton} motion-interactive`}
-              data-completed={isNowTaskCompleted || undefined}
+            <Button
+              variant={isNowTaskCompleted ? "secondary" : "primary"}
+              size="md"
+              icon={<Check size={16} aria-hidden="true" />}
               onClick={() => handleToggleTaskCompletion(nowTaskId, isNowTaskCompleted)}
             >
-              <Check size={16} aria-hidden="true" />
-              <span>{isNowTaskCompleted ? "Completed" : "Complete task"}</span>
-            </button>
+              {isNowTaskCompleted ? "Completed" : "Complete task"}
+            </Button>
 
-            <Link
-              href="/tasks?view=today"
-              className={`${styles.secondaryAction} motion-interactive`}
-            >
-              View in Tasks
+            <Link href="/tasks?view=today" style={{ textDecoration: "none" }}>
+              <Button variant="ghost" size="md">
+                View in Tasks
+              </Button>
             </Link>
           </div>
         ) : null}
@@ -297,9 +292,7 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
               <span>NEXT UP</span>
             </div>
             {"minutesUntilStart" in next ? (
-              <span className={styles.nextMeta}>
-                in {next.minutesUntilStart}m
-              </span>
+              <span className={styles.nextMeta}>in {next.minutesUntilStart}m</span>
             ) : null}
           </div>
 
@@ -308,9 +301,7 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
           </h2>
 
           <div className={styles.nextMeta}>
-            {"meta" in next && next.meta ? (
-              <span>{next.meta} · </span>
-            ) : null}
+            {"meta" in next && next.meta ? <span>{next.meta} · </span> : null}
             {"durationMinutes" in next ? (
               <span>{next.durationMinutes}m planned</span>
             ) : "estimatedMinutes" in next ? (
@@ -338,18 +329,20 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
               const isCompleted = item.task ? completedTaskIds.has(item.task.id) : false;
 
               return (
-                <li key={item.key} className={`${styles.todayItem} motion-interactive`}>
+                <li key={item.key} className={styles.todayItem}>
                   <div className={styles.todayItemLeft}>
                     {isTask && item.task ? (
-                      <button
-                        type="button"
-                        className={styles.checkboxButton}
-                        data-checked={isCompleted || undefined}
-                        aria-label={isCompleted ? `Mark ${item.title} as incomplete` : `Mark ${item.title} as complete`}
-                        onClick={() => handleToggleTaskCompletion(item.task!.id, isCompleted)}
-                      >
-                        {isCompleted ? <Check size={14} aria-hidden="true" /> : null}
-                      </button>
+                      <Checkbox
+                        checked={isCompleted}
+                        aria-label={
+                          isCompleted
+                            ? `Mark ${item.title} as incomplete`
+                            : `Mark ${item.title} as complete`
+                        }
+                        onChange={() =>
+                          handleToggleTaskCompletion(item.task!.id, isCompleted)
+                        }
+                      />
                     ) : (
                       <span className={styles.itemIconWrapper}>
                         {renderItemIcon(item)}
@@ -380,7 +373,7 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
             })}
           </ul>
         ) : (
-          <div className={styles.emptyState}>
+          <div className={styles.emptyToday}>
             <h3>Nothing else today</h3>
             <p>Your commitments and deadlines for today are clear. Keep the focus on what is in front of you.</p>
           </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { Callout } from "@/components/ui/callout";
 import {
   isAuthUnavailableNotice,
   isSessionExpiredNotice,
@@ -29,15 +30,20 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             : "Supabase Auth must be configured before this private workspace can be opened."}
         </p>
       </header>
+      {!configured ? (
+        <Callout tone="warning" title="Configuration Required">
+          Supabase Auth environment variables are not configured.
+        </Callout>
+      ) : null}
       {isSessionExpiredNotice(params.reason) ? (
-        <p role="status" className={styles.notice}>
+        <Callout tone="warning" title="Session Expired">
           Your session expired. Sign in to continue where you left off.
-        </p>
+        </Callout>
       ) : null}
       {isAuthUnavailableNotice(params.reason) ? (
-        <p role="status" className={styles.notice}>
+        <Callout tone="error" title="Service Unavailable">
           The account service is temporarily unavailable. Please try again.
-        </p>
+        </Callout>
       ) : null}
       <SignInForm />
     </div>

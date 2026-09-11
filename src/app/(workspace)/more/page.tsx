@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   Bell,
   CalendarSync,
+  ChevronRight,
   FolderKanban,
   Inbox,
   LandPlot,
@@ -13,18 +14,18 @@ import {
   Trophy,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
 import { AppearanceControls } from "@/features/appearance/appearance-controls";
 import { SignOutControl } from "@/features/auth/sign-out-control";
-import { NotificationPreferences } from "@/features/notifications/notification-preferences";
 
 import styles from "./more-page.module.css";
 
 export const metadata: Metadata = { title: "More" };
 
 const secondarySections = [
-  { title: "Football", detail: "Club organization and EFU access", icon: Trophy },
+  { title: "Football", detail: "Club organization and EFU reference", icon: Trophy },
   { title: "Projects", detail: "Simple multi-step outcomes", icon: FolderKanban },
   { title: "Areas", detail: "Ongoing parts of life", icon: LandPlot },
 ] as const;
@@ -34,151 +35,216 @@ export default function MorePage() {
     <>
       <PageHeader
         title="More"
-        description="Appearance, notifications, and account controls live here; secondary areas will join as their phases begin."
+        description="Personalization, integrations, intelligence, and account controls."
       />
-      <div className={styles.sections}>
-        <section className={styles.secondaryGrid} aria-label="Future sections">
-          <Link href="/settings/notifications" className={styles.sectionLink}>
-            <Surface variant="interactive" className={styles.secondaryCard}>
-              <span className={styles.secondaryIcon} aria-hidden="true">
-                <Bell size={19} />
-              </span>
-              <div>
-                <h2>Notification Preferences</h2>
-                <p>Category toggles, quiet hours & push alerts</p>
-              </div>
-              <span className={styles.open}>Open</span>
-            </Surface>
-          </Link>
-          <Link href="/integrations/calendars" className={styles.sectionLink}>
-            <Surface variant="interactive" className={styles.secondaryCard}>
-              <span className={styles.secondaryIcon} aria-hidden="true">
-                <CalendarSync size={19} />
-              </span>
-              <div>
-                <h2>Calendar connections</h2>
-                <p>Source-aware external providers and capabilities</p>
-              </div>
-              <span className={styles.open}>Open</span>
-            </Surface>
-          </Link>
-          <Link href="/inbox" className={styles.sectionLink}>
-            <Surface variant="interactive" className={styles.secondaryCard}>
-              <span className={styles.secondaryIcon} aria-hidden="true">
-                <Inbox size={19} />
-              </span>
-              <div>
-                <h2>Capture Inbox</h2>
-                <p>Raw input, proposals, and reversible commits</p>
-              </div>
-              <span className={styles.open}>Open</span>
-            </Surface>
-          </Link>
-          <Link href="/notes" className={styles.sectionLink}>
-            <Surface variant="interactive" className={styles.secondaryCard}>
-              <span className={styles.secondaryIcon} aria-hidden="true">
-                <NotebookPen size={19} />
-              </span>
-              <div>
-                <h2>Notes</h2>
-                <p>Private Markdown and attachments</p>
-              </div>
-              <span className={styles.open}>Open</span>
-            </Surface>
-          </Link>
-          <Link href="/integrations/blackboard" className={styles.sectionLink}>
-            <Surface variant="interactive" className={styles.secondaryCard}>
-              <span className={styles.secondaryIcon} aria-hidden="true">
-                <ShieldCheck size={19} />
-              </span>
-              <div>
-                <h2>Blackboard</h2>
-                <p>Secure School email ingestion and notifications</p>
-              </div>
-              <span className={styles.open}>Open</span>
-            </Surface>
-          </Link>
-          <Link href="/integrations/notion" className={styles.sectionLink}>
-            <Surface variant="interactive" className={styles.secondaryCard}>
-              <span className={styles.secondaryIcon} aria-hidden="true">
-                <Layers size={19} />
-              </span>
-              <div>
-                <h2>Notion</h2>
-                <p>Selective two-way knowledge sync</p>
-              </div>
-              <span className={styles.open}>Open</span>
-            </Surface>
-          </Link>
-          <Link href="/settings/ai" className={styles.sectionLink}>
-            <Surface variant="interactive" className={styles.secondaryCard}>
-              <span className={styles.secondaryIcon} aria-hidden="true">
-                <Sparkles size={19} />
-              </span>
-              <div>
-                <h2>Cloud AI</h2>
-                <p>Privacy boundaries & models</p>
-              </div>
-              <span className={styles.open}>Open</span>
-            </Surface>
-          </Link>
-          {secondarySections.map((section) => {
-            const Icon = section.icon;
-            return (
-              <Surface
-                key={section.title}
-                variant="subtle"
-                className={styles.secondaryCard}
-              >
-                <span className={styles.secondaryIcon} aria-hidden="true">
-                  <Icon size={19} />
-                </span>
-                <div>
-                  <h2>{section.title}</h2>
-                  <p>{section.detail}</p>
-                </div>
-                <span className={styles.later}>Later</span>
-              </Surface>
-            );
-          })}
+
+      <div className={styles.hubContainer}>
+        {/* Personalization: Appearance */}
+        <section className={styles.hubSection} aria-labelledby="heading-appearance">
+          <Surface variant="base" className={styles.settingsSurface} id="appearance">
+            <div className={styles.surfaceHeader}>
+              <h3 id="heading-appearance">Appearance</h3>
+              <p>
+                Choose how the workspace feels on this device. Theme and accent preferences stay
+                local to your browser.
+              </p>
+            </div>
+            <AppearanceControls />
+          </Surface>
         </section>
 
-        <Surface variant="glass" className={styles.appearance} id="appearance">
-          <div className={styles.appearanceHeading}>
-            <h2>Appearance</h2>
-            <p>
-              Choose how the workspace feels on this device. Preferences stay
-              local to your browser.
+        {/* Secondary Workflows */}
+        <section className={styles.hubSection} aria-labelledby="heading-workflows">
+          <div className={styles.sectionHeader}>
+            <h2 id="heading-workflows" className={styles.sectionTitle}>
+              Secondary Workflows
+            </h2>
+            <p className={styles.sectionDesc}>
+              Supporting capture and knowledge spaces.
             </p>
           </div>
-          <AppearanceControls />
-        </Surface>
 
-        <Surface
-          variant="glass"
-          className={styles.notifications}
-          id="notifications"
-        >
-          <div className={styles.notificationsHeading}>
-            <h2>Notifications</h2>
-            <p>
-              Configure in-app categories, quiet hours, and optional device push
-              delivery.
-            </p>
-          </div>
-          <NotificationPreferences />
-        </Surface>
+          <div className={styles.cardsGrid}>
+            <Link href="/inbox" className={styles.cardLink}>
+              <div className={styles.navCard}>
+                <div className={styles.cardIcon}>
+                  <Inbox size={20} aria-hidden="true" />
+                </div>
+                <div className={styles.cardContent}>
+                  <h3 className={styles.cardTitle}>Capture Inbox</h3>
+                  <p className={styles.cardDetail}>Raw input, proposals & reversible triage</p>
+                </div>
+                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+              </div>
+            </Link>
 
-        <Surface variant="glass" className={styles.account} id="account">
-          <div className={styles.accountHeading}>
-            <h2>Account</h2>
-            <p>
-              Your Supabase session protects this workspace and its personal
-              data.
+            <Link href="/notes" className={styles.cardLink}>
+              <div className={styles.navCard}>
+                <div className={styles.cardIcon}>
+                  <NotebookPen size={20} aria-hidden="true" />
+                </div>
+                <div className={styles.cardContent}>
+                  <h3 className={styles.cardTitle}>Notes</h3>
+                  <p className={styles.cardDetail}>Quiet Markdown notes & attachments</p>
+                </div>
+                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+              </div>
+            </Link>
+          </div>
+        </section>
+
+        {/* Integrations & Connections */}
+        <section className={styles.hubSection} aria-labelledby="heading-connections">
+          <div className={styles.sectionHeader}>
+            <h2 id="heading-connections" className={styles.sectionTitle}>
+              Connections & Integrations
+            </h2>
+            <p className={styles.sectionDesc}>
+              Source-aware external calendars, school feeds, and knowledge export.
             </p>
           </div>
-          <SignOutControl />
-        </Surface>
+
+          <div className={styles.cardsGrid}>
+            <Link href="/integrations/calendars" className={styles.cardLink}>
+              <div className={styles.navCard}>
+                <div className={styles.cardIcon}>
+                  <CalendarSync size={20} aria-hidden="true" />
+                </div>
+                <div className={styles.cardContent}>
+                  <h3 className={styles.cardTitle}>Calendar Connections</h3>
+                  <p className={styles.cardDetail}>Google Calendar mirrors & capabilities</p>
+                </div>
+                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+              </div>
+            </Link>
+
+            <Link href="/integrations/blackboard" className={styles.cardLink}>
+              <div className={styles.navCard}>
+                <div className={styles.cardIcon}>
+                  <ShieldCheck size={20} aria-hidden="true" />
+                </div>
+                <div className={styles.cardContent}>
+                  <h3 className={styles.cardTitle}>Blackboard</h3>
+                  <p className={styles.cardDetail}>School email ingestion & observation</p>
+                </div>
+                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+              </div>
+            </Link>
+
+            <Link href="/integrations/notion" className={styles.cardLink}>
+              <div className={styles.navCard}>
+                <div className={styles.cardIcon}>
+                  <Layers size={20} aria-hidden="true" />
+                </div>
+                <div className={styles.cardContent}>
+                  <h3 className={styles.cardTitle}>Notion</h3>
+                  <p className={styles.cardDetail}>Selective note synchronization & export</p>
+                </div>
+                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+              </div>
+            </Link>
+          </div>
+        </section>
+
+        {/* Intelligence & Privacy */}
+        <section className={styles.hubSection} aria-labelledby="heading-intelligence">
+          <div className={styles.sectionHeader}>
+            <h2 id="heading-intelligence" className={styles.sectionTitle}>
+              Intelligence & Privacy
+            </h2>
+            <p className={styles.sectionDesc}>
+              Privacy boundaries, Local Companion daemon, and provider routing.
+            </p>
+          </div>
+
+          <div className={styles.cardsGrid}>
+            <Link href="/settings/ai" className={styles.cardLink}>
+              <div className={styles.navCard}>
+                <div className={styles.cardIcon}>
+                  <Sparkles size={20} aria-hidden="true" />
+                </div>
+                <div className={styles.cardContent}>
+                  <h3 className={styles.cardTitle}>AI Settings</h3>
+                  <p className={styles.cardDetail}>Model routing, privacy gates & pairing</p>
+                </div>
+                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+              </div>
+            </Link>
+          </div>
+        </section>
+
+        {/* Notifications */}
+        <section className={styles.hubSection} aria-labelledby="heading-notifications">
+          <div className={styles.sectionHeader}>
+            <h2 id="heading-notifications" className={styles.sectionTitle}>
+              Notifications
+            </h2>
+            <p className={styles.sectionDesc}>
+              Delivery rules, quiet hours, and device push alerts.
+            </p>
+          </div>
+
+          <div className={styles.cardsGrid}>
+            <Link href="/settings/notifications" className={styles.cardLink}>
+              <div className={styles.navCard}>
+                <div className={styles.cardIcon}>
+                  <Bell size={20} aria-hidden="true" />
+                </div>
+                <div className={styles.cardContent}>
+                  <h3 className={styles.cardTitle}>Notification Preferences</h3>
+                  <p className={styles.cardDetail}>Category toggles, quiet hours & Web Push</p>
+                </div>
+                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+              </div>
+            </Link>
+          </div>
+        </section>
+
+        {/* Planned Secondary Areas */}
+        <section className={styles.hubSection} aria-labelledby="heading-planned">
+          <div className={styles.sectionHeader}>
+            <h2 id="heading-planned" className={styles.sectionTitle}>
+              Planned Life Areas
+            </h2>
+            <p className={styles.sectionDesc}>
+              Deferred areas reserved for upcoming milestones.
+            </p>
+          </div>
+
+          <div className={styles.cardsGrid}>
+            {secondarySections.map((sec) => {
+              const Icon = sec.icon;
+              return (
+                <div key={sec.title} className={styles.navCard} style={{ opacity: 0.7 }}>
+                  <div className={styles.cardIcon}>
+                    <Icon size={20} aria-hidden="true" />
+                  </div>
+                  <div className={styles.cardContent}>
+                    <h3 className={styles.cardTitle}>{sec.title}</h3>
+                    <p className={styles.cardDetail}>{sec.detail}</p>
+                  </div>
+                  <Badge tone="neutral" size="sm">
+                    Later
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Account & Security */}
+        <section className={styles.hubSection} aria-labelledby="heading-account">
+          <Surface variant="base" className={styles.settingsSurface} id="account">
+            <div className={styles.surfaceHeader}>
+              <h3 id="heading-account">Account & Session</h3>
+              <p>
+                Your authenticated Supabase session protects this private workspace and all
+                personal data.
+              </p>
+            </div>
+            <SignOutControl />
+          </Surface>
+        </section>
       </div>
     </>
   );

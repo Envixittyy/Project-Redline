@@ -2,15 +2,17 @@
 
 import {
   Check,
-  CheckSquare,
   Copy,
-  FileEdit,
-  FileText,
   Loader2,
   Sparkles,
-  X,
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
+import { Modal } from "@/components/ui/modal-frame";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
 import { getCompanionSession } from "@/services/integrations/ai/companion-session";
 import type {
@@ -19,6 +21,7 @@ import type {
   NoteActionItemsProposal,
   NoteActionItem,
 } from "@/services/integrations/ai/note-intelligence-contract";
+
 import {
   applyNoteRewriteAction,
   applyNoteActionItemsAction,
@@ -82,7 +85,19 @@ export function NoteAiDialog({
           setLoading(false);
           return;
         }
-        const rev = (result as { ok: true; review: { batchId: string; summary?: string; keyPoints?: string[]; rewrittenBody?: string; changesExplanation?: string; items?: NoteActionItem[]; proposal?: unknown } }).review;
+        const rev = (result as {
+          ok: true;
+          review: {
+            batchId: string;
+            summary?: string;
+            keyPoints?: string[];
+            rewrittenBody?: string;
+            changesExplanation?: string;
+            items?: NoteActionItem[];
+            proposal?: unknown;
+          };
+        }).review;
+
         if (tab === "summary") {
           setSummaryResult({
             schema_version: 1,
@@ -97,12 +112,19 @@ export function NoteAiDialog({
             schema_version: 1,
             type: "propose_note_rewrite",
             source_handle: "",
-            rewrittenBody: rev.rewrittenBody || (rev.proposal as NoteRewriteProposal)?.rewrittenBody || "",
-            changesExplanation: rev.changesExplanation || (rev.proposal as NoteRewriteProposal)?.changesExplanation || "Polished note structure",
+            rewrittenBody:
+              rev.rewrittenBody ||
+              (rev.proposal as NoteRewriteProposal)?.rewrittenBody ||
+              "",
+            changesExplanation:
+              rev.changesExplanation ||
+              (rev.proposal as NoteRewriteProposal)?.changesExplanation ||
+              "Polished note structure",
           });
         } else if (tab === "action_items") {
           setActionItemsBatchId(rev.batchId);
-          const items = rev.items || (rev.proposal as NoteActionItemsProposal)?.actionItems || [];
+          const items =
+            rev.items || (rev.proposal as NoteActionItemsProposal)?.actionItems || [];
           setActionItemsResult(items.map((it) => ({ ...it, selected: true })));
         }
         setLoading(false);
@@ -169,310 +191,273 @@ export function NoteAiDialog({
   }
 
   return (
-    <div
-      className={styles.backdrop}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !applying) onClose();
-      }}
-    >
-      <div className={`${styles.modal} motion-enter`} role="dialog" aria-modal="true">
-        <div className={styles.header}>
-          <div>
-            <p className={styles.eyebrow}>Notes AI Assistant</p>
-            <h3 className={styles.title}>{note.title || "Untitled Note"}</h3>
-          </div>
-          <button
-            type="button"
-            className={styles.closeButton}
-            onClick={onClose}
-            disabled={applying}
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className={styles.tabs} role="tablist">
-          <button
-            type="button"
-            className={styles.tab}
-            data-active={tab === "summary"}
-            onClick={() => handleTabSelect("summary")}
-            disabled={loading || applying}
-          >
-            <FileText size={15} /> Summarize
-          </button>
-          <button
-            type="button"
-            className={styles.tab}
-            data-active={tab === "rewrite"}
-            onClick={() => handleTabSelect("rewrite")}
-            disabled={loading || applying}
-          >
-            <FileEdit size={15} /> Clean Up & Organize
-          </button>
-          <button
-            type="button"
-            className={styles.tab}
-            data-active={tab === "action_items"}
-            onClick={() => handleTabSelect("action_items")}
-            disabled={loading || applying}
-          >
-            <CheckSquare size={15} /> Extract Action Items
-          </button>
-        </div>
-
-        <div className={styles.content}>
-          {error ? (
-            <div style={{ padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", background: "color-mix(in srgb, var(--destructive) 15%, transparent)", color: "var(--destructive)", fontSize: "0.82rem", fontWeight: 600 }}>
-              {error}
-            </div>
-          ) : null}
-
-          {loading ? (
-            <div className={styles.loadingBox}>
-              <Loader2 size={36} className="animate-spin" style={{ color: "var(--accent-text)", marginBottom: "0.75rem" }} />
-              <h4 style={{ margin: 0, fontSize: "0.95rem", color: "var(--text-primary)" }}>
-                {tab === "summary" && "Generating summary…"}
-                {tab === "rewrite" && "Structuring & polishing note…"}
-                {tab === "action_items" && "Extracting actionable tasks…"}
-              </h4>
-              <p style={{ margin: "0.35rem 0 0", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                Processing note content with your chosen AI provider.
-              </p>
-            </div>
-          ) : null}
-
-          {/* Summary Tab View */}
-          {!loading && tab === "summary" && summaryResult ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <div style={{ padding: "1rem", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border-subtle)" }}>
-                <h4 style={{ margin: "0 0 0.5rem", fontSize: "0.85rem", color: "var(--accent-text)", textTransform: "uppercase" }}>
-                  Executive Summary
-                </h4>
-                <p style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.6, color: "var(--text-primary)" }}>
-                  {summaryResult.summary}
-                </p>
-              </div>
-
-              {summaryResult.keyPoints.length > 0 ? (
-                <div style={{ padding: "1rem", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border-subtle)" }}>
-                  <h4 style={{ margin: "0 0 0.5rem", fontSize: "0.85rem", color: "var(--text-secondary)", textTransform: "uppercase" }}>
-                    Key Bullet Points
-                  </h4>
-                  <ul style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.88rem", color: "var(--text-primary)" }}>
-                    {summaryResult.keyPoints.map((pt, idx) => (
-                      <li key={idx}>{pt}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {/* Rewrite Tab View */}
-          {!loading && tab === "rewrite" && rewriteResult ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <div className={styles.explanationBanner}>
-                <strong>AI Changes:</strong> {rewriteResult.changesExplanation}
-              </div>
-
-              <div className={styles.sideBySideGrid}>
-                <div className={styles.diffColumn}>
-                  <p className={styles.columnHeader}>Original Note</p>
-                  <div className={styles.previewBody}>{note.body}</div>
-                </div>
-
-                <div className={styles.diffColumn} style={{ borderColor: "var(--accent-border, var(--border-strong))" }}>
-                  <p className={styles.columnHeader} style={{ color: "var(--accent-text)" }}>Organized Preview</p>
-                  <div className={styles.previewBody}>{rewriteResult.rewrittenBody}</div>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {/* Action Items Tab View */}
-          {!loading && tab === "action_items" && actionItemsResult.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <h4 style={{ margin: "0 0 0.25rem", fontSize: "0.85rem", color: "var(--text-secondary)", textTransform: "uppercase" }}>
-                Found {actionItemsResult.length} Action Items
-              </h4>
-
-              {actionItemsResult.map((item, idx) => (
-                <div key={idx} className={styles.actionItemRow}>
-                  <input
-                    type="checkbox"
-                    checked={item.selected}
-                    onChange={(e) => {
-                      const updated = [...actionItemsResult];
-                      updated[idx] = { ...updated[idx], selected: e.target.checked };
-                      setActionItemsResult(updated);
-                    }}
-                    style={{ width: "1.15rem", height: "1.15rem", accentColor: "var(--accent)" }}
-                  />
-                  <input
-                    value={item.title}
-                    onChange={(e) => {
-                      const updated = [...actionItemsResult];
-                      updated[idx] = { ...updated[idx], title: e.target.value };
-                      setActionItemsResult(updated);
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: "0.35rem 0.5rem",
-                      borderRadius: "var(--radius-sm)",
-                      border: "1px solid var(--border-subtle)",
-                      background: "var(--surface-subtle)",
-                      color: "var(--text-primary)",
-                      fontSize: "0.85rem",
-                    }}
-                  />
-                  {item.dueDate ? (
-                    <span style={{ fontSize: "0.75rem", fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
-                      {item.dueDate}
-                    </span>
-                  ) : null}
-                  <span className={styles.priorityBadge}>{item.priority || "medium"}</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        {/* Footer Actions */}
-        <div className={styles.footer}>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={applying}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border-subtle)",
-              background: "var(--surface)",
-              color: "var(--text-secondary)",
-              fontSize: "0.85rem",
-              fontWeight: 650,
-              cursor: "pointer",
-            }}
-          >
+    <Modal
+      isOpen
+      onClose={applying ? () => {} : onClose}
+      title={note.title || "Untitled Note"}
+      description="Notes AI Assistant"
+      size="lg"
+      footer={
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: "0.5rem" }}>
+          <Button variant="secondary" onClick={onClose} disabled={applying}>
             Cancel
-          </button>
+          </Button>
 
-          <div style={{ display: "flex", gap: "0.6rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
             {tab === "summary" && summaryResult ? (
               <>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  icon={copied ? <Check size={14} /> : <Copy size={14} />}
                   onClick={handleCopySummary}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    padding: "0.5rem 1rem",
-                    borderRadius: "var(--radius-md)",
-                    border: "1px solid var(--border-subtle)",
-                    background: "var(--surface)",
-                    color: "var(--text-primary)",
-                    fontSize: "0.85rem",
-                    fontWeight: 650,
-                    cursor: "pointer",
-                  }}
                 >
-                  {copied ? <Check size={14} /> : <Copy size={14} />}
-                  {copied ? "Copied" : "Copy Summary"}
-                </button>
-                <button
-                  type="button"
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+                <Button
+                  variant="primary"
+                  icon={<Sparkles size={14} />}
                   onClick={handleInsertSummary}
                   disabled={applying}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    padding: "0.5rem 1.25rem",
-                    borderRadius: "var(--radius-md)",
-                    background: "var(--accent)",
-                    color: "var(--accent-foreground)",
-                    border: "none",
-                    fontSize: "0.85rem",
-                    fontWeight: 750,
-                    cursor: "pointer",
-                  }}
                 >
-                  <Sparkles size={14} /> Insert at Top of Note
-                </button>
+                  Insert at Top
+                </Button>
               </>
             ) : null}
 
             {tab === "rewrite" && rewriteResult ? (
               <>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={() => handleApplyRewrite("append")}
                   disabled={applying}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    borderRadius: "var(--radius-md)",
-                    border: "1px solid var(--border-subtle)",
-                    background: "var(--surface)",
-                    color: "var(--text-primary)",
-                    fontSize: "0.85rem",
-                    fontWeight: 650,
-                    cursor: "pointer",
-                  }}
                 >
                   Insert at Bottom
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="primary"
+                  icon={<Check size={14} />}
                   onClick={() => handleApplyRewrite("replace")}
                   disabled={applying}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    padding: "0.5rem 1.25rem",
-                    borderRadius: "var(--radius-md)",
-                    background: "var(--accent)",
-                    color: "var(--accent-foreground)",
-                    border: "none",
-                    fontSize: "0.85rem",
-                    fontWeight: 750,
-                    cursor: "pointer",
-                  }}
                 >
-                  <Check size={14} /> Replace Note Content
-                </button>
+                  Replace Content
+                </Button>
               </>
             ) : null}
 
             {tab === "action_items" && actionItemsResult.length > 0 ? (
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                icon={<Check size={14} />}
                 onClick={handleApplyActionItems}
                 disabled={applying || actionItemsResult.filter((it) => it.selected).length === 0}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                  padding: "0.5rem 1.25rem",
-                  borderRadius: "var(--radius-md)",
-                  background: "var(--accent)",
-                  color: "var(--accent-foreground)",
-                  border: "none",
-                  fontSize: "0.85rem",
-                  fontWeight: 750,
-                  cursor: "pointer",
-                }}
               >
-                <Check size={14} />
                 Create {actionItemsResult.filter((it) => it.selected).length} Tasks
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <SegmentedControl
+          value={tab}
+          onChange={(val) => handleTabSelect(val as TabMode)}
+          options={[
+            { value: "summary", label: "Summarize", disabled: loading || applying },
+            { value: "rewrite", label: "Clean & Organize", disabled: loading || applying },
+            { value: "action_items", label: "Action Items", disabled: loading || applying },
+          ]}
+        />
+
+        {error ? (
+          <Callout variant="error" role="alert">
+            {error}
+          </Callout>
+        ) : null}
+
+        {loading ? (
+          <div className={styles.loadingBox}>
+            <Loader2
+              size={32}
+              className="animate-spin"
+              style={{ color: "var(--accent-text)", marginBottom: "0.5rem" }}
+            />
+            <h4 style={{ margin: 0, fontSize: "0.9375rem", color: "var(--text-primary)" }}>
+              {tab === "summary" && "Generating summary…"}
+              {tab === "rewrite" && "Structuring & polishing note…"}
+              {tab === "action_items" && "Extracting actionable tasks…"}
+            </h4>
+            <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+              Processing note content with your chosen AI provider.
+            </p>
+          </div>
+        ) : null}
+
+        {/* Summary Tab */}
+        {!loading && tab === "summary" && summaryResult ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div
+              style={{
+                padding: "0.85rem 1rem",
+                borderRadius: "var(--radius-md)",
+                background: "var(--surface)",
+                border: "1px solid var(--border-subtle)",
+              }}
+            >
+              <h4
+                style={{
+                  margin: "0 0 0.35rem",
+                  fontSize: "0.8125rem",
+                  color: "var(--accent-text)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                Executive Summary
+              </h4>
+              <p style={{ margin: 0, fontSize: "0.875rem", lineHeight: 1.6, color: "var(--text-primary)" }}>
+                {summaryResult.summary}
+              </p>
+            </div>
+
+            {summaryResult.keyPoints.length > 0 ? (
+              <div
+                style={{
+                  padding: "0.85rem 1rem",
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border-subtle)",
+                }}
+              >
+                <h4
+                  style={{
+                    margin: "0 0 0.35rem",
+                    fontSize: "0.8125rem",
+                    color: "var(--text-secondary)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Key Points
+                </h4>
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: "1.2rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.3rem",
+                    fontSize: "0.875rem",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {summaryResult.keyPoints.map((pt, idx) => (
+                    <li key={idx}>{pt}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* Rewrite Tab */}
+        {!loading && tab === "rewrite" && rewriteResult ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <Callout variant="info" title="AI Changes">
+              {rewriteResult.changesExplanation}
+            </Callout>
+
+            <div className={styles.sideBySideGrid}>
+              <div className={styles.diffColumn}>
+                <p className={styles.columnHeader}>Original Note</p>
+                <div className={styles.previewBody}>{note.body}</div>
+              </div>
+
+              <div
+                className={styles.diffColumn}
+                style={{ borderColor: "var(--accent-border)" }}
+              >
+                <p className={styles.columnHeader} style={{ color: "var(--accent-text)" }}>
+                  Organized Preview
+                </p>
+                <div className={styles.previewBody}>{rewriteResult.rewrittenBody}</div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Action Items Tab */}
+        {!loading && tab === "action_items" && actionItemsResult.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <h4
+              style={{
+                margin: "0 0 0.25rem",
+                fontSize: "0.8125rem",
+                color: "var(--text-secondary)",
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Found {actionItemsResult.length} Action Items
+            </h4>
+
+            {actionItemsResult.map((item, idx) => (
+              <div key={idx} className={styles.actionItemRow}>
+                <input
+                  type="checkbox"
+                  checked={item.selected}
+                  onChange={(e) => {
+                    const updated = [...actionItemsResult];
+                    updated[idx] = { ...updated[idx], selected: e.target.checked };
+                    setActionItemsResult(updated);
+                  }}
+                  style={{ width: "1.1rem", height: "1.1rem", accentColor: "var(--accent)" }}
+                />
+                <input
+                  value={item.title}
+                  onChange={(e) => {
+                    const updated = [...actionItemsResult];
+                    updated[idx] = { ...updated[idx], title: e.target.value };
+                    setActionItemsResult(updated);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "0.35rem 0.5rem",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--border-subtle)",
+                    background: "var(--surface-subtle)",
+                    color: "var(--text-primary)",
+                    fontSize: "0.85rem",
+                  }}
+                />
+                {item.dueDate ? (
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    {item.dueDate}
+                  </span>
+                ) : null}
+                <Badge
+                  tone={
+                    item.priority === "high"
+                      ? "destructive"
+                      : item.priority === "low"
+                      ? "neutral"
+                      : "warning"
+                  }
+                  size="sm"
+                >
+                  {item.priority || "medium"}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
-    </div>
+    </Modal>
   );
 }

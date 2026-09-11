@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
 import { signInAction } from "./auth-actions";
 import { signInInitialState, type SignInFormState } from "./auth-domain";
 
@@ -51,13 +53,20 @@ export function SignInForm() {
         />
       </div>
       {state.status === "error" ? (
-        <p role="alert" className={styles.error}>
+        <Callout tone="error" title="Sign in failed">
           {state.message}
-        </p>
+        </Callout>
       ) : null}
-      <button type="submit" className={styles.submit} disabled={isPending}>
-        {isPending ? "Checking…" : "Sign in"}
-      </button>
+      <Button
+        type="submit"
+        variant="primary"
+        size="md"
+        loading={isPending}
+        disabled={isPending}
+        className={styles.submit}
+      >
+        Sign in
+      </Button>
     </form>
   );
 }

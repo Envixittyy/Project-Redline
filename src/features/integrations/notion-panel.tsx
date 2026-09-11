@@ -11,6 +11,9 @@ import {
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { Badge } from "@/components/ui/badge";
+import { Button, IconButton } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
 import { Surface } from "@/components/ui/surface";
 import type {
   NotionAccountStatus,
@@ -61,9 +64,9 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
             <p>Notion Integration</p>
             <h2>{status.connected ? "Connected" : "Not connected"}</h2>
           </div>
-          <span className={styles.statusBadge} data-status={status.connected ? "synced" : "error"}>
+          <Badge tone={status.connected ? "success" : "neutral"} size="sm">
             {status.connected ? "Connected" : "Disconnected"}
-          </span>
+          </Badge>
         </header>
 
         <p className={styles.copy}>
@@ -105,26 +108,26 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
           </label>
 
           <div className={styles.actions}>
-            <button className={styles.buttonPrimary} type="submit" disabled={pending}>
+            <Button variant="primary" type="submit" loading={pending} disabled={pending}>
               {status.connected ? "Replace Token" : "Connect Notion"}
-            </button>
+            </Button>
             {status.connected ? (
-              <button
-                className={styles.buttonDanger}
+              <Button
+                variant="destructive"
                 type="button"
                 disabled={pending}
                 onClick={() => run(disconnectNotionAction)}
               >
                 Disconnect
-              </button>
+              </Button>
             ) : null}
           </div>
         </form>
 
         {message ? (
-          <p role="status" className={styles.message}>
+          <Callout tone="info" title="Status">
             {message}
-          </p>
+          </Callout>
         ) : null}
       </Surface>
 
@@ -152,24 +155,26 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
                   </p>
                 </div>
                 <div className={styles.actions}>
-                  <button
-                    className={styles.buttonPrimary}
+                  <Button
+                    variant="primary"
+                    size="sm"
                     disabled={pending}
                     onClick={() =>
                       run(() => resolveNotionConflictAction(conflict.id, "keep_redline"))
                     }
                   >
                     Keep Forward Version
-                  </button>
-                  <button
-                    className={styles.buttonSecondary}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     disabled={pending}
                     onClick={() =>
                       run(() => resolveNotionConflictAction(conflict.id, "use_notion"))
                     }
                   >
                     Use Notion Version
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -211,9 +216,18 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
                       </a>
                     </span>
                     <div className={styles.linkMeta}>
-                      <span className={styles.statusBadge} data-status={link.status}>
+                      <Badge
+                        tone={
+                          link.status === "synced"
+                            ? "success"
+                            : link.status === "conflict"
+                              ? "destructive"
+                              : "warning"
+                        }
+                        size="sm"
+                      >
                         {link.status.replace(/_/g, " ")}
-                      </span>
+                      </Badge>
                       <span>
                         Last sync:{" "}
                         {link.lastSuccessAt
@@ -236,31 +250,33 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
                           ),
                         )
                       }
+                      aria-label={`Sync direction for ${noteTitle}`}
                     >
                       <option value="forward_to_notion">Export Only (Forward → Notion)</option>
                       <option value="selective_two_way">Two-Way (Forward ↔ Notion)</option>
                     </select>
 
-                    <button
-                      className={styles.buttonSecondary}
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       disabled={pending || link.status === "syncing"}
                       type="button"
+                      icon={<RefreshCw size={14} />}
                       onClick={() => run(() => syncNoteAction(link.noteId))}
                       title="Sync now"
                     >
-                      <RefreshCw size={14} />
                       Sync
-                    </button>
+                    </Button>
 
-                    <button
-                      className={styles.buttonDanger}
+                    <IconButton
+                      variant="ghost"
+                      size="sm"
                       disabled={pending}
-                      type="button"
+                      aria-label="Unlink note"
+                      icon={<Trash2 size={14} />}
                       onClick={() => run(() => unlinkNoteAction(link.noteId))}
                       title="Unlink"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    />
                   </div>
                 </li>
               );

@@ -6,6 +6,7 @@ import { useRef, useState, useTransition } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
 import { Surface } from "@/components/ui/surface";
 import { createCaptureAction } from "@/features/capture/capture-actions";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
@@ -15,9 +16,7 @@ import type {
   ProposedTaskCapture,
   ProposedEventCapture,
 } from "@/services/integrations/ai/quick-capture-contract";
-import {
-  applyQuickCaptureAction,
-} from "@/features/capture/quick-capture-actions";
+import { applyQuickCaptureAction } from "@/features/capture/quick-capture-actions";
 
 import styles from "./capture.module.css";
 
@@ -103,7 +102,11 @@ export function CaptureComposer({
         if (textareaRef.current) textareaRef.current.value = "";
         setAiProposal(null);
         setAiBatchId(null);
-        setMessage(aiProposal.captured.entityType === "task" ? "Task created successfully." : "Calendar event created successfully.");
+        setMessage(
+          aiProposal.captured.entityType === "task"
+            ? "Task created successfully."
+            : "Calendar event created successfully.",
+        );
         router.refresh();
         onCaptured?.();
       } else {
@@ -114,28 +117,23 @@ export function CaptureComposer({
 
   const form = (
     <form className={styles.composerForm} onSubmit={submit} noValidate>
-      <label className={styles.captureField}>
-        <span>Capture raw text</span>
-        <textarea
-          ref={textareaRef}
-          name="capture"
-          rows={compact ? 5 : 4}
-          maxLength={10000}
-          placeholder="Drop a thought, reminder, or pasted text here… (e.g. 'Submit Physics lab report by Friday 5pm')"
-          disabled={pending || aiParsing}
-          aria-describedby={message ? "capture-message" : "capture-help"}
-        />
-      </label>
+      <textarea
+        ref={textareaRef}
+        name="capture"
+        rows={compact ? 4 : 3}
+        maxLength={10000}
+        placeholder="Drop a thought, task, or pasted text here… (e.g. 'Submit Physics lab report by Friday 5pm')"
+        disabled={pending || aiParsing}
+        className={styles.textarea}
+        aria-label="Capture raw text"
+        aria-describedby={message ? "capture-message" : "capture-help"}
+      />
 
       {/* AI Parsed Proposal Preview Card */}
       {aiProposal ? (
         <div className={styles.proposalCard}>
-          <div className={styles.proposalHeader}>
-            <Badge
-              tone="accent"
-              size="sm"
-              icon={<Sparkles size={13} />}
-            >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Badge tone="accent" size="sm" icon={<Sparkles size={12} />}>
               Parsed as {aiProposal.captured.entityType === "task" ? "Task" : "Calendar Event"}
             </Badge>
             <Badge tone="neutral" size="sm">
@@ -143,12 +141,12 @@ export function CaptureComposer({
             </Badge>
           </div>
 
-          <div className={styles.proposalTitle}>
+          <div style={{ fontWeight: 600, fontSize: "0.9375rem", color: "var(--text-primary)" }}>
             {aiProposal.captured.title}
           </div>
 
           {aiProposal.captured.entityType === "task" ? (
-            <div className={styles.proposalMeta}>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
               {(aiProposal.captured as ProposedTaskCapture).dueDate ? (
                 <span>
                   Due: {(aiProposal.captured as ProposedTaskCapture).dueDate}{" "}
@@ -165,7 +163,7 @@ export function CaptureComposer({
               ) : null}
             </div>
           ) : (
-            <div className={styles.proposalMeta}>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
               <span>
                 Date: {(aiProposal.captured as ProposedEventCapture).startDate}
                 {(aiProposal.captured as ProposedEventCapture).startTime
@@ -178,7 +176,7 @@ export function CaptureComposer({
             </div>
           )}
 
-          <div className={styles.proposalActions}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.25rem" }}>
             <Button
               variant="primary"
               size="sm"
@@ -201,30 +199,36 @@ export function CaptureComposer({
         </div>
       ) : null}
 
+      {message ? (
+        <Callout variant="info" id="capture-message">
+          {message}
+        </Callout>
+      ) : null}
+
       <div className={styles.composerFooter}>
-        <p id={message ? "capture-message" : "capture-help"} role={message ? "alert" : undefined}>
-          {message ?? "Saved as immutable evidence. You decide what it becomes next."}
+        <p id="capture-help" style={{ margin: 0, fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
+          Raw input stays intact until you choose to interpret or commit.
         </p>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className={styles.composerActions}>
           <Button
             variant="secondary"
-            size="md"
+            size="sm"
             onClick={handleAiParse}
             disabled={pending || aiParsing}
             loading={aiParsing}
-            icon={aiParsing ? undefined : <Sparkles size={16} />}
+            icon={aiParsing ? undefined : <Sparkles size={14} />}
           >
             {aiParsing ? "Parsing…" : "Parse with AI"}
           </Button>
           <Button
             variant="primary"
-            size="md"
+            size="sm"
             type="submit"
             disabled={pending || aiParsing}
             loading={pending}
-            icon={pending ? undefined : <Send size={16} />}
+            icon={pending ? undefined : <Send size={14} />}
           >
-            {pending ? "Saving…" : "Send to Inbox"}
+            {pending ? "Saving…" : "Capture"}
           </Button>
         </div>
       </div>
@@ -236,7 +240,9 @@ export function CaptureComposer({
   return (
     <Surface variant="glass" className={styles.composerCard}>
       <div className={styles.composerHeading}>
-        <span aria-hidden="true"><Inbox size={19} /></span>
+        <div className={styles.composerIcon} aria-hidden="true">
+          <Inbox size={18} />
+        </div>
         <div>
           <h2>Universal capture</h2>
           <p>Text first. Interpretation happens only when you ask.</p>
@@ -246,4 +252,3 @@ export function CaptureComposer({
     </Surface>
   );
 }
-

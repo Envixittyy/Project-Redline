@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
 import { SearchInput } from "@/components/ui/search-input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Surface } from "@/components/ui/surface";
 import { enqueueOfflineMutation } from "@/lib/offline/queue";
 import type { Course } from "@/types/course";
 import type { Attachment, Note } from "@/types/note";
@@ -324,7 +323,7 @@ export function NoteWorkspace({
       </aside>
 
       {/* Editor Canvas */}
-      <Surface variant="base" className={styles.editor}>
+      <main className={styles.editor}>
         <header className={styles.editorHeader}>
           <div className={styles.headerLeft}>
             <button
@@ -635,7 +634,7 @@ export function NoteWorkspace({
             </p>
           )}
         </section>
-      </Surface>
+      </main>
     </div>
   );
 }

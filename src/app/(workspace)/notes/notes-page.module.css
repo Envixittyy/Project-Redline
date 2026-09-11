@@ -1,0 +1,28 @@
+.pageContainer {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.25rem, 2.5vw, 2.25rem);
+  width: 100%;
+  min-width: 0;
+}
+
+.pageHeaderWrap {
+  margin-bottom: 0;
+  padding-bottom: clamp(1.25rem, 3vw, 2rem);
+  border-bottom: 1px solid var(--section-rule);
+}
+
+@media (max-width: 47.99rem) {
+  .pageHeaderWrap {
+    padding-bottom: 1rem;
+  }
+
+  .pageHeaderWrap h1 {
+    font-size: clamp(2rem, 9vw, 2.75rem);
+    letter-spacing: -0.03em;
+  }
+
+  .pageHeaderWrap p {
+    display: none;
+  }
+}

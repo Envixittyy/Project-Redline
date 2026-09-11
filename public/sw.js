@@ -1,20 +1,42 @@
-const CACHE = "life-os-shell-v1";
-const SHELL = [
-  "/",
-  "/tasks",
-  "/calendar",
-  "/school",
-  "/notes",
-  "/more",
-  "/manifest.webmanifest",
-  "/favicon.ico",
-];
+const CACHE_PREFIXES = ["life-os-", "redline-"];
+const STATIC_CACHE = "redline-static-v2";
+const PUBLIC_STATIC_ASSETS = ["/manifest.webmanifest", "/favicon.ico"];
+
+function isRedlineCache(name) {
+  return CACHE_PREFIXES.some((prefix) => name.startsWith(prefix));
+}
+
+function isPublicStaticRequest(url) {
+  return (
+    url.pathname.startsWith("/_next/static/") ||
+    PUBLIC_STATIC_ASSETS.includes(url.pathname)
+  );
+}
+
+async function deleteUnsafeCaches() {
+  const keys = await caches.keys();
+  await Promise.all(
+    keys
+      .filter((key) => isRedlineCache(key) && key !== STATIC_CACHE)
+      .map((key) => caches.delete(key)),
+  );
+}
+
+function offlineNavigationResponse() {
+  return new Response("You are offline. Sign in again when the network is available.", {
+    status: 503,
+    headers: {
+      "Cache-Control": "no-store",
+      "Content-Type": "text/plain; charset=utf-8",
+    },
+  });
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
-      .open(CACHE)
-      .then((cache) => cache.addAll(SHELL))
+      .open(STATIC_CACHE)
+      .then((cache) => cache.addAll(PUBLIC_STATIC_ASSETS))
       .catch(() => undefined),
   );
   self.skipWaiting();
@@ -22,60 +44,48 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)),
-        ),
-      ),
+    deleteUnsafeCaches(),
   );
   self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
-  if (
-    event.request.method !== "GET" ||
-    new URL(event.request.url).origin !== self.location.origin
-  ) {
+  const url = new URL(event.request.url);
+  if (event.request.method !== "GET" || url.origin !== self.location.origin) {
     return;
   }
 
   if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() =>
-          caches
-            .match(event.request)
-            .then((response) => response || caches.match("/")),
-        ),
-    );
+    event.respondWith(fetch(event.request).catch(offlineNavigationResponse));
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/") || !isPublicStaticRequest(url)) {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then(
+    caches.open(STATIC_CACHE).then((cache) =>
+      cache.match(event.request).then(
       (cached) =>
         cached ||
         fetch(event.request).then((response) => {
-          if (
-            response.ok &&
-            ["style", "script", "image", "font"].includes(
-              event.request.destination,
-            )
-          ) {
+          if (response.ok && response.type !== "opaque") {
             const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+            event.waitUntil(cache.put(event.request, copy));
           }
           return response;
         }),
+      ),
     ),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "CLEAR_PRIVATE_PWA_STATE") return;
+  const cleanup = deleteUnsafeCaches();
+  event.waitUntil(cleanup);
+  cleanup.finally(() => event.ports?.[0]?.postMessage({ ok: true }));
 });
 
 function safeNotificationUrl(value) {

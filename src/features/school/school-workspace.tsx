@@ -1,26 +1,30 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   BookOpen,
-  Calendar,
-  ChevronRight,
-  MapPin,
   Plus,
   Sparkles,
 } from "lucide-react";
 import type { CourseWithMeetings } from "@/types/course";
 import type { CourseMaterial } from "@/types/course-material";
 import type { SchoolEmailEvent, SchoolItem } from "@/types/school-item";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { SegmentedControl, type SegmentOption } from "@/components/ui/segmented-control";
 import { Surface } from "@/components/ui/surface";
-import { saveCourseAction } from "./school-actions";
+import { SchoolTodayContext } from "./school-today-context";
+import { CourseCard } from "./course-card";
+import { CourseFormModal } from "./course-form-modal";
 import { CourseImportModal } from "./course-import-modal";
+import { SchoolTimetableView } from "./school-timetable-view";
 import { SchoolUpcomingWork } from "./school-upcoming-work";
 import { SchoolActivityFeed } from "./school-activity-feed";
 import { SchoolCourseDetail } from "./school-course-detail";
 import styles from "./school-workspace.module.css";
 
-const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+type SchoolViewTab = "overview" | "timetable" | "activity";
 
 type SchoolWorkspaceProps = {
   courses: CourseWithMeetings[];
@@ -42,26 +46,42 @@ export function SchoolWorkspace({
   initialCourseId = null,
 }: SchoolWorkspaceProps) {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(initialCourseId);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
+  const [activeTab, setActiveTab] = useState<SchoolViewTab>("overview");
   const [showAddCourse, setShowAddCourse] = useState(false);
   const [showImport, setShowImport] = useState(false);
 
-  const run = (
-    work: () => Promise<{ ok: true; message?: string } | { ok: false; message: string }>,
-    done?: () => void,
-  ) => {
-    startTransition(async () => {
-      const result = await work();
-      if (result.ok) {
-        setError(null);
-        done?.();
-      } else {
-        setError(result.message);
+  // Unresolved mapping check
+  const unresolvedEvents = useMemo(
+    () => emailEvents.filter((e) => e.status === "unresolved_course"),
+    [emailEvents],
+  );
+
+  // Pre-calculate upcoming work counts per course
+  const upcomingWorkCountByCourse = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of schoolItems) {
+      if (
+        item.itemType === "assignment" ||
+        item.itemType === "quiz" ||
+        item.itemType === "exam"
+      ) {
+        counts.set(item.courseId, (counts.get(item.courseId) ?? 0) + 1);
       }
-    });
-  };
+    }
+    return counts;
+  }, [schoolItems]);
+
+  const viewOptions: Array<SegmentOption<SchoolViewTab>> = useMemo(
+    () => [
+      { value: "overview", label: "Overview" },
+      { value: "timetable", label: "Timetable" },
+      {
+        value: "activity",
+        label: unresolvedEvents.length > 0 ? `Sync (${unresolvedEvents.length})` : "Sync & Activity",
+      },
+    ],
+    [unresolvedEvents.length],
+  );
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId);
 
@@ -83,225 +103,173 @@ export function SchoolWorkspace({
     );
   }
 
-  // Otherwise render School Overview
   return (
     <div className={styles.layout}>
-      {showImport ? (
-        <CourseImportModal onClose={() => setShowImport(false)} />
-      ) : null}
-
       {/* Overview Toolbar */}
       <div className={styles.toolbar}>
-        <div>
-          <p className={styles.kicker}>Academic Timetable & Course Activity</p>
-          <h2>
-            {courses.length} active {courses.length === 1 ? "course" : "courses"}
+        <div className={styles.titleGroup}>
+          <p className={styles.kicker}>Academic Operating System</p>
+          <h2 className={styles.toolbarTitle}>
+            {courses.length} Active {courses.length === 1 ? "Course" : "Courses"}
           </h2>
         </div>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          <button
+
+        <div className={styles.toolbarActions}>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setShowImport(true)}
-            type="button"
-            className="motion-interactive"
           >
-            <Sparkles size={16} aria-hidden="true" />
-            <span>Import Course (Text)</span>
-          </button>
-          <button
-            onClick={() => setShowAddCourse((v) => !v)}
-            type="button"
-            aria-expanded={showAddCourse}
-            className="motion-interactive"
+            <Sparkles size={14} aria-hidden="true" />
+            <span>Import Syllabus</span>
+          </Button>
+
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setShowAddCourse(true)}
           >
-            <Plus size={17} aria-hidden="true" />
-            <span>Add course</span>
-          </button>
+            <Plus size={15} aria-hidden="true" />
+            <span>Add Course</span>
+          </Button>
         </div>
       </div>
 
-      {error ? (
-        <Surface variant="subtle" className={styles.error} role="alert">
-          {error}
-        </Surface>
-      ) : null}
-
-      {/* Add Course Form */}
-      {showAddCourse ? (
-        <Surface variant="glass" className={styles.formCard}>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              const data = new FormData(event.currentTarget);
-              run(
-                () =>
-                  saveCourseAction(null, {
-                    code: String(data.get("code")),
-                    name: String(data.get("name")),
-                    instructor: String(data.get("instructor")),
-                    location: String(data.get("location")),
-                    color: String(data.get("color")),
-                  }),
-                () => setShowAddCourse(false),
-              );
-            }}
-          >
-            <div className={styles.formGrid}>
-              <label>
-                Code
-                <input name="code" maxLength={30} placeholder="e.g. CS101" required />
-              </label>
-              <label>
-                Name
-                <input name="name" maxLength={200} placeholder="e.g. Intro to Computer Science" required />
-              </label>
-              <label>
-                Instructor
-                <input name="instructor" maxLength={200} placeholder="e.g. Dr. Alan Turing" />
-              </label>
-              <label>
-                Location / Room
-                <input name="location" maxLength={200} placeholder="e.g. Turing Hall 301" />
-              </label>
-              <label>
-                Color
-                <input name="color" type="color" defaultValue="#287ca7" />
-              </label>
+      {/* Unresolved course mapping alert banner */}
+      {unresolvedEvents.length > 0 ? (
+        <div className={styles.alertBanner} role="alert">
+          <div className={styles.alertBannerContent}>
+            <AlertTriangle size={18} aria-hidden="true" />
+            <div>
+              <strong>Course mapping needed: </strong>
+              <span>
+                {unresolvedEvents.length} Blackboard notification{unresolvedEvents.length === 1 ? "" : "s"} could not be automatically matched.
+              </span>
             </div>
-            <button disabled={pending} type="submit">
-              {pending ? "Saving..." : "Save course"}
-            </button>
-          </form>
-        </Surface>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setActiveTab("activity")}
+          >
+            Resolve Mappings →
+          </Button>
+        </div>
       ) : null}
 
-      {courses.length === 0 ? (
-        <Surface variant="subtle" className={styles.empty}>
-          <BookOpen size={28} aria-hidden="true" />
-          <h2>No courses configured yet</h2>
-          <p>
-            Add a course, attach weekly timetable meetings, and receive automated Blackboard notifications to track assignments and deadlines.
-          </p>
-        </Surface>
-      ) : (
+      {/* View Switcher Tabs */}
+      <div className={styles.viewTabs}>
+        <SegmentedControl
+          options={viewOptions}
+          value={activeTab}
+          onChange={setActiveTab}
+          ariaLabel="School sections"
+        />
+
+        {unresolvedEvents.length > 0 && activeTab !== "activity" ? (
+          <Badge tone="warning" variant="subtle" size="sm">
+            {unresolvedEvents.length} Action Needed
+          </Badge>
+        ) : null}
+      </div>
+
+      {/* TAB 1: OVERVIEW */}
+      {activeTab === "overview" ? (
         <div className={styles.overviewLayout}>
-          {/* Section 1: Upcoming Actionable Work (Question 1 & 2: What do I have due? Which Course is it for?) */}
+          {/* Today's Academic Context */}
+          <SchoolTodayContext
+            courses={courses}
+            timeZone={timeZone}
+            onSelectCourse={(id) => setSelectedCourseId(id)}
+          />
+
+          {/* Active Courses Section */}
+          <div className={styles.coursesSection}>
+            <div className={styles.coursesHeader}>
+              <h3 className={styles.sectionTitle}>
+                <BookOpen size={14} aria-hidden="true" />
+                <span>Active Courses</span>
+              </h3>
+              <Badge variant="subtle" size="sm">
+                {courses.length}
+              </Badge>
+            </div>
+
+            {courses.length === 0 ? (
+              <Surface variant="base" className={styles.emptyCourses}>
+                <BookOpen size={36} aria-hidden="true" />
+                <h3>No courses configured yet</h3>
+                <p>
+                  Add a course manually or import a syllabus to track lectures, assignments, and automated Blackboard notifications.
+                </p>
+                <div style={{ marginTop: "0.5rem" }}>
+                  <Button variant="primary" onClick={() => setShowAddCourse(true)}>
+                    <Plus size={15} aria-hidden="true" />
+                    <span>Add your first course</span>
+                  </Button>
+                </div>
+              </Surface>
+            ) : (
+              <div className={styles.coursesGrid}>
+                {courses.map((course) => (
+                  <CourseCard
+                    key={course.id}
+                    course={course}
+                    upcomingWorkCount={upcomingWorkCountByCourse.get(course.id) ?? 0}
+                    onSelect={(id) => setSelectedCourseId(id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Upcoming Actionable Academic Work */}
           <SchoolUpcomingWork
             items={schoolItems}
             courses={courses}
             today={today}
             timeZone={timeZone}
-            onSelectCourse={(courseId) => setSelectedCourseId(courseId)}
+            onSelectCourse={(id) => setSelectedCourseId(id)}
           />
+        </div>
+      ) : null}
 
-          {/* Section 2: Current Courses Grid (Question 4: What Courses am I currently taking?) */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <div className={styles.sectionHeader}>
-              <span className={styles.sectionTitle}>
-                Current Courses ({courses.length})
-              </span>
-            </div>
+      {/* TAB 2: TIMETABLE */}
+      {activeTab === "timetable" ? (
+        <SchoolTimetableView
+          courses={courses}
+          today={today}
+          timeZone={timeZone}
+          onSelectCourse={(id) => setSelectedCourseId(id)}
+        />
+      ) : null}
 
-            <div className={styles.coursesGrid}>
-              {courses.map((course) => {
-                const courseItems = schoolItems.filter((i) => i.courseId === course.id);
-                const actionableCount = courseItems.filter(
-                  (i) =>
-                    i.itemType === "assignment" ||
-                    i.itemType === "quiz" ||
-                    i.itemType === "exam",
-                ).length;
-
-                return (
-                  <div
-                    key={course.id}
-                    className={styles.courseCard}
-                    onClick={() => setSelectedCourseId(course.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedCourseId(course.id);
-                      }
-                    }}
-                    aria-label={`View course ${course.code} - ${course.name}`}
-                  >
-                    <div>
-                      <div className={styles.courseCardHeader}>
-                        <span
-                          className={styles.courseCardSwatch}
-                          style={{
-                            backgroundColor: course.color ?? "var(--accent)",
-                          }}
-                          aria-hidden="true"
-                        />
-                        <div>
-                          <p className={styles.courseCardCode}>{course.code}</p>
-                          <h4>{course.name}</h4>
-                          <p className={styles.courseCardInstructor}>
-                            {[course.instructor, course.location].filter(Boolean).join(" · ") ||
-                              "No instructor set"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className={styles.courseCardMeta}>
-                        <div className={styles.courseCardMetaItem}>
-                          <Calendar size={13} aria-hidden="true" />
-                          <span>
-                            {course.meetings.length > 0
-                              ? course.meetings
-                                  .map(
-                                    (m) =>
-                                      `${m.weekdays.map((d) => weekdays[d]).join(", ")} ${m.startTime}`,
-                                  )
-                                  .join(" | ")
-                              : "No weekly meetings configured"}
-                          </span>
-                        </div>
-                        {course.location ? (
-                          <div className={styles.courseCardMetaItem}>
-                            <MapPin size={13} aria-hidden="true" />
-                            <span>{course.location}</span>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className={styles.courseCardFooter}>
-                      <span
-                        style={{
-                          fontSize: "0.75rem",
-                          fontWeight: 700,
-                          color:
-                            actionableCount > 0
-                              ? "var(--accent-text)"
-                              : "var(--text-muted)",
-                        }}
-                      >
-                        {actionableCount} upcoming {actionableCount === 1 ? "task" : "tasks"}
-                      </span>
-
-                      <span className={styles.viewCourseButton}>
-                        <span>Details</span>
-                        <ChevronRight size={14} aria-hidden="true" />
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Section 3: Recent Activity (Question 3: What changed recently?) */}
+      {/* TAB 3: SYNC & ACTIVITY */}
+      {activeTab === "activity" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {/* Blackboard Activity Feed & Mapping Resolution */}
           <SchoolActivityFeed
             events={emailEvents}
             courses={courses}
             timeZone={timeZone}
-            onSelectCourse={(courseId) => setSelectedCourseId(courseId)}
+            onSelectCourse={(id) => setSelectedCourseId(id)}
+            title="Blackboard Notification Activity & Course Mappings"
           />
         </div>
-      )}
+      ) : null}
+
+      {/* Modals */}
+      {showAddCourse ? (
+        <CourseFormModal
+          onClose={() => setShowAddCourse(false)}
+        />
+      ) : null}
+
+      {showImport ? (
+        <CourseImportModal
+          onClose={() => setShowImport(false)}
+        />
+      ) : null}
     </div>
   );
 }

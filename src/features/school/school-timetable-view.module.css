@@ -1,0 +1,282 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.titleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 750;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* Desktop Grid View */
+.desktopGrid {
+  display: grid;
+  grid-template-columns: repeat(var(--day-columns, 5), minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.dayColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.dayColumnHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.dayColumnHeader[data-is-today="true"] {
+  background: color-mix(in oklch, var(--accent) 15%, var(--surface));
+  border-color: var(--accent-border);
+}
+
+.dayLabel {
+  font-size: 0.8125rem;
+  font-weight: 750;
+  color: var(--text-primary);
+}
+
+.dayColumnHeader[data-is-today="true"] .dayLabel {
+  color: var(--accent-text);
+}
+
+.dayMeetingCount {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+
+.meetingsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.meetingCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.meetingCard::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--meeting-course-accent, var(--accent));
+}
+
+.meetingCard:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.meetingCard:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.meetingTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.meetingTime {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.meetingCourse {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--accent-text);
+  letter-spacing: 0.03em;
+}
+
+.meetingTitle {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin: 0;
+}
+
+.meetingLocation {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emptyDay {
+  padding: 1.5rem 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border-hairline);
+}
+
+/* Mobile View: Weekday Selector + Agenda */
+.mobileView {
+  display: none;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.weekdaySelector {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.weekdaySelector::-webkit-scrollbar {
+  display: none;
+}
+
+.weekdayPill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.25rem;
+  min-height: 3.25rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--motion-ease);
+  flex-shrink: 0;
+}
+
+.weekdayPill:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.weekdayPill[data-selected="true"] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  border-color: var(--accent);
+}
+
+.weekdayPillDay {
+  font-size: 0.75rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.weekdayPillDot {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: currentColor;
+  margin-top: 0.25rem;
+  opacity: 0.7;
+}
+
+.mobileDayHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.mobileDayTitle {
+  font-size: 1rem;
+  font-weight: 750;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.mobileMeetingsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.emptyMobileDay {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-subtle);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 767px) {
+  .desktopGrid {
+    display: none;
+  }
+
+  .mobileView {
+    display: flex;
+  }
+}

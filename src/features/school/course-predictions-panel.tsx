@@ -8,6 +8,9 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Surface } from "@/components/ui/surface";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
 import { getCompanionSession } from "@/services/integrations/ai/companion-session";
 import type { SchoolAssessmentPrediction } from "@/services/school/prediction-service";
@@ -136,97 +139,112 @@ export function CoursePredictionsPanel({
   }
 
   return (
-    <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border-subtle)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-          <Sparkles size={14} color="var(--accent-text)" />
-          <span style={{ fontSize: "0.78rem", fontWeight: 750, color: "var(--text-secondary)", textTransform: "uppercase" }}>
-            Assessment Intelligence ({predictions.length})
-          </span>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <Sparkles size={14} style={{ color: "var(--accent-text)" }} aria-hidden="true" />
+          <h3 style={{ margin: 0, fontSize: "0.8125rem", fontWeight: 750, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Assessment Intelligence
+          </h3>
+          <Badge variant="subtle" size="sm">
+            {predictions.length}
+          </Badge>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={loading || pending}
           onClick={handlePredict}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.3rem",
-            background: "transparent",
-            border: "1px solid var(--border-subtle)",
-            borderRadius: "var(--radius-sm)",
-            padding: "0.25rem 0.55rem",
-            fontSize: "0.75rem",
-            fontWeight: 650,
-            color: "var(--accent-text)",
-            cursor: "pointer",
-          }}
         >
-          {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-          {predictions.length > 0 ? "Recalculate" : "Predict Assessments"}
-        </button>
+          {loading ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={13} aria-hidden="true" />}
+          <span>{predictions.length > 0 ? "Recalculate" : "Predict Assessments"}</span>
+        </Button>
       </div>
 
       {error ? (
-        <div style={{ padding: "0.4rem 0.6rem", borderRadius: "var(--radius-sm)", background: "color-mix(in srgb, var(--destructive) 15%, transparent)", color: "var(--destructive)", fontSize: "0.75rem", marginBottom: "0.5rem" }}>
+        <div
+          style={{
+            padding: "0.6rem 0.8rem",
+            borderRadius: "var(--radius-sm)",
+            background: "color-mix(in oklch, var(--destructive) 15%, transparent)",
+            color: "var(--destructive)",
+            fontSize: "0.8125rem",
+            fontWeight: 600,
+          }}
+          role="alert"
+        >
           {error}
         </div>
       ) : null}
 
       {/* Review New Proposed Predictions */}
       {review && proposedList.length > 0 ? (
-        <div style={{ padding: "0.75rem", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--accent-border, var(--border-strong))", marginBottom: "0.75rem" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-primary)" }}>
+        <Surface variant="base" style={{ padding: "1rem", borderRadius: "var(--radius-md)", display: "flex", flexDirection: "column", gap: "0.75rem", border: "1px solid var(--accent-border)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--text-primary)" }}>
               {proposedList.length} Proposed Assessment{proposedList.length === 1 ? "" : "s"}
             </span>
             <div style={{ display: "flex", gap: "0.4rem" }}>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setReview(null)}
                 disabled={pending}
-                style={{ padding: "0.25rem 0.5rem", borderRadius: "var(--radius-sm)", background: "transparent", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", fontSize: "0.72rem", cursor: "pointer" }}
               >
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleApplyProposed}
                 disabled={pending}
-                style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", padding: "0.25rem 0.65rem", borderRadius: "var(--radius-sm)", background: "var(--accent)", color: "var(--accent-foreground)", border: "none", fontSize: "0.72rem", fontWeight: 700, cursor: "pointer" }}
               >
-                {pending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                Approve Predictions
-              </button>
+                {pending ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />}
+                <span>Approve Predictions</span>
+              </Button>
             </div>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
             {proposedList.map((p, idx) => (
-              <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.35rem 0.5rem", borderRadius: "var(--radius-sm)", background: "var(--surface-subtle)", fontSize: "0.78rem" }}>
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "var(--radius-sm)",
+                  background: "var(--surface-subtle)",
+                  fontSize: "0.8125rem",
+                  gap: "0.5rem",
+                }}
+              >
                 <div>
                   <strong>◇ Possible {p.title}</strong>
                   <span style={{ color: "var(--text-secondary)", marginLeft: "0.5rem" }}>{p.predictedDate}</span>
-                  <span style={{ fontSize: "0.68rem", fontWeight: 700, marginLeft: "0.4rem", color: "var(--accent-text)" }}>[{p.confidence}]</span>
+                  <span style={{ fontSize: "0.7rem", fontWeight: 700, marginLeft: "0.4rem", color: "var(--accent-text)" }}>
+                    [{p.confidence}]
+                  </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setProposedList(proposedList.filter((_, i) => i !== idx))}
-                  style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}
+                  style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: "0.2rem" }}
                   aria-label="Remove prediction"
                 >
-                  <X size={12} />
+                  <X size={14} aria-hidden="true" />
                 </button>
               </div>
             ))}
           </div>
-        </div>
+        </Surface>
       ) : null}
 
       {/* Active Predictions List */}
       {predictions.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {predictions.map((p) => (
             <div
               key={p.id}
@@ -234,54 +252,38 @@ export function CoursePredictionsPanel({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "0.45rem 0.65rem",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--surface-subtle)",
-                border: "1px dashed var(--border-subtle)",
+                padding: "0.75rem 1rem",
+                borderRadius: "var(--radius-md)",
+                background: "var(--surface)",
+                border: "1px dashed var(--border)",
+                gap: "0.75rem",
               }}
             >
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--text-primary)" }}>
                     ◇ Possible {p.title}
                   </span>
-                  <span
-                    style={{
-                      fontSize: "0.68rem",
-                      fontWeight: 700,
-                      padding: "0.1rem 0.35rem",
-                      borderRadius: "var(--radius-pill)",
-                      background: p.confidence === "HIGH" ? "color-mix(in srgb, var(--accent) 15%, transparent)" : "var(--surface)",
-                      color: "var(--accent-text)",
-                    }}
-                  >
+                  <Badge variant={p.confidence === "HIGH" ? "subtle" : "outline"} size="sm">
                     {p.confidence}
-                  </span>
+                  </Badge>
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.15rem" }}>
+                <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: "0.2rem" }}>
                   {p.predictedDate} {p.predictedTime ? `at ${p.predictedTime}` : ""} · {p.rationale}
                 </div>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginLeft: "0.5rem" }}>
-                <button
-                  type="button"
-                  title="Confirm as task"
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexShrink: 0 }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  title="Confirm as native Task"
                   onClick={() => handleConfirmTask(p)}
                   disabled={pending}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid var(--border-subtle)",
-                    borderRadius: "var(--radius-sm)",
-                    padding: "0.2rem 0.4rem",
-                    color: "var(--accent-text)",
-                    fontSize: "0.72rem",
-                    fontWeight: 650,
-                    cursor: "pointer",
-                  }}
                 >
-                  <Check size={12} /> Task
-                </button>
+                  <Check size={13} aria-hidden="true" />
+                  <span>Task</span>
+                </Button>
                 <button
                   type="button"
                   title="Dismiss prediction"
@@ -291,20 +293,34 @@ export function CoursePredictionsPanel({
                     background: "transparent",
                     border: "none",
                     color: "var(--text-muted)",
-                    padding: "0.2rem",
+                    padding: "0.4rem",
                     cursor: "pointer",
+                    borderRadius: "var(--radius-sm)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
+                  aria-label={`Dismiss prediction ${p.title}`}
                 >
-                  <X size={13} />
+                  <X size={15} aria-hidden="true" />
                 </button>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+        <div
+          style={{
+            padding: "1rem 1.25rem",
+            borderRadius: "var(--radius-md)",
+            border: "1px dashed var(--border-subtle)",
+            background: "var(--surface-subtle)",
+            color: "var(--text-secondary)",
+            fontSize: "0.8125rem",
+          }}
+        >
           No predictions calculated. Click &quot;Predict Assessments&quot; to analyze syllabus rules and meetings.
-        </p>
+        </div>
       )}
     </div>
   );

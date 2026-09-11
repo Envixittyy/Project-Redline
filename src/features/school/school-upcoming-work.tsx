@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { CourseWithMeetings } from "@/types/course";
 import type { SchoolItem } from "@/types/school-item";
+import { Badge } from "@/components/ui/badge";
 import { setTaskCompletionAction } from "@/features/tasks/task-actions";
 import { dueTone, formatDueDate } from "@/features/tasks/task-formatting";
 import { SchoolItemBadge } from "./school-item-badge";
@@ -57,9 +58,8 @@ export function SchoolUpcomingWork({
       item.itemType === "exam",
   );
 
-  // Sort by deadline: items with due dates ascending (earliest first), then null due dates
+  // Sort by deadline: earliest first, then title
   const sorted = [...actionable].sort((a, b) => {
-    // Both have due dates
     if (a.dueDate && b.dueDate) {
       if (a.dueDate !== b.dueDate) return a.dueDate.localeCompare(b.dueDate);
       if (a.dueAt && b.dueAt) return a.dueAt.localeCompare(b.dueAt);
@@ -89,17 +89,23 @@ export function SchoolUpcomingWork({
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h3>
+        <h3 className={styles.headerTitle}>
           <span>{title}</span>
-          <span className={styles.countBadge}>{sorted.length}</span>
         </h3>
+        {sorted.length > 0 ? (
+          <Badge variant="subtle" size="sm">
+            {sorted.length} {sorted.length === 1 ? "item" : "items"}
+          </Badge>
+        ) : null}
       </div>
 
       {sorted.length === 0 ? (
         <div className={styles.emptyState}>
-          <CheckCircle2 size={28} aria-hidden="true" />
-          <p><strong>Nothing due right now</strong></p>
-          <p>You&apos;re completely caught up on assignments, quizzes, and exams.</p>
+          <CheckCircle2 size={24} aria-hidden="true" />
+          <div className={styles.emptyText}>
+            <span className={styles.emptyTitle}>Nothing due right now</span>
+            <span>You&apos;re completely caught up on assignments, quizzes, and exams.</span>
+          </div>
         </div>
       ) : (
         <ul className={styles.list}>
@@ -118,6 +124,13 @@ export function SchoolUpcomingWork({
                 key={item.id}
                 className={styles.row}
                 data-completed={isCompleted || undefined}
+                style={
+                  course?.color
+                    ? ({
+                        "--item-course-accent": course.color,
+                      } as React.CSSProperties)
+                    : undefined
+                }
               >
                 {item.taskId ? (
                   <button
@@ -184,9 +197,9 @@ export function SchoolUpcomingWork({
                     </span>
 
                     {item.weight !== null ? (
-                      <span className={styles.weightBadge}>
+                      <Badge variant="subtle" size="sm">
                         Weight: {item.weight}%
-                      </span>
+                      </Badge>
                     ) : null}
 
                     {item.sourceUrl ? (
@@ -197,8 +210,8 @@ export function SchoolUpcomingWork({
                         className={styles.blackboardLink}
                         aria-label={`Open ${item.title} in Blackboard`}
                       >
-                        <span>Open in Blackboard</span>
-                        <ExternalLink size={11} aria-hidden="true" />
+                        <span>Blackboard</span>
+                        <ExternalLink size={10} aria-hidden="true" />
                       </a>
                     ) : null}
                   </div>

@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import type { CourseWithMeetings } from "@/types/course";
 import type { SchoolEmailEvent } from "@/types/school-item";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   mapSchoolEmailCourseAction,
   retrySchoolEmailAction,
@@ -82,7 +84,7 @@ export function SchoolActivityFeed({
     });
   };
 
-  // Only show processed or reviewable events (filter out internal ignored/malformed spam)
+  // Only show processed or reviewable events
   const displayableEvents = events.filter(
     (e) =>
       e.status === "processed" ||
@@ -94,21 +96,27 @@ export function SchoolActivityFeed({
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h3>
+        <h3 className={styles.headerTitle}>
           <span>{title}</span>
-          <span className={styles.countBadge}>{displayableEvents.length}</span>
         </h3>
+        {displayableEvents.length > 0 ? (
+          <Badge variant="subtle" size="sm">
+            {displayableEvents.length} {displayableEvents.length === 1 ? "event" : "events"}
+          </Badge>
+        ) : null}
       </div>
 
       {mappingError ? (
         <div className={styles.unresolvedCard} role="alert">
-          <p style={{ color: "var(--destructive)", margin: 0 }}>{mappingError}</p>
+          <p style={{ color: "var(--destructive)", margin: 0, fontSize: "0.8125rem", fontWeight: 650 }}>
+            {mappingError}
+          </p>
         </div>
       ) : null}
 
       {displayableEvents.length === 0 ? (
         <div className={styles.emptyState}>
-          <p>No recent Blackboard activity recorded.</p>
+          No recent Blackboard activity recorded.
         </div>
       ) : (
         <ul className={styles.feed}>
@@ -131,18 +139,19 @@ export function SchoolActivityFeed({
                     </p>
                     {parsed.courseHint ? (
                       <p style={{ margin: "0 0 0.35rem" }}>
-                        <strong>Detected Course hint:</strong> {parsed.courseHint}
+                        <strong>Detected Hint:</strong> {parsed.courseHint}
                       </p>
                     ) : null}
                     {parsed.title ? (
                       <p style={{ margin: 0 }}>
-                        <strong>Item title:</strong> {parsed.title}
+                        <strong>Item:</strong> {parsed.title}
                       </p>
                     ) : null}
                   </div>
                   {courses.length > 0 && parsed.courseKey ? (
                     <div className={styles.unresolvedForm}>
                       <select
+                        className={styles.unresolvedSelect}
                         aria-label="Select corresponding course"
                         value={selectedCourses[event.id] || courses[0]?.id || ""}
                         onChange={(e) =>
@@ -158,18 +167,19 @@ export function SchoolActivityFeed({
                           </option>
                         ))}
                       </select>
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
+                        size="sm"
                         disabled={isBusy}
                         onClick={() => handleMapAndRetry(event)}
                       >
                         {isBusy ? (
-                          <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+                          <Loader2 size={14} className="animate-spin" aria-hidden="true" />
                         ) : (
-                          <RotateCw size={15} aria-hidden="true" />
+                          <RotateCw size={14} aria-hidden="true" />
                         )}
                         <span>Map & Retry</span>
-                      </button>
+                      </Button>
                     </div>
                   ) : null}
                 </li>
@@ -186,7 +196,6 @@ export function SchoolActivityFeed({
               itemType === "exam" ||
               isDeadlineChange;
 
-            // Choose icon
             let Icon = FileCheck;
             let iconClass = styles.actionableIcon;
             let label = "New Assignment";
@@ -221,7 +230,7 @@ export function SchoolActivityFeed({
             if (event.status === "unresolved_item") {
               Icon = AlertTriangle;
               iconClass = styles.deadlineChangedIcon;
-              label = "Item Match Needs Review";
+              label = "Item Match Review";
             } else if (event.status === "unresolved_task") {
               Icon = AlertTriangle;
               iconClass = styles.deadlineChangedIcon;
@@ -231,20 +240,17 @@ export function SchoolActivityFeed({
             return (
               <li key={event.id} className={styles.item}>
                 <div className={`${styles.iconWrapper} ${iconClass}`}>
-                  <Icon size={16} aria-hidden="true" />
+                  <Icon size={15} aria-hidden="true" />
                 </div>
 
                 <div className={styles.body}>
                   <div className={styles.titleLine}>
-                    <span
-                      className={`${styles.categoryBadge} ${
-                        isActionable
-                          ? styles.categoryActionable
-                          : styles.categoryInformational
-                      }`}
+                    <Badge
+                      variant={isActionable ? "subtle" : "outline"}
+                      size="sm"
                     >
                       {label}
-                    </span>
+                    </Badge>
 
                     {course ? (
                       <button
@@ -284,7 +290,7 @@ export function SchoolActivityFeed({
                         className={styles.blackboardLink}
                         aria-label={`Open ${parsed.title ?? "item"} in Blackboard`}
                       >
-                        <span>Open in Blackboard</span>
+                        <span>Blackboard</span>
                         <ExternalLink size={10} aria-hidden="true" />
                       </a>
                     ) : null}

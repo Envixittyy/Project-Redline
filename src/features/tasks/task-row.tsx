@@ -2,7 +2,6 @@
 
 import { Check, CalendarClock, CalendarDays, Loader2 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import type { Task } from "@/types/task";
 
 import { dueTone, formatDueDate, formatScheduled } from "./task-formatting";
@@ -83,9 +82,7 @@ export function TaskRow({
             ) : null}
 
             {task.course ? (
-              <Badge tone="course" size="sm" variant="subtle" dot>
-                {task.course}
-              </Badge>
+              <span className={styles.courseTag}>{task.course}</span>
             ) : null}
 
             {task.project ? (
@@ -97,23 +94,15 @@ export function TaskRow({
             ) : null}
 
             {task.parentTaskId ? (
-              <Badge tone="neutral" size="sm" variant="subtle">
-                Subtask
-              </Badge>
+              <span className={styles.metaLabel}>Subtask</span>
             ) : null}
 
             {task.priority === "urgent" ? (
-              <Badge tone="destructive" size="sm" variant="subtle" dot>
-                Urgent
-              </Badge>
+              <span className={styles.priorityLabel} data-priority="urgent">Urgent</span>
             ) : task.priority === "high" ? (
-              <Badge tone="warning" size="sm" variant="subtle" dot>
-                High
-              </Badge>
+              <span className={styles.priorityLabel} data-priority="high">High</span>
             ) : task.priority === "medium" ? (
-              <Badge tone="info" size="sm" variant="subtle">
-                Med
-              </Badge>
+              <span className={styles.priorityLabel} data-priority="medium">Med</span>
             ) : null}
           </span>
         </div>

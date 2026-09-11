@@ -3,7 +3,6 @@
 import { Plus, Loader2, Calendar, Flag } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
 
-import { Surface } from "@/components/ui/surface";
 import { enqueueOfflineMutation } from "@/lib/offline/queue";
 import { taskPriorities } from "@/types/task";
 
@@ -66,7 +65,7 @@ export function QuickAdd({ defaultDueDate }: { defaultDueDate?: string }) {
   }
 
   return (
-    <Surface variant="glass" className={styles.composer}>
+    <section className={styles.composer} aria-label="Quick add task">
       <form
         ref={formRef}
         id="tasks-quick-add"
@@ -146,6 +145,6 @@ export function QuickAdd({ defaultDueDate }: { defaultDueDate?: string }) {
           </p>
         ) : null}
       </form>
-    </Surface>
+    </section>
   );
 }

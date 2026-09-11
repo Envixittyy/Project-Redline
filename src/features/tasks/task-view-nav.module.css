@@ -9,10 +9,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.35rem;
-  padding: 0.25rem 0.3rem;
-  border-radius: var(--radius-lg);
-  background: var(--surface-subtle);
-  border: 1px solid var(--border-subtle);
+  padding: 0 0 0.5rem;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--section-rule);
 }
 
 .segmentsTrack {
@@ -36,12 +37,13 @@
 }
 
 .segment {
+  position: relative;
   display: inline-flex;
   min-height: 2.25rem;
   align-items: center;
   gap: 0.35rem;
   padding: 0 0.85rem;
-  border-radius: var(--radius-md);
+  border-radius: 0;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-secondary);
@@ -62,11 +64,21 @@
 }
 
 .segment[data-active] {
-  background: var(--surface-elevated);
-  color: var(--text-primary);
-  border-color: var(--border-subtle);
-  box-shadow: var(--shadow-sm);
+  background: transparent;
+  color: var(--accent-text);
+  border-color: transparent;
+  box-shadow: none;
   font-weight: 650;
+}
+
+.segment[data-active]::after {
+  position: absolute;
+  right: 0.85rem;
+  bottom: -0.58rem;
+  left: 0.85rem;
+  height: 2px;
+  background: var(--accent);
+  content: "";
 }
 
 .overdueBadge {
@@ -110,10 +122,10 @@
 }
 
 .moreButton[data-active] {
-  background: var(--surface-elevated);
+  background: transparent;
   color: var(--accent-text);
   border-color: var(--accent-border);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   font-weight: 650;
 }
 
@@ -182,11 +194,21 @@
 }
 
 @media (max-width: 30rem) {
+  .navBar,
+  .segmentsTrack {
+    gap: 0;
+  }
+
   .segment,
   .moreButton {
     min-height: 2.75rem;
-    padding: 0 0.7rem;
-    font-size: 0.8rem;
+    padding: 0 0.45rem;
+    font-size: 0.74rem;
+  }
+
+  .segment[data-active]::after {
+    right: 0.45rem;
+    left: 0.45rem;
   }
 }
 

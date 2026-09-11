@@ -266,7 +266,7 @@ export function TaskCollection({
                   <span>OVERDUE · {filteredOverdue.length}</span>
                 </span>
               </div>
-              <Surface variant="base" className={styles.listSurface}>
+              <div className={styles.listSurface}>
                 <ul className={styles.rows}>
                   {filteredOverdue.map((task) => (
                     <TaskRow
@@ -280,7 +280,7 @@ export function TaskCollection({
                     />
                   ))}
                 </ul>
-              </Surface>
+              </div>
             </section>
           ) : null}
 
@@ -293,7 +293,7 @@ export function TaskCollection({
                   <span>SCHEDULED TODAY · {scheduledToday.length}</span>
                 </span>
               </div>
-              <Surface variant="base" className={styles.listSurface}>
+              <div className={styles.listSurface}>
                 <ul className={styles.rows}>
                   {scheduledToday.map((task) => (
                     <TaskRow
@@ -307,7 +307,7 @@ export function TaskCollection({
                     />
                   ))}
                 </ul>
-              </Surface>
+              </div>
             </section>
           ) : null}
 
@@ -322,7 +322,7 @@ export function TaskCollection({
                   </span>
                 </span>
               </div>
-              <Surface variant="base" className={styles.listSurface}>
+              <div className={styles.listSurface}>
                 <ul className={styles.rows}>
                   {dueToday.map((task) => (
                     <TaskRow
@@ -336,7 +336,7 @@ export function TaskCollection({
                     />
                   ))}
                 </ul>
-              </Surface>
+              </div>
             </section>
           ) : null}
 
@@ -361,7 +361,7 @@ export function TaskCollection({
                   <span>{label.toUpperCase()} · {groupTasks.length}</span>
                 </span>
               </div>
-              <Surface variant="base" className={styles.listSurface}>
+              <div className={styles.listSurface}>
                 <ul className={styles.rows}>
                   {groupTasks.map((task) => (
                     <TaskRow
@@ -375,7 +375,7 @@ export function TaskCollection({
                     />
                   ))}
                 </ul>
-              </Surface>
+              </div>
             </section>
           ))}
         </div>
@@ -394,7 +394,7 @@ export function TaskCollection({
               <span>{meta.kicker} · {filteredTasks.length}</span>
             </span>
           </div>
-          <Surface variant="base" className={styles.listSurface}>
+          <div className={styles.listSurface}>
             <ul className={styles.rows}>
               {filteredTasks.map((task) => (
                 <TaskRow
@@ -408,7 +408,7 @@ export function TaskCollection({
                 />
               ))}
             </ul>
-          </Surface>
+          </div>
         </section>
       ) : null}
 

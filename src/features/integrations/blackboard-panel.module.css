@@ -1,6 +1,8 @@
 .layout {
   display: grid;
-  gap: 1.25rem;
+  gap: clamp(1.25rem, 2.5vw, 1.75rem);
+  width: 100%;
+  max-width: 68rem;
 }
 
 @media (min-width: 56rem) {
@@ -11,10 +13,13 @@
 }
 
 .card {
-  padding: 1.25rem;
+  padding: clamp(1.15rem, 3vw, 1.5rem);
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-embedded);
 }
 
 .fullWidth {
@@ -25,6 +30,8 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .card header > svg {
@@ -40,15 +47,16 @@
   margin: 0;
   color: var(--text-tertiary);
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 750;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
 }
 
 .card header h2 {
   margin: 0.15rem 0 0;
-  font-size: 1.0625rem;
-  font-weight: 650;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
 }
 
@@ -161,9 +169,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.625rem 0.75rem;
+  padding: 0.75rem 1rem;
   border-radius: var(--radius-md);
-  background: var(--surface-subtle);
+  background: color-mix(in oklch, var(--surface-subtle) 75%, transparent);
   border: 1px solid var(--border-subtle);
   flex-wrap: wrap;
 }
@@ -249,7 +257,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem;
+  padding: 0.75rem 1rem;
   border-radius: var(--radius-md);
   background: var(--surface-interactive);
   border: 1px solid var(--border-subtle);
@@ -283,10 +291,15 @@
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  padding: 0.625rem 0.75rem;
+  padding: 0.75rem 1rem;
   border-radius: var(--radius-md);
-  background: var(--surface-subtle);
+  background: color-mix(in oklch, var(--surface-subtle) 75%, transparent);
   border: 1px solid var(--border-subtle);
+  transition: background-color var(--motion-fast);
+}
+
+.unassignedItem:hover {
+  background: color-mix(in oklch, var(--surface-hover) 35%, transparent);
 }
 
 .itemDetails {
@@ -325,9 +338,10 @@
 .runs li, .notifications li {
   display: grid;
   gap: 0.2rem;
-  padding: 0.625rem 0.75rem;
+  padding: 0.75rem 0.85rem;
   border-radius: var(--radius-md);
-  background: var(--surface-subtle);
+  background: color-mix(in oklch, var(--surface-subtle) 60%, transparent);
+  border: 1px solid var(--border-subtle);
 }
 
 .runs span, .runs small, .notifications span {

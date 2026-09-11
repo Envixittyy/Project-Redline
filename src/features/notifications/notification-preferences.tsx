@@ -231,13 +231,14 @@ export function NotificationPreferences() {
                 <ListTodo size={16} />
               </span>
               <div>
-                <h4 className={styles.toggleLabel}>Tasks</h4>
+                <label htmlFor="toggle-task-reminders" className={styles.toggleLabel}>Tasks</label>
                 <p className={styles.toggleDetail}>
                   Reminders for tasks due today, upcoming deadlines, and overdue items.
                 </p>
               </div>
             </div>
             <Toggle
+              id="toggle-task-reminders"
               checked={preferences.taskReminders}
               onChange={() => handleToggle("taskReminders", "task_reminders")}
               disabled={loading}
@@ -251,13 +252,14 @@ export function NotificationPreferences() {
                 <CalendarDays size={16} />
               </span>
               <div>
-                <h4 className={styles.toggleLabel}>Calendar</h4>
+                <label htmlFor="toggle-calendar-reminders" className={styles.toggleLabel}>Calendar</label>
                 <p className={styles.toggleDetail}>
                   Alerts for upcoming native events and scheduled commitments.
                 </p>
               </div>
             </div>
             <Toggle
+              id="toggle-calendar-reminders"
               checked={preferences.calendarReminders}
               onChange={() => handleToggle("calendarReminders", "calendar_reminders")}
               disabled={loading}
@@ -271,13 +273,14 @@ export function NotificationPreferences() {
                 <GraduationCap size={16} />
               </span>
               <div>
-                <h4 className={styles.toggleLabel}>School</h4>
+                <label htmlFor="toggle-school-reminders" className={styles.toggleLabel}>School</label>
                 <p className={styles.toggleDetail}>
                   Reminders for upcoming course lectures, labs, and meetings.
                 </p>
               </div>
             </div>
             <Toggle
+              id="toggle-school-reminders"
               checked={preferences.schoolClassReminders}
               onChange={() => handleToggle("schoolClassReminders", "school_class_reminders")}
               disabled={loading}
@@ -291,13 +294,14 @@ export function NotificationPreferences() {
                 <ShieldCheck size={16} />
               </span>
               <div>
-                <h4 className={styles.toggleLabel}>Blackboard: New Items</h4>
+                <label htmlFor="toggle-bb-new-items" className={styles.toggleLabel}>Blackboard: New Items</label>
                 <p className={styles.toggleDetail}>
                   Alerts when newly discovered assignments or calendar entries are ready for review.
                 </p>
               </div>
             </div>
             <Toggle
+              id="toggle-bb-new-items"
               checked={preferences.blackboardNewItems}
               onChange={() => handleToggle("blackboardNewItems", "blackboard_new_items")}
               disabled={loading}
@@ -311,13 +315,14 @@ export function NotificationPreferences() {
                 <ShieldCheck size={16} />
               </span>
               <div>
-                <h4 className={styles.toggleLabel}>Blackboard: Deadline Changes</h4>
+                <label htmlFor="toggle-bb-deadline-changes" className={styles.toggleLabel}>Blackboard: Deadline Changes</label>
                 <p className={styles.toggleDetail}>
                   Alerts when an existing syllabus or assignment deadline materially shifts.
                 </p>
               </div>
             </div>
             <Toggle
+              id="toggle-bb-deadline-changes"
               checked={preferences.blackboardDeadlineChanges}
               onChange={() =>
                 handleToggle("blackboardDeadlineChanges", "blackboard_deadline_changes")
@@ -387,7 +392,7 @@ export function NotificationPreferences() {
         <div className={styles.quietActions}>
           <Button
             variant="primary"
-            size="sm"
+            size="md"
             onClick={handleSaveQuietHours}
             disabled={savingQuiet || loading}
             loading={savingQuiet}
@@ -455,7 +460,7 @@ export function NotificationPreferences() {
               <>
                 <Button
                   variant="secondary"
-                  size="sm"
+                  size="md"
                   onClick={handleSendTestPush}
                   disabled={testPushLoading || pushLoading}
                   loading={testPushLoading}
@@ -464,7 +469,7 @@ export function NotificationPreferences() {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="md"
                   onClick={handleDisablePush}
                   disabled={pushLoading || testPushLoading}
                 >
@@ -474,7 +479,7 @@ export function NotificationPreferences() {
             ) : pushStatus === "disabled" ? (
               <Button
                 variant="primary"
-                size="sm"
+                size="md"
                 onClick={handleEnablePush}
                 disabled={pushLoading}
                 loading={pushLoading}

@@ -81,6 +81,7 @@
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
+  cursor: pointer;
 }
 
 .toggleDetail {
@@ -125,7 +126,7 @@
   border-radius: var(--radius-md);
   background: var(--surface-interactive);
   color: var(--text-primary);
-  font-size: 0.875rem;
+  font-size: 1rem; /* 16px prevents iOS Safari automatic zoom */
   outline: none;
   transition: border-color var(--motion-fast) var(--motion-ease);
 }

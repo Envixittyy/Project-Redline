@@ -13,10 +13,12 @@ import { generateRoutedProposal } from "@/features/ai/routing-client";
 import { getCompanionSession } from "@/services/integrations/ai/companion-session";
 import type {
   QuickCaptureProposal,
-  ProposedTaskCapture,
-  ProposedEventCapture,
 } from "@/services/integrations/ai/quick-capture-contract";
-import { applyQuickCaptureAction } from "@/features/capture/quick-capture-actions";
+import {
+  applyQuickCaptureAction,
+  reviseQuickCaptureAction,
+} from "@/features/capture/quick-capture-actions";
+import { CaptureItemFields } from "@/features/ai/capture-item-fields";
 
 import styles from "./capture.module.css";
 
@@ -34,6 +36,8 @@ export function CaptureComposer({
 
   const [aiParsing, setAiParsing] = useState(false);
   const [aiProposal, setAiProposal] = useState<QuickCaptureProposal | null>(null);
+  const [persistedAiProposal, setPersistedAiProposal] =
+    useState<QuickCaptureProposal | null>(null);
   const [aiBatchId, setAiBatchId] = useState<string | null>(null);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -54,6 +58,7 @@ export function CaptureComposer({
       }
       form.reset();
       setAiProposal(null);
+      setPersistedAiProposal(null);
       setAiBatchId(null);
       onCaptured?.();
     });
@@ -87,6 +92,7 @@ export function CaptureComposer({
       const rev = (result as { ok: true; review: { batchId: string; proposal: QuickCaptureProposal } }).review;
       setAiBatchId(rev.batchId);
       setAiProposal(rev.proposal);
+      setPersistedAiProposal(rev.proposal);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to parse with AI.");
     } finally {
@@ -95,12 +101,24 @@ export function CaptureComposer({
   }
 
   function handleCreateFromProposal() {
-    if (!aiProposal || !aiBatchId) return;
+    if (!aiProposal || !persistedAiProposal || !aiBatchId) return;
     startTransition(async () => {
+      if (
+        JSON.stringify(aiProposal.captured) !==
+        JSON.stringify(persistedAiProposal.captured)
+      ) {
+        const revised = await reviseQuickCaptureAction(aiBatchId, aiProposal);
+        setAiBatchId(revised.batchId);
+        setAiProposal(revised.proposal);
+        setPersistedAiProposal(revised.proposal);
+        setMessage("Edits saved as a new proposal. Review once more, then approve creation.");
+        return;
+      }
       const res = await applyQuickCaptureAction(aiBatchId);
       if (res.ok) {
         if (textareaRef.current) textareaRef.current.value = "";
         setAiProposal(null);
+        setPersistedAiProposal(null);
         setAiBatchId(null);
         setMessage(
           aiProposal.captured.entityType === "task"
@@ -114,6 +132,13 @@ export function CaptureComposer({
       }
     });
   }
+
+  const aiProposalDirty = Boolean(
+    aiProposal &&
+      persistedAiProposal &&
+      JSON.stringify(aiProposal.captured) !==
+        JSON.stringify(persistedAiProposal.captured),
+  );
 
   const form = (
     <form className={styles.composerForm} onSubmit={submit} noValidate>
@@ -141,40 +166,11 @@ export function CaptureComposer({
             </Badge>
           </div>
 
-          <div style={{ fontWeight: 600, fontSize: "0.9375rem", color: "var(--text-primary)" }}>
-            {aiProposal.captured.title}
-          </div>
-
-          {aiProposal.captured.entityType === "task" ? (
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
-              {(aiProposal.captured as ProposedTaskCapture).dueDate ? (
-                <span>
-                  Due: {(aiProposal.captured as ProposedTaskCapture).dueDate}{" "}
-                  {(aiProposal.captured as ProposedTaskCapture).dueTime || ""}
-                </span>
-              ) : null}
-              <span>
-                Priority: {(aiProposal.captured as ProposedTaskCapture).priority || "medium"}
-              </span>
-              {(aiProposal.captured as ProposedTaskCapture).courseCode ? (
-                <span>
-                  Course: {(aiProposal.captured as ProposedTaskCapture).courseCode}
-                </span>
-              ) : null}
-            </div>
-          ) : (
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
-              <span>
-                Date: {(aiProposal.captured as ProposedEventCapture).startDate}
-                {(aiProposal.captured as ProposedEventCapture).startTime
-                  ? ` ${(aiProposal.captured as ProposedEventCapture).startTime}–${(aiProposal.captured as ProposedEventCapture).endTime || ""}`
-                  : " (All Day)"}
-              </span>
-              {(aiProposal.captured as ProposedEventCapture).location ? (
-                <span>Location: {(aiProposal.captured as ProposedEventCapture).location}</span>
-              ) : null}
-            </div>
-          )}
+          <CaptureItemFields
+            item={aiProposal.captured}
+            disabled={pending}
+            onChange={(captured) => setAiProposal({ ...aiProposal, captured })}
+          />
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.25rem" }}>
             <Button
@@ -184,14 +180,20 @@ export function CaptureComposer({
               disabled={pending}
               onClick={handleCreateFromProposal}
             >
-              Create {aiProposal.captured.entityType === "task" ? "Task" : "Event"}
+              {aiProposalDirty
+                ? "Save Edits for Review"
+                : `Create ${aiProposal.captured.entityType === "task" ? "Task" : "Event"}`}
             </Button>
             <Button
               variant="ghost"
               size="sm"
               icon={<X size={14} />}
               disabled={pending}
-              onClick={() => setAiProposal(null)}
+              onClick={() => {
+                setAiProposal(null);
+                setPersistedAiProposal(null);
+                setAiBatchId(null);
+              }}
             >
               Cancel
             </Button>

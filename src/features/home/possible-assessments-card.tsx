@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Sparkles, X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +9,8 @@ import type { SchoolAssessmentPrediction } from "@/services/school/prediction-se
 import {
   getActivePredictionsAction,
   dismissPredictionAction,
-  confirmPredictionAsTaskAction,
 } from "@/features/school/prediction-actions";
 import styles from "./home-dashboard.module.css";
-import { SCHOOL_INTELLIGENCE_UNAVAILABLE } from "@/services/integrations/ai/school-intelligence-policy";
 
 export function PossibleAssessmentsCard() {
   const [predictions, setPredictions] = useState<SchoolAssessmentPrediction[]>([]);
@@ -46,23 +44,6 @@ export function PossibleAssessmentsCard() {
       }
       setError(null);
       setPredictions((prev) => prev.filter((p) => p.id !== id));
-    });
-  }
-
-  function handleConfirm(pred: SchoolAssessmentPrediction) {
-    startTransition(async () => {
-      const result = await confirmPredictionAsTaskAction(pred.id, {
-        title: pred.title,
-        dueDate: pred.predictedDate,
-        dueAt: pred.predictedTime ? `${pred.predictedDate}T${pred.predictedTime}:00Z` : undefined,
-        courseId: pred.courseId,
-      });
-      if (!result.ok) {
-        setError(SCHOOL_INTELLIGENCE_UNAVAILABLE);
-        return;
-      }
-      setError(null);
-      setPredictions((prev) => prev.filter((p) => p.id !== pred.id));
     });
   }
 
@@ -110,15 +91,9 @@ export function PossibleAssessmentsCard() {
         ) : null}
 
         <div className={styles.predictionActions}>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={pending}
-            icon={<Check size={14} />}
-            onClick={() => handleConfirm(topPrediction)}
-          >
-            Confirm as Task
-          </Button>
+          <span className={styles.predictionEstimate}>
+            Review conversion from the Course Intelligence panel.
+          </span>
 
           <Button
             variant="ghost"

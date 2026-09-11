@@ -3,16 +3,9 @@
 import { prepareRoutedInference } from "@/services/integrations/ai/inference-router";
 
 export async function prepareDailyPlanAdviceAction(
-  context: {
-    today: string;
-    timeZone: string;
-    tasks: Array<{ title: string; priority: string; dueDate?: string | null; estimatedMinutes?: number }>;
-    events: Array<{ title: string; start: string; end: string; allDay: boolean }>;
-    workloadScore?: number;
-    workloadCategory?: string;
-  },
+  _context: unknown,
   local: unknown,
 ) {
-  return prepareRoutedInference("daily_plan_advice", JSON.stringify(context), local);
+  // Context is constructed strictly and canonically on the server from database state.
+  return prepareRoutedInference("daily_plan_advice", null, local);
 }
-

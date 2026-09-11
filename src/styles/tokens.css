@@ -108,7 +108,15 @@
   --motion-ambient-drift-2: 38s;
   --mobile-nav-height: 4.25rem;
   --sidebar-width: 15.5rem;
-  --content-max-width: 82rem;
+  --content-max-width: 86rem;
+  --page-gutter: clamp(1.15rem, 3.5vw, 3.25rem);
+  --section-gap: clamp(2rem, 4vw, 3.75rem);
+  --section-rule: color-mix(in oklch, var(--border-strong) 62%, transparent);
+  --surface-embedded: color-mix(in oklch, var(--surface) 44%, transparent);
+  --surface-floating: var(--surface-glass);
+  --type-display: clamp(2.5rem, 7vw, 5.75rem);
+  --type-page-title: clamp(2.4rem, 5.5vw, 4.5rem);
+  --type-section-title: clamp(1.15rem, 2vw, 1.45rem);
 
   /* Ambient light fields (Light Mode) */
   --ambient-bg-base: oklch(97.2% 0.008 255);

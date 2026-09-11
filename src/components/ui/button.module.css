@@ -166,3 +166,14 @@
     transform: none;
   }
 }
+
+@media (pointer: coarse) {
+  .sm {
+    min-height: 2.75rem;
+  }
+
+  .iconOnly.sm {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}

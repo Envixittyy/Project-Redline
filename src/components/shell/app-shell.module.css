@@ -45,7 +45,7 @@
     0.75rem
     max(1.15rem, env(safe-area-inset-left));
   border-bottom: 1px solid var(--border-hairline, var(--border-subtle));
-  background: var(--navigation-surface);
+  background: color-mix(in oklch, var(--navigation-surface) 82%, transparent);
   backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
   -webkit-backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
 }
@@ -69,9 +69,9 @@
   margin-inline: auto;
   padding:
     1.75rem
-    max(1.15rem, env(safe-area-inset-right))
+    max(var(--page-gutter), env(safe-area-inset-right))
     calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 2.25rem)
-    max(1.15rem, env(safe-area-inset-left));
+    max(var(--page-gutter), env(safe-area-inset-left));
 }
 
 .mobileNav {
@@ -81,25 +81,25 @@
   bottom: 0;
   left: 0;
   padding:
-    0.45rem
-    max(0.5rem, env(safe-area-inset-right))
-    max(0.45rem, env(safe-area-inset-bottom))
-    max(0.5rem, env(safe-area-inset-left));
+    0
+    max(0rem, env(safe-area-inset-right))
+    max(0rem, env(safe-area-inset-bottom))
+    max(0rem, env(safe-area-inset-left));
   pointer-events: none;
 }
 
 .mobileBar {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  width: min(100%, 34rem);
+  width: min(100%, 42rem);
   min-height: var(--mobile-nav-height);
   margin-inline: auto;
-  padding: 0.38rem;
-  border: 1px solid var(--border-strong);
+  padding: 0.38rem max(0.5rem, env(safe-area-inset-left));
+  border: 0;
   border-top: 1px solid var(--border-highlight);
-  border-radius: var(--radius-floating, 1.5rem);
-  background: var(--navigation-surface);
-  box-shadow: 0 1px 0 var(--border-highlight) inset, var(--shadow-navigation);
+  border-radius: 1.15rem 1.15rem 0 0;
+  background: color-mix(in oklch, var(--navigation-surface) 91%, transparent);
+  box-shadow: 0 1px 0 var(--border-highlight) inset, 0 -12px 36px oklch(0% 0 0 / 24%);
   backdrop-filter: blur(var(--blur-navigation)) saturate(1.2);
   -webkit-backdrop-filter: blur(var(--blur-navigation)) saturate(1.2);
   pointer-events: auto;
@@ -133,9 +133,18 @@
 }
 
 .mobileLink[data-active] {
-  background: var(--accent-muted);
   color: var(--accent-text);
-  box-shadow: 0 0 16px var(--accent-muted);
+}
+
+.mobileLink[data-active]::before {
+  position: absolute;
+  top: 0.08rem;
+  width: 1.35rem;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: var(--glow-blue);
+  content: "";
 }
 
 .mobileLink:active,
@@ -242,6 +251,7 @@
 
 .desktopLink,
 .appearanceLink {
+  position: relative;
   display: flex;
   min-height: 2.5rem;
   align-items: center;
@@ -269,10 +279,22 @@
 }
 
 .desktopLink[data-active] {
-  border-color: var(--accent-border);
-  background: var(--accent-muted);
+  border-color: transparent;
+  background: color-mix(in oklch, var(--accent-muted) 58%, transparent);
   color: var(--accent-text);
-  box-shadow: 0 0 12px var(--accent-muted);
+  box-shadow: none;
+}
+
+.desktopLink[data-active]::before {
+  position: absolute;
+  top: 0.55rem;
+  bottom: 0.55rem;
+  left: -0.7rem;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: var(--glow-blue);
+  content: "";
 }
 
 .desktopLink:focus-visible,
@@ -327,7 +349,9 @@
       max(1.5rem, env(safe-area-inset-bottom))
       max(1rem, env(safe-area-inset-left));
     border-right: 1px solid var(--border-hairline, var(--border-subtle));
-    background: var(--navigation-surface);
+    background:
+      linear-gradient(180deg, color-mix(in oklch, var(--accent-muted) 22%, transparent), transparent 28%),
+      color-mix(in oklch, var(--navigation-surface) 84%, transparent);
     backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
     -webkit-backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
   }
@@ -342,10 +366,10 @@
 
   .main {
     padding:
-      2.5rem
-      clamp(1.5rem, 3.5vw, 3rem)
+      3rem
+      var(--page-gutter)
       3.5rem
-      clamp(1.5rem, 3.5vw, 3rem);
+      var(--page-gutter);
   }
 
   .mobileNav {

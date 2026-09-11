@@ -191,5 +191,10 @@
   .submitLabel {
     display: none;
   }
+
+  .optionPill {
+    min-height: 2.75rem;
+    padding: 0.35rem 0.65rem;
+  }
 }
 

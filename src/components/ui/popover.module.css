@@ -7,7 +7,7 @@
   position: absolute;
   z-index: 70;
   min-width: 12rem;
-  max-width: 24rem;
+  max-width: min(24rem, calc(100vw - 1.5rem));
   padding: 0.5rem;
   border: 1px solid var(--border-strong);
   border-top: 1px solid var(--border-highlight);

@@ -355,6 +355,7 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
 
                 <Button
                   variant="primary"
+                  size="md"
                   type="submit"
                   disabled={pending || selectedRecordIds.size === 0}
                 >

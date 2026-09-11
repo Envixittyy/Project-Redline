@@ -157,7 +157,7 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
                 <div className={styles.actions}>
                   <Button
                     variant="primary"
-                    size="sm"
+                    size="md"
                     disabled={pending}
                     onClick={() =>
                       run(() => resolveNotionConflictAction(conflict.id, "keep_redline"))
@@ -167,7 +167,7 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
                   </Button>
                   <Button
                     variant="secondary"
-                    size="sm"
+                    size="md"
                     disabled={pending}
                     onClick={() =>
                       run(() => resolveNotionConflictAction(conflict.id, "use_notion"))
@@ -258,7 +258,7 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
 
                     <Button
                       variant="secondary"
-                      size="sm"
+                      size="md"
                       disabled={pending || link.status === "syncing"}
                       type="button"
                       icon={<RefreshCw size={14} />}
@@ -270,7 +270,7 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
 
                     <IconButton
                       variant="ghost"
-                      size="sm"
+                      size="md"
                       disabled={pending}
                       aria-label="Unlink note"
                       icon={<Trash2 size={14} />}

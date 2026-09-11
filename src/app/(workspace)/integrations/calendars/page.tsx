@@ -109,9 +109,9 @@ export default async function CalendarConnectionsPage({ searchParams }: PageProp
                 ) : null}
                 {provider.id === "google" && !connected ? (
                   isGoogleCalendarOAuthConfigured() ? (
-                    <Link className={styles.connectLink} href="/api/integrations/calendar/google/start">
+                    <a className={styles.connectLink} href="/api/integrations/calendar/google/start">
                       Connect read-only
-                    </Link>
+                    </a>
                   ) : (
                     <p className={styles.setupHint}>Set APP_ORIGIN and the two GOOGLE_CALENDAR_* server variables to enable OAuth.</p>
                   )

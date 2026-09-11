@@ -1,4 +1,5 @@
 import { AiTrustError } from "./trust-contract";
+import { strictJson, strictObject, strictText } from "./strict-output";
 
 export const COURSE_MATERIAL_SUMMARY_CAPABILITY = {
   id: "courseMaterialSummary.propose" as const,
@@ -40,6 +41,7 @@ export type CourseMaterialSummaryProposal = {
 
 export type CourseMaterialSummaryReview = {
   batchId: string;
+  proposal: CourseMaterialSummaryProposal;
   overview: string;
   keyConcepts: Array<{ term: string; definition: string }>;
   practicalTakeaways: string[];
@@ -64,6 +66,7 @@ export type CourseMaterialStudyQuestionsProposal = {
 
 export type CourseMaterialStudyQuestionsReview = {
   batchId: string;
+  proposal: CourseMaterialStudyQuestionsProposal;
   questions: StudyQuestion[];
   status: string;
   sourceHandle: string;
@@ -75,58 +78,36 @@ export function parseCourseMaterialSummaryOutput(
   capability: string,
   handle: string,
 ): CourseMaterialSummaryProposal {
-  if (capability !== COURSE_MATERIAL_SUMMARY_CAPABILITY.id) throw new AiTrustError("capability_denied");
-  if (typeof raw !== "string" || new TextEncoder().encode(raw).length > COURSE_MATERIAL_SUMMARY_CAPABILITY.limits.bytes) {
-    throw new AiTrustError("output_too_large");
-  }
-
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    throw new AiTrustError("invalid_output");
-  }
-
-  const v = value as Record<string, unknown>;
+  if (capability !== COURSE_MATERIAL_SUMMARY_CAPABILITY.id)
+    throw new AiTrustError("capability_denied");
+  const v = strictObject(
+    strictJson(raw, 32768),
+    [
+      "schema_version",
+      "type",
+      "source_handle",
+      "overview",
+      "keyConcepts",
+      "practicalTakeaways",
+    ],
+    [],
+  );
   if (
-    !v ||
     v.schema_version !== 1 ||
     v.type !== COURSE_MATERIAL_SUMMARY_CAPABILITY.outputType ||
-    v.source_handle !== handle ||
-    typeof v.overview !== "string" ||
-    !Array.isArray(v.keyConcepts) ||
-    !Array.isArray(v.practicalTakeaways)
-  ) {
+    v.source_handle !== handle
+  )
     throw new AiTrustError("invalid_output");
+  strictText(v.overview, 3000, true);
+  textArray(v.practicalTakeaways, 10, 300);
+  if (!Array.isArray(v.keyConcepts) || v.keyConcepts.length > 15)
+    throw new AiTrustError("invalid_output");
+  for (const value of v.keyConcepts) {
+    const x = strictObject(value, ["term", "definition"]);
+    strictText(x.term, 100);
+    strictText(x.definition, 500, true);
   }
-
-  const overview = v.overview.trim().slice(0, COURSE_MATERIAL_SUMMARY_CAPABILITY.limits.summaryChars);
-  const keyConcepts: Array<{ term: string; definition: string }> = [];
-
-  for (const item of v.keyConcepts) {
-    if (!item || typeof item !== "object") continue;
-    const it = item as Record<string, unknown>;
-    const term = String(it.term || "").trim().slice(0, 100);
-    const definition = String(it.definition || "").trim().slice(0, 500);
-    if (term && definition) keyConcepts.push({ term, definition });
-    if (keyConcepts.length >= COURSE_MATERIAL_SUMMARY_CAPABILITY.limits.maxKeyConcepts) break;
-  }
-
-  const practicalTakeaways = v.practicalTakeaways
-    .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
-    .slice(0, 10)
-    .map((t) => t.trim().slice(0, 300));
-
-  if (!overview) throw new AiTrustError("invalid_output");
-
-  return {
-    schema_version: 1,
-    type: "propose_course_material_summary",
-    source_handle: handle,
-    overview,
-    keyConcepts,
-    practicalTakeaways,
-  };
+  return v as CourseMaterialSummaryProposal;
 }
 
 export function parseCourseMaterialStudyQuestionsOutput(
@@ -134,56 +115,41 @@ export function parseCourseMaterialStudyQuestionsOutput(
   capability: string,
   handle: string,
 ): CourseMaterialStudyQuestionsProposal {
-  if (capability !== COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.id) throw new AiTrustError("capability_denied");
-  if (typeof raw !== "string" || new TextEncoder().encode(raw).length > COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.limits.bytes) {
-    throw new AiTrustError("output_too_large");
-  }
-
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    throw new AiTrustError("invalid_output");
-  }
-
-  const v = value as Record<string, unknown>;
+  if (capability !== COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.id)
+    throw new AiTrustError("capability_denied");
+  const v = strictObject(
+    strictJson(raw, 32768),
+    ["schema_version", "type", "source_handle", "questions"],
+    [],
+  );
   if (
-    !v ||
     v.schema_version !== 1 ||
     v.type !== COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.outputType ||
-    v.source_handle !== handle ||
-    !Array.isArray(v.questions)
-  ) {
+    v.source_handle !== handle
+  )
     throw new AiTrustError("invalid_output");
+  if (
+    !Array.isArray(v.questions) ||
+    v.questions.length < 1 ||
+    v.questions.length > 15
+  )
+    throw new AiTrustError("invalid_output");
+  for (const value of v.questions) {
+    const x = strictObject(
+      value,
+      ["question", "answer"],
+      ["conceptTag", "difficulty"],
+    );
+    strictText(x.question, 300, true);
+    strictText(x.answer, 1000, true);
+    if (Object.hasOwn(x, "conceptTag")) strictText(x.conceptTag, 50);
+    if (
+      Object.hasOwn(x, "difficulty") &&
+      !["easy", "medium", "hard"].includes(x.difficulty as string)
+    )
+      throw new AiTrustError("invalid_output");
   }
-
-  const questions: StudyQuestion[] = [];
-  const validDiffs = new Set(["easy", "medium", "hard"]);
-
-  for (const item of v.questions) {
-    if (!item || typeof item !== "object") continue;
-    const it = item as Record<string, unknown>;
-    const q = String(it.question || "").trim().slice(0, COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.limits.questionChars);
-    const a = String(it.answer || "").trim().slice(0, COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.limits.answerChars);
-    const conceptTag = typeof it.conceptTag === "string" ? it.conceptTag.trim().slice(0, 50) : undefined;
-    const difficulty = typeof it.difficulty === "string" && validDiffs.has(it.difficulty.toLowerCase())
-      ? (it.difficulty.toLowerCase() as StudyQuestion["difficulty"])
-      : "medium";
-
-    if (q && a) {
-      questions.push({ question: q, answer: a, conceptTag, difficulty });
-    }
-    if (questions.length >= COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY.limits.maxQuestions) break;
-  }
-
-  if (questions.length === 0) throw new AiTrustError("invalid_output");
-
-  return {
-    schema_version: 1,
-    type: "propose_course_material_study_questions",
-    source_handle: handle,
-    questions,
-  };
+  return v as CourseMaterialStudyQuestionsProposal;
 }
 
 export function courseMaterialSummaryPrompt(
@@ -193,10 +159,10 @@ export function courseMaterialSummaryPrompt(
   const prompt = JSON.stringify({
     untrusted_data: {
       source_handle: handle,
-      materials: materials.slice(0, 3).map((m) => ({
+      materials: materials.map((m) => ({
         title: m.title,
         type: m.type,
-        content: m.content.slice(0, 15000),
+        content: m.content,
       })),
     },
   });
@@ -218,10 +184,10 @@ export function courseMaterialStudyQuestionsPrompt(
   const prompt = JSON.stringify({
     untrusted_data: {
       source_handle: handle,
-      materials: materials.slice(0, 3).map((m) => ({
+      materials: materials.map((m) => ({
         title: m.title,
         type: m.type,
-        content: m.content.slice(0, 15000),
+        content: m.content,
       })),
     },
   });
@@ -236,3 +202,8 @@ export function courseMaterialStudyQuestionsPrompt(
   };
 }
 
+function textArray(value: unknown, maxItems: number, maxChars: number) {
+  if (!Array.isArray(value) || value.length > maxItems)
+    throw new AiTrustError("invalid_output");
+  value.forEach((x) => strictText(x, maxChars, true));
+}

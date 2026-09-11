@@ -1,11 +1,23 @@
 import { AiTrustError } from "./trust-contract";
+import { strictJson, strictObject, strictText } from "./strict-output";
 
 export const CONTEXTUAL_ASSISTANT_CAPABILITY = {
   id: "contextualAssistant.propose" as const,
-  reads: ["notes.read", "tasks.read", "courses.read", "courseMaterials.read"] as const,
+  reads: [
+    "notes.read",
+    "tasks.read",
+    "courses.read",
+    "courseMaterials.read",
+  ] as const,
   access: "proposal" as const,
-  entityScope: "single selected entity (Task, Course, Note, or Material)" as const,
-  inputFields: ["entityType", "entityId", "entityContent", "userQuestion"] as const,
+  entityScope:
+    "single selected entity (Task, Course, Note, or Material)" as const,
+  inputFields: [
+    "entityType",
+    "entityId",
+    "entityContent",
+    "userQuestion",
+  ] as const,
   outputType: "propose_contextual_assistance" as const,
   limits: {
     answerChars: 4000,
@@ -25,6 +37,7 @@ export type ContextualAssistantProposal = {
 
 export type ContextualAssistantReview = {
   batchId: string;
+  proposal: ContextualAssistantProposal;
   answer: ContextualAssistantProposal;
   status: string;
   sourceHandle: string;
@@ -36,53 +49,24 @@ export function parseContextualAssistantOutput(
   capability: string,
   handle: string,
 ): ContextualAssistantProposal {
-  if (capability !== CONTEXTUAL_ASSISTANT_CAPABILITY.id) throw new AiTrustError("capability_denied");
-  if (typeof raw !== "string" || new TextEncoder().encode(raw).length > CONTEXTUAL_ASSISTANT_CAPABILITY.limits.bytes) {
-    throw new AiTrustError("output_too_large");
-  }
-
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    throw new AiTrustError("invalid_output");
-  }
-
-  const v = value as Record<string, unknown>;
+  if (capability !== CONTEXTUAL_ASSISTANT_CAPABILITY.id)
+    throw new AiTrustError("capability_denied");
+  const v = strictObject(
+    strictJson(raw, 32768),
+    ["schema_version", "type", "source_handle", "answer", "keyCitations"],
+    ["suggestedFollowUps"],
+  );
   if (
-    !v ||
     v.schema_version !== 1 ||
     v.type !== CONTEXTUAL_ASSISTANT_CAPABILITY.outputType ||
-    v.source_handle !== handle ||
-    typeof v.answer !== "string" ||
-    !Array.isArray(v.keyCitations)
-  ) {
+    v.source_handle !== handle
+  )
     throw new AiTrustError("invalid_output");
-  }
-
-  const answer = v.answer.trim().slice(0, CONTEXTUAL_ASSISTANT_CAPABILITY.limits.answerChars);
-  const keyCitations = v.keyCitations
-    .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
-    .slice(0, CONTEXTUAL_ASSISTANT_CAPABILITY.limits.maxCitations)
-    .map((c) => c.trim().slice(0, 300));
-
-  const suggestedFollowUps = Array.isArray(v.suggestedFollowUps)
-    ? v.suggestedFollowUps
-        .filter((f): f is string => typeof f === "string" && f.trim().length > 0)
-        .slice(0, 3)
-        .map((f) => f.trim().slice(0, 150))
-    : undefined;
-
-  if (!answer) throw new AiTrustError("invalid_output");
-
-  return {
-    schema_version: 1,
-    type: "propose_contextual_assistance",
-    source_handle: handle,
-    answer,
-    keyCitations,
-    suggestedFollowUps,
-  };
+  strictText(v.answer, 4000, true);
+  textArray(v.keyCitations, 5, 300);
+  if (Object.hasOwn(v, "suggestedFollowUps"))
+    textArray(v.suggestedFollowUps, 3, 150);
+  return v as ContextualAssistantProposal;
 }
 
 export function contextualAssistantPrompt(
@@ -99,8 +83,8 @@ export function contextualAssistantPrompt(
       source_handle: handle,
       entity_type: context.entityType,
       title: context.title,
-      content: context.body.slice(0, 15000),
-      question: context.userQuestion.slice(0, 1000),
+      content: context.body,
+      question: context.userQuestion,
     },
   });
 
@@ -114,3 +98,8 @@ export function contextualAssistantPrompt(
   };
 }
 
+function textArray(value: unknown, maxItems: number, maxChars: number) {
+  if (!Array.isArray(value) || value.length > maxItems)
+    throw new AiTrustError("invalid_output");
+  value.forEach((x) => strictText(x, maxChars, true));
+}

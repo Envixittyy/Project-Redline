@@ -172,6 +172,8 @@ describe("Phase 9: Comprehensive AI Privacy, Consent & Boundary Tests", () => {
 
       const suggestOnlyDecision = decideAiExecution(parsed.value.actions[0], "suggest_only", true);
       expect(suggestOnlyDecision).toBe("deny");
+      expect(decideAiExecution(parsed.value.actions[0], "trusted_automation", true)).toBe("deny");
+      expect(decideAiExecution(parsed.value.actions[0], "trusted_automation", false)).toBe("deny");
     });
 
     it("22: Hallucinated entity handles are rejected during resolution", () => {

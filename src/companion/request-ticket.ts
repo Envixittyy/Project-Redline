@@ -2,10 +2,12 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
+export type CompanionCapability = "session" | "taskChecklist.propose" | "courseImport.propose" | "schoolAssessmentPrediction.propose" |
+  "schoolScheduleImage.propose" | "blackboardCourseImage.propose" | "academicCalendarImport.propose";
 export type CompanionTicket = {
   audience: string; origin: string; userId: string; deviceId: string;
   path: string; bodyDigest: string; tokenHash: string;
-  capability: "session" | "taskChecklist.propose" | "courseImport.propose";
+  capability: CompanionCapability;
 };
 export function ticketDigest(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -35,7 +37,8 @@ export class CompanionTicketVerifier {
         !Number.isSafeInteger(t.expires) || t.expires <= now || t.expires > now + 65_000 ||
         !UUID.test(t.userId) || !UUID.test(t.deviceId) || !UUID.test(t.nonce) ||
         this.used.has(t.nonce) || this.used.size >= 1000 ||
-        (path === "/v1/infer" ? !["taskChecklist.propose", "courseImport.propose"].includes(t.capability) : t.capability !== "session")) throw new Error("authorization_denied");
+        (path === "/v1/infer" ? !["taskChecklist.propose", "courseImport.propose", "schoolAssessmentPrediction.propose",
+          "schoolScheduleImage.propose", "blackboardCourseImage.propose", "academicCalendarImport.propose"].includes(t.capability) : t.capability !== "session")) throw new Error("authorization_denied");
     this.used.set(t.nonce, t.expires);
     return t as CompanionTicket;
   }

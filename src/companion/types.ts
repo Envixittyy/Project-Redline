@@ -22,12 +22,19 @@ export type LocalInferenceRequest = {
   temperature?: number;
   maxTokens?: number;
   formatJson?: boolean;
-  /** Reserved: all active transports reject binary input pending review. */
+  /** Legacy/untrusted shape. Every adapter rejects it. */
   images?: string[];
+  /** One server-authorized, normalized PNG. Paths and URLs are not representable. */
+  media?: Array<{
+    type: "image";
+    mimeType: "image/png";
+    base64: string;
+    digest: string;
+  }>;
 };
 
 export type LocalInferenceResponse = {
-  failureCode?: "provider_unavailable" | "rate_limited" | "timeout" | "invalid_output" | "provider_rejected";
+  failureCode?: "provider_unavailable" | "rate_limited" | "timeout" | "invalid_output" | "provider_rejected" | "unsupported_modality";
   ok: boolean;
   content: string;
   model: string;
@@ -74,5 +81,6 @@ export type LocalRuntimeCapabilities = {
   jsonFormat: boolean;
   modelDiscovery: boolean;
   abortSignal: boolean;
+  imageInput: boolean;
 };
 

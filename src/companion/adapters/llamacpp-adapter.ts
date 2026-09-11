@@ -23,6 +23,7 @@ export class LlamaCppAdapter implements LocalRuntimeAdapter {
       jsonFormat: true,
       modelDiscovery: true,
       abortSignal: true,
+      imageInput: false,
     };
   }
 
@@ -125,7 +126,7 @@ export class LlamaCppAdapter implements LocalRuntimeAdapter {
     signal?: AbortSignal,
   ): Promise<LocalInferenceResponse> {
     try {
-      if (request.images !== undefined) {
+      if (request.images !== undefined || request.media !== undefined) {
         throw new LocalAdapterError("Vision is not enabled for this capability.", "unsupported_modality");
       }
       const url = validateLoopbackUrl(endpoint);

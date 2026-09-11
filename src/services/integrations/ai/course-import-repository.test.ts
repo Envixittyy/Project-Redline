@@ -110,6 +110,44 @@ describe("server-owned course request and review", () => {
     expect(JSON.stringify(result)).not.toContain("p_mac");
     expect(mocks.apply).not.toHaveBeenCalled();
   });
+  it("rejects PDF before preparing any trusted course source", async () => {
+    const stream = "BT /F1 24 Tf 100 700 Td (MATH301 Advanced Calculus) Tj ET";
+    const streamLength = Buffer.byteLength(stream);
+    const pdf = `%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length ${streamLength} >> stream
+${stream}
+endstream
+endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+xref
+0 6
+0000000000 65535 f
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+0000000261 00000 n
+0000000355 00000 n
+trailer << /Size 6 /Root 1 0 R >>
+startxref
+434
+%%EOF`;
+    const form = new FormData();
+    form.set("file", new File([Buffer.from(pdf, "utf-8")], "syllabus.pdf", { type: "application/pdf" }));
+    mocks.from.mockReturnValue(
+      query({
+        source_text: "MATH301 Advanced Calculus",
+        source_handle: handle,
+        model: "test",
+        start_date: "2026-08-31",
+        time_zone: "Asia/Manila",
+      }),
+    );
+    await expect(prepareCourseImport(form, "ollama", "test")).rejects.toThrow(/PDF\/DOCX extraction is unavailable/);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   it("finalization refuses stale immutable source before it can persist a review", async () => {
     mocks.from.mockReturnValue(
       query({

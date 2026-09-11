@@ -75,6 +75,23 @@ describe("server-owned inference routing", () => {
     m.row.mockResolvedValue({ data: { ...row(), status: "failed", error_code } });
     await expect(prepareFallback(id)).rejects.toThrow("fallback_denied"); expect(m.infer).not.toHaveBeenCalled();
   });
+  it.each(["dailyPlanAdvice.propose","courseMaterialSummary.propose","courseMaterialStudyQuestions.propose","contextualAssistant.propose","noteSummary.propose","noteRewrite.propose","noteActionItems.propose","quickCapture.propose"])("scoped local failure cannot fall back for %s", async capability => {
+    m.row.mockResolvedValue({ data: {...row("ollama","course"),course_request_id:null,scoped_request_id:sourceId,capability,model:"fixture",status:"failed",error_code:"provider_unavailable"} });
+    await expect(prepareFallback(id)).rejects.toThrow("fallback_denied");
+    expect(m.source).not.toHaveBeenCalled();expect(m.infer).not.toHaveBeenCalled();expect(m.rpc).not.toHaveBeenCalled();
+  });
+  it("never prepares an automatic fallback for image capabilities", async () => {
+    m.row.mockResolvedValue({ data: { ...row("ollama", "course"), course_request_id: null, scoped_request_id: sourceId,
+      capability: "schoolScheduleImage.propose", model: "vision-test", location: "local", status: "failed", error_code: "provider_unavailable" }, error: null });
+    await expect(prepareFallback(id)).rejects.toThrow("fallback_denied");
+    expect(m.source).not.toHaveBeenCalled(); expect(m.infer).not.toHaveBeenCalled();
+  });
+  it("never silently falls back across Academic Calendar providers", async () => {
+    m.row.mockResolvedValue({ data: { ...row("ollama", "course"), course_request_id: null, scoped_request_id: sourceId,
+      capability: "academicCalendarImport.propose", model: "vision-test", location: "local", status: "failed", error_code: "provider_unavailable" }, error: null });
+    await expect(prepareFallback(id)).rejects.toThrow("fallback_denied");
+    expect(m.source).not.toHaveBeenCalled(); expect(m.infer).not.toHaveBeenCalled();
+  });
   it("same course finalization boundary applies to cloud", async () => {
     m.row.mockResolvedValue({ data: row("openrouter", "course") });
     const result = await sendCloudInference(id);

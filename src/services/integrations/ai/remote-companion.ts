@@ -9,7 +9,7 @@ import { readInferenceSource } from "./inference-source";
 import { localSelection } from "./routing-contract";
 import { signAiCommand } from "./trust-signing";
 
-async function sign(path: string, body: unknown, token: unknown, deviceId: unknown, capability: "session" | "taskChecklist.propose" | "courseImport.propose") {
+async function sign(path: string, body: unknown, token: unknown, deviceId: unknown, capability: "session" | "taskChecklist.propose" | "courseImport.propose" | "schoolAssessmentPrediction.propose") {
   const { userId } = await requireAuthenticatedSupabase();
   const audience = process.env.NEXT_PUBLIC_COMPANION_REMOTE_ORIGIN;
   const origin = process.env.APP_ORIGIN;
@@ -45,7 +45,10 @@ export async function remoteInferenceTicket(id: unknown, endpoint: unknown, toke
   const source = await readInferenceSource(a.kind, a.requestId, a.model);
   if (source.digest !== a.payload_digest) throw new AiTrustError("source_changed");
   const body = { provider: a.provider, endpoint: validateLoopbackUrl(endpoint).toString(), request: source.inference };
-  const ticket = await sign("/v1/infer", body, token, deviceId, a.kind === "checklist" ? "taskChecklist.propose" : "courseImport.propose");
+  const capability = a.kind === "checklist" ? "taskChecklist.propose" : a.kind === "course" ? "courseImport.propose" :
+    a.kind === "assessment_prediction" ? "schoolAssessmentPrediction.propose" : null;
+  if (!capability) throw new AiTrustError("capability_denied");
+  const ticket = await sign("/v1/infer", body, token, deviceId, capability);
   const { client, userId } = await requireAuthenticatedSupabase();
   const { error } = await client.rpc("ai_claim_remote_ticket", signAiCommand(userId, "claim_remote_ticket", { id: a.id }));
   if (error) throw new AiTrustError("request_unavailable");

@@ -50,3 +50,8 @@ export async function archiveNote(id: string): Promise<void> {
   if (error) fail("archive the note", error);
   if (!data) throw new NoteRepositoryError("That note no longer exists.");
 }
+
+export async function readNote(id:string):Promise<Note>{
+  const {client,userId}=await requireAuthenticatedSupabase();const {data,error}=await client.from("notes").select(COLUMNS).eq("id",id).eq("user_id",userId).is("archived_at",null).maybeSingle();
+  if(error||!data)throw new NoteRepositoryError("The saved note is unavailable.");return toNote(data);
+}

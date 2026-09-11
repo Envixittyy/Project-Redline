@@ -57,7 +57,7 @@ async function request(
     cache: "no-store",
     redirect: "error",
     ...(!remote ? { targetAddressSpace: "loopback" as const } : {}),
-    headers: { ...Object.fromEntries(new Headers(init.headers)), ...(remote ? { "X-Redline-Ticket": ticket! } : {}) },
+    headers: { ...Object.fromEntries(new Headers(init.headers)), ...(ticket ? { "X-Redline-Ticket": ticket } : {}) },
     signal: init.signal
       ? AbortSignal.any([init.signal, AbortSignal.timeout(timeout)])
       : AbortSignal.timeout(timeout),
@@ -69,7 +69,7 @@ async function request(
     let failureCode = "invalid_output";
     try {
       const body = JSON.parse(await readBoundedResponseText(response, 4096));
-      if (["provider_unavailable", "rate_limited", "timeout", "invalid_output", "provider_rejected"].includes(body.failureCode)) failureCode = body.failureCode;
+      if (["provider_unavailable", "rate_limited", "timeout", "invalid_output", "provider_rejected", "unsupported_modality"].includes(body.failureCode)) failureCode = body.failureCode;
     } catch { /* Never infer infrastructure failure from malformed provider output. */ }
     throw new LocalCompanionClientError(
       response.status === 401

@@ -86,20 +86,40 @@ export type RoutedPreparation = {
 };
 
 export function capabilityFor(kind: RequestKind) {
+  if (
+    ![
+      "checklist",
+      "course",
+      "assessment_prediction",
+      "schedule_image",
+      "blackboard_image",
+      "academic_calendar",
+      "note_summary",
+      "note_rewrite",
+      "note_action_items",
+      "quick_capture",
+      "daily_plan_advice",
+      "material_summary",
+      "material_study_questions",
+      "contextual_assistant",
+    ].includes(kind)
+  ) {
+    schoolIntelligenceUnavailable();
+  }
   if (kind === "checklist") return CHECKLIST_CAPABILITY;
   if (kind === "course") return COURSE_IMPORT_CAPABILITY;
   if (kind === "schedule_image") return SCHEDULE_IMAGE_CAPABILITY;
   if (kind === "blackboard_image") return BLACKBOARD_COURSE_IMAGE_CAPABILITY;
   if (kind === "academic_calendar") return ACADEMIC_CALENDAR_CAPABILITY;
   if (kind === "assessment_prediction") return ASSESSMENT_PREDICTION_CAPABILITY;
-  if (kind === "note_summary") return NOTE_SUMMARY_CAPABILITY;
-  if (kind === "note_rewrite") return NOTE_REWRITE_CAPABILITY;
-  if (kind === "note_action_items") return NOTE_ACTION_ITEMS_CAPABILITY;
-  if (kind === "quick_capture") return QUICK_CAPTURE_CAPABILITY;
   if (kind === "daily_plan_advice") return DAILY_PLAN_ADVICE_CAPABILITY;
   if (kind === "material_summary") return COURSE_MATERIAL_SUMMARY_CAPABILITY;
   if (kind === "material_study_questions") return COURSE_MATERIAL_STUDY_QUESTIONS_CAPABILITY;
   if (kind === "contextual_assistant") return CONTEXTUAL_ASSISTANT_CAPABILITY;
+  if (kind === "note_summary") return NOTE_SUMMARY_CAPABILITY;
+  if (kind === "note_rewrite") return NOTE_REWRITE_CAPABILITY;
+  if (kind === "note_action_items") return NOTE_ACTION_ITEMS_CAPABILITY;
+  if (kind === "quick_capture") return QUICK_CAPTURE_CAPABILITY;
   throw new AiTrustError("capability_denied");
 }
 /** Unknown/future domains (including journals/wellness) fail closed. */
@@ -111,27 +131,14 @@ export function cloudAllowed(capability: string, prefs: RoutingPreferences): boo
   if (capability === COURSE_IMPORT_CAPABILITY.id) {
     return prefs.courseImportCloud === true;
   }
-  if (capability === SCHEDULE_IMAGE_CAPABILITY.id) {
+  if (prefs.cloudFallbackMode === "ask_each_time" && capability === SCHEDULE_IMAGE_CAPABILITY.id) {
     return prefs.schoolScheduleCloud === true;
   }
-  if (capability === BLACKBOARD_COURSE_IMAGE_CAPABILITY.id) {
+  if (prefs.cloudFallbackMode === "ask_each_time" && capability === BLACKBOARD_COURSE_IMAGE_CAPABILITY.id) {
     return prefs.blackboardCourseCloud === true;
   }
-  if (capability === ACADEMIC_CALENDAR_CAPABILITY.id) {
+  if (prefs.cloudFallbackMode === "ask_each_time" && capability === ACADEMIC_CALENDAR_CAPABILITY.id) {
     return prefs.academicCalendarCloud === true;
-  }
-  if (capability === ASSESSMENT_PREDICTION_CAPABILITY.id) {
-    return prefs.assessmentPredictionCloud === true;
-  }
-  if (
-    capability === NOTE_SUMMARY_CAPABILITY.id ||
-    capability === NOTE_REWRITE_CAPABILITY.id ||
-    capability === NOTE_ACTION_ITEMS_CAPABILITY.id
-  ) {
-    return prefs.notesCloud === true;
-  }
-  if (capability === QUICK_CAPTURE_CAPABILITY.id) {
-    return prefs.quickCaptureCloud === true;
   }
   if (capability === DAILY_PLAN_ADVICE_CAPABILITY.id) {
     return prefs.dailyPlanCloud === true;
@@ -145,6 +152,9 @@ export function cloudAllowed(capability: string, prefs: RoutingPreferences): boo
   if (capability === CONTEXTUAL_ASSISTANT_CAPABILITY.id) {
     return prefs.contextualAssistantCloud === true;
   }
+  if ([NOTE_SUMMARY_CAPABILITY.id,NOTE_REWRITE_CAPABILITY.id,NOTE_ACTION_ITEMS_CAPABILITY.id].includes(capability as typeof NOTE_SUMMARY_CAPABILITY.id)) return prefs.notesCloud===true;
+  if (capability===QUICK_CAPTURE_CAPABILITY.id) return prefs.quickCaptureCloud===true;
+  // Capability flags express privacy preferences, not activation authority.
   return false;
 }
 export function isCloud(provider: string): provider is CloudProvider {
@@ -190,6 +200,7 @@ export function routingMessage(code: string): string {
     timeout: "AI timed out. Cloud delivery may be uncertain; review a new request before sending again.",
     rate_limited: "The provider is rate limited. No changes were made.",
     provider_unavailable: "The inference provider is unavailable. Normal Forward features still work.",
+    unsupported_modality: "The exact selected model is not trusted for image input. No image was sent and no fallback was attempted.",
     missing_credentials: "This cloud provider is not configured on the server.",
     cancelled: "AI request cancelled. No application changes were made.",
     invalid_output: "The model returned an invalid proposal. Nothing was applied and no fallback was sent.",

@@ -3,7 +3,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--section-rule);
 }
 
 .toolbar h2,
@@ -23,8 +25,8 @@
 
 .toolbar h2 {
   margin-top: 0.15rem;
-  font-size: clamp(1.15rem, 3vw, 1.45rem);
-  font-weight: 700;
+  font-size: clamp(1.3rem, 3vw, 1.7rem);
+  font-weight: 660;
   letter-spacing: -0.03em;
   color: var(--text-primary);
 }
@@ -36,9 +38,9 @@
   justify-content: center;
   gap: 0.45rem;
   padding: 0.35rem 0.75rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-control, var(--radius-md));
-  background: var(--surface-interactive);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 0.78rem;
@@ -119,7 +121,7 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--section-gap);
 }
 
 /* Support toggling widgets anywhere in descendant tree */

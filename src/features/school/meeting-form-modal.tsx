@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { PersistedCourseMeeting } from "@/types/course";
 import { saveMeetingAction } from "./school-actions";
+import modalStyles from "./course-form-modal.module.css";
 
 const WEEKDAYS = [
   { index: 1, label: "Mon" },
@@ -103,7 +104,7 @@ export function MeetingFormModal({
       description="Configure recurring lecture, lab, seminar, or discussion times."
       onClose={onClose}
       footer={
-        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", width: "100%" }}>
+        <div className={modalStyles.footerActions}>
           <Button variant="ghost" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
@@ -113,34 +114,18 @@ export function MeetingFormModal({
         </div>
       }
     >
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <form onSubmit={handleSubmit} className={modalStyles.form}>
         {error ? (
-          <div
-            style={{
-              padding: "0.6rem 0.8rem",
-              borderRadius: "var(--radius-sm)",
-              background: "color-mix(in oklch, var(--destructive) 15%, transparent)",
-              color: "var(--destructive)",
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-            }}
-            role="alert"
-          >
+          <div className={modalStyles.errorBanner} role="alert">
             {error}
           </div>
         ) : null}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-          <div>
+        <div className={modalStyles.grid2Col}>
+          <div className={modalStyles.field}>
             <label
               htmlFor="meeting-title"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
+              className={modalStyles.label}
             >
               Meeting Title *
             </label>
@@ -154,16 +139,10 @@ export function MeetingFormModal({
             />
           </div>
 
-          <div>
+          <div className={modalStyles.field}>
             <label
               htmlFor="meeting-location"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
+              className={modalStyles.label}
             >
               Room / Location
             </label>
@@ -178,13 +157,8 @@ export function MeetingFormModal({
 
         <div>
           <label
-            style={{
-              display: "block",
-              marginBottom: "0.4rem",
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              color: "var(--text-secondary)",
-            }}
+            className={modalStyles.label}
+            style={{ marginBottom: "0.4rem" }}
           >
             Recurring Days *
           </label>
@@ -218,17 +192,11 @@ export function MeetingFormModal({
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-          <div>
+        <div className={modalStyles.grid2Col}>
+          <div className={modalStyles.field}>
             <label
               htmlFor="meeting-start-time"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
+              className={modalStyles.label}
             >
               Start Time *
             </label>
@@ -241,16 +209,10 @@ export function MeetingFormModal({
             />
           </div>
 
-          <div>
+          <div className={modalStyles.field}>
             <label
               htmlFor="meeting-end-time"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
+              className={modalStyles.label}
             >
               End Time *
             </label>
@@ -264,17 +226,11 @@ export function MeetingFormModal({
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-          <div>
+        <div className={modalStyles.grid2Col}>
+          <div className={modalStyles.field}>
             <label
               htmlFor="meeting-start-date"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
+              className={modalStyles.label}
             >
               Semester Starts *
             </label>
@@ -287,16 +243,10 @@ export function MeetingFormModal({
             />
           </div>
 
-          <div>
+          <div className={modalStyles.field}>
             <label
               htmlFor="meeting-end-date"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
+              className={modalStyles.label}
             >
               Semester Ends (Optional)
             </label>

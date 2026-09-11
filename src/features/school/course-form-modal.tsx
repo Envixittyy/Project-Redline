@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Course } from "@/types/course";
 import { saveCourseAction } from "./school-actions";
+import modalStyles from "./course-form-modal.module.css";
 
 const COLOR_PRESETS = [
   "#2563eb", // Royal Blue
@@ -76,7 +77,7 @@ export function CourseFormModal({
       }
       onClose={onClose}
       footer={
-        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", width: "100%" }}>
+        <div className={modalStyles.footerActions}>
           <Button variant="ghost" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
@@ -86,34 +87,18 @@ export function CourseFormModal({
         </div>
       }
     >
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <form onSubmit={handleSubmit} className={modalStyles.form}>
         {error ? (
-          <div
-            style={{
-              padding: "0.6rem 0.8rem",
-              borderRadius: "var(--radius-sm)",
-              background: "color-mix(in oklch, var(--destructive) 15%, transparent)",
-              color: "var(--destructive)",
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-            }}
-            role="alert"
-          >
+          <div className={modalStyles.errorBanner} role="alert">
             {error}
           </div>
         ) : null}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "0.75rem" }}>
-          <div>
+        <div className={modalStyles.grid1Col2Col}>
+          <div className={modalStyles.field}>
             <label
               htmlFor="course-code"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
+              className={modalStyles.label}
             >
               Course Code *
             </label>
@@ -128,16 +113,10 @@ export function CourseFormModal({
             />
           </div>
 
-          <div>
+          <div className={modalStyles.field}>
             <label
               htmlFor="course-name"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
+              className={modalStyles.label}
             >
               Course Name *
             </label>
@@ -152,17 +131,11 @@ export function CourseFormModal({
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-          <div>
+        <div className={modalStyles.grid2Col}>
+          <div className={modalStyles.field}>
             <label
               htmlFor="course-instructor"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
+              className={modalStyles.label}
             >
               Instructor (Optional)
             </label>
@@ -175,16 +148,10 @@ export function CourseFormModal({
             />
           </div>
 
-          <div>
+          <div className={modalStyles.field}>
             <label
               htmlFor="course-location"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
+              className={modalStyles.label}
             >
               Default Room / Location
             </label>

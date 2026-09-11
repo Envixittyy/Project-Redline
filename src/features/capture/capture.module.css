@@ -78,6 +78,14 @@
   align-items: center;
   gap: 0.5rem;
   margin-left: auto;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 30rem) {
+  .composerActions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 .proposalCard {
@@ -159,6 +167,7 @@
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .sourceDetails {
@@ -249,6 +258,14 @@
   align-items: center;
   gap: 0.4rem;
   margin-left: auto;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 30rem) {
+  .buttonGroup {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 /* Committed & Undo Row */
@@ -410,10 +427,10 @@
 
 .launcherHeading > button {
   display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
-  min-width: 2.5rem;
-  min-height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   place-items: center;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-control, 0.5rem);

@@ -57,6 +57,13 @@
   color: inherit;
   display: block;
   outline: none;
+  border-radius: var(--radius-lg);
+}
+
+.cardLink:focus-visible .navCard {
+  border-color: var(--accent-border);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .navCard {
@@ -117,9 +124,8 @@
   font-size: 0.78rem;
   color: var(--text-tertiary);
   line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .cardTrailing {

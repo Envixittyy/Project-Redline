@@ -8,7 +8,6 @@ import { listNotes } from "@/services/notes/note-repository";
 import { listTaskLinkOptions } from "@/services/tasks/task-repository";
 import { getNotionAccountStatus, listNotionPageLinks } from "@/services/integrations/notion/notion-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
-import styles from "./notes-page.module.css";
 
 export const metadata: Metadata = { title: "Notes" };
 export default async function NotesPage({ searchParams }: PageProps<"/notes">) {
@@ -39,21 +38,13 @@ export default async function NotesPage({ searchParams }: PageProps<"/notes">) {
   ]);
 
   return (
-    <div className={styles.pageContainer}>
-      <div className={styles.pageHeaderWrap}>
-        <PageHeader
-          title="Notes"
-          description="Private Markdown notes with reliable saving, task and course links, search, and authenticated attachments."
-        />
-      </div>
-      <NoteWorkspace
-        notes={notes}
-        courses={courses}
-        tasks={tasks}
-        initialSearch={q}
-        notionConnected={Boolean(notionStatus && "connected" in notionStatus && notionStatus.connected)}
-        notionLinks={notionLinks}
-      />
-    </div>
+    <NoteWorkspace
+      notes={notes}
+      courses={courses}
+      tasks={tasks}
+      initialSearch={q}
+      notionConnected={Boolean(notionStatus && "connected" in notionStatus && notionStatus.connected)}
+      notionLinks={notionLinks}
+    />
   );
 }

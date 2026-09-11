@@ -81,6 +81,7 @@
   --radius-lg: 1.35rem;
   --radius-xl: 1.75rem;
   --radius-pill: 9999px;
+  --radius-full: 9999px;
 
   /* Semantic status color-mix helpers */
   --success-muted: color-mix(in oklch, var(--success) 16%, transparent);

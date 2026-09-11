@@ -1,3 +1,36 @@
+.workspaceContainer {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.25rem, 2.5vw, 2.25rem);
+  width: 100%;
+  min-width: 0;
+}
+
+.pageHeaderWrap {
+  margin-bottom: 0;
+  padding-bottom: clamp(1.25rem, 3vw, 2rem);
+  border-bottom: 1px solid var(--section-rule);
+}
+
+@media (max-width: 47.99rem) {
+  .pageHeaderWrap {
+    padding-bottom: 1rem;
+  }
+
+  .pageHeaderWrap h1 {
+    font-size: clamp(2rem, 9vw, 2.75rem);
+    letter-spacing: -0.03em;
+  }
+
+  .pageHeaderWrap p {
+    display: none;
+  }
+
+  .pageHeaderWrap[data-mobile-editor="true"] {
+    display: none;
+  }
+}
+
 .layout {
   display: grid;
   gap: 1.5rem;
@@ -102,7 +135,7 @@
   top: 20%;
   bottom: 20%;
   width: 3px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   background: var(--accent);
 }
 
@@ -139,12 +172,12 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  padding: clamp(1.25rem, 3.5vw, 2.25rem);
-  border-radius: var(--radius-xl);
-  background: var(--surface-embedded);
-  border: 1px solid var(--border-subtle);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
   min-width: 0;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .editorHeader {
@@ -338,10 +371,10 @@
   padding: 1.125rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  background: var(--surface-subtle);
+  background: var(--surface-embedded);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 0.9375rem;
+  font-size: 0.95rem;
   line-height: 1.75;
   letter-spacing: -0.01em;
   resize: vertical;
@@ -365,7 +398,7 @@
   min-height: 22rem;
   padding: 1.125rem;
   border-radius: var(--radius-lg);
-  background: var(--surface-subtle);
+  background: var(--surface-embedded);
   border: 1px solid var(--border-subtle);
   overflow-y: auto;
   line-height: 1.75;

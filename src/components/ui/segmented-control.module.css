@@ -11,6 +11,12 @@
   -webkit-tap-highlight-color: transparent;
   max-width: 100%;
   overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.container::-webkit-scrollbar {
+  display: none;
 }
 
 .fullWidth {

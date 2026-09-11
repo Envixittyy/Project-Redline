@@ -448,6 +448,9 @@ export function SchoolCourseDetail({
           <CoursePredictionsPanel
             courseId={course.id}
             courseCode={course.code}
+            syllabuses={courseMaterials
+              .filter((material) => material.type === "syllabus")
+              .map((material) => ({ id: material.id, title: material.title }))}
           />
 
           {/* Recent Blackboard Activity for this Course */}

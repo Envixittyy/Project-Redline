@@ -18,15 +18,16 @@ import { getCompanionSession } from "@/services/integrations/ai/companion-sessio
 import type { CourseWithMeetings } from "@/types/course";
 import type {
   ScheduleReview,
-  ProposedCourseSchedule,
+  ScheduleEdit,
 } from "@/services/integrations/ai/school-schedule-contract";
 import type {
   BlackboardCourseReview,
-  ProposedBlackboardCourse,
+  BlackboardCourseEdit,
 } from "@/services/integrations/ai/blackboard-screenshot-contract";
 import type {
   AcademicCalendarReview,
-  ProposedAcademicEvent,
+  AcademicCalendarEdit,
+  AcademicCalendarDecision,
 } from "@/services/integrations/ai/academic-calendar-contract";
 import type { CourseImportReview, CourseProposal } from "@/services/integrations/ai/course-import-contract";
 import {
@@ -35,6 +36,7 @@ import {
   applyBlackboardScreenshotAction,
   reviseBlackboardScreenshotAction,
   applyAcademicCalendarAction,
+  prepareDeterministicAcademicCalendarImportAction,
   reviseAcademicCalendarAction,
 } from "./school-ai-actions";
 import {
@@ -62,11 +64,11 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
 
   // Review states
   const [scheduleReview, setScheduleReview] = useState<ScheduleReview | null>(null);
-  const [scheduleCourses, setScheduleCourses] = useState<ProposedCourseSchedule[]>([]);
+  const [scheduleCourses, setScheduleCourses] = useState<ScheduleEdit[]>([]);
 
   const [bbReview, setBbReview] = useState<BlackboardCourseReview | null>(null);
   const [bbCourses, setBbCourses] = useState<
-    Array<ProposedBlackboardCourse & { action: "create" | "match" | "ignore"; targetCourseId?: string }>
+    Array<BlackboardCourseEdit & { action: "create" | "match" | "ignore" }>
   >([]);
 
   const [syllabusReview, setSyllabusReview] = useState<CourseImportReview | null>(null);
@@ -74,7 +76,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
 
   const [calendarReview, setCalendarReview] = useState<AcademicCalendarReview | null>(null);
   const [calendarEvents, setCalendarEvents] = useState<
-    Array<ProposedAcademicEvent & { selected: boolean }>
+    Array<AcademicCalendarEdit & { selected: boolean; offDecision: AcademicCalendarDecision }>
   >([]);
 
   useEffect(() => {
@@ -116,12 +118,16 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("sourceLabel", file.name);
 
     const companionConfig = getCompanionSession();
     const kind = tab === "syllabus" ? "course" : tab;
 
     try {
-      const result = await generateRoutedProposal(kind, formData, companionConfig, abort.signal);
+      const deterministicCalendar = tab === "academic_calendar" && /\.(ics|csv)$/i.test(file.name);
+      const result = deterministicCalendar
+        ? { ok: true as const, review: await prepareDeterministicAcademicCalendarImportAction(formData) }
+        : await generateRoutedProposal(kind, formData, companionConfig, abort.signal);
 
       if (abort.signal.aborted) return;
 
@@ -136,7 +142,11 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
       if (tab === "schedule_image") {
         const rev = review as ScheduleReview;
         setScheduleReview(rev);
-        setScheduleCourses(rev.courses);
+        setScheduleCourses(rev.courses.map((course) => {
+          const match = courses.find((existing) => existing.code.toLowerCase() === course.code.toLowerCase());
+          return { code: course.code, name: course.name, meetings: course.meetings,
+            decision: match ? "MATCH_EXISTING" : "CREATE_NEW", ...(match ? { targetCourseId: match.id } : {}) };
+        }));
       } else if (tab === "blackboard_image") {
         const rev = review as BlackboardCourseReview;
         setBbReview(rev);
@@ -144,13 +154,16 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
           rev.courses.map((c) => {
             const matched = courses.find(
               (ex) =>
-                ex.code.toLowerCase() === c.code.toLowerCase() ||
-                ex.name.toLowerCase().includes(c.title.toLowerCase()),
+                (c.code ? ex.code.toLowerCase() === c.code.toLowerCase() : false) ||
+                (c.title ? ex.name.toLowerCase().includes(c.title.toLowerCase()) : false),
             );
             return {
-              ...c,
+              sourceLabel: c.sourceLabel,
+              ...(c.code ? { code: c.code } : {}),
+              ...(c.title ? { title: c.title } : {}),
+              decision: matched ? "MATCH_EXISTING" : "CREATE_NEW",
               action: matched ? "match" : "create",
-              targetCourseId: matched?.id,
+              ...(matched ? { targetCourseId: matched.id } : {}),
             };
           }),
         );
@@ -161,7 +174,13 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
       } else if (tab === "academic_calendar") {
         const rev = review as AcademicCalendarReview;
         setCalendarReview(rev);
-        setCalendarEvents(rev.events.map((ev) => ({ ...ev, selected: true })));
+        setCalendarEvents(rev.events.map((item) => ({
+          entryId: item.entryId,
+          decision: item.decision,
+          event: item.reviewed,
+          selected: item.decision === "APPLY" || item.decision === "APPLY_SOURCE",
+          offDecision: item.operation === "CREATE" ? "IGNORE" : "KEEP_CURRENT",
+        })));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to process source.");
@@ -176,10 +195,15 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     if (!scheduleReview) return;
     startApplyTransition(async () => {
       try {
-        let batchId = scheduleReview.batchId;
-        const revised = await reviseScheduleImportAction(batchId, scheduleCourses);
-        batchId = revised.batchId;
-        const result = await applyScheduleImportAction(batchId);
+        const persisted = scheduleReview.courses.map(({ targetFingerprint: _fingerprint, ...course }) => course);
+        if (JSON.stringify(scheduleCourses) !== JSON.stringify(persisted)) {
+          const revised = await reviseScheduleImportAction(scheduleReview.batchId, scheduleCourses);
+          setScheduleReview(revised);
+          setScheduleCourses(revised.courses.map(({ targetFingerprint: _fingerprint, ...course }) => course));
+          setError("Edits saved as a new review. Check them once more, then approve separately.");
+          return;
+        }
+        const result = await applyScheduleImportAction(scheduleReview.batchId);
         if (result.ok) onClose();
         else setError("Failed to apply class schedule.");
       } catch (err) {
@@ -192,10 +216,26 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     if (!bbReview) return;
     startApplyTransition(async () => {
       try {
-        let batchId = bbReview.batchId;
-        const revised = await reviseBlackboardScreenshotAction(batchId, bbCourses);
-        batchId = revised.batchId;
-        const result = await applyBlackboardScreenshotAction(batchId);
+        const edits: BlackboardCourseEdit[] = bbCourses.map((course) => {
+          const { action, ...input } = course;
+          return {
+            ...input,
+            decision: action === "match" ? "MATCH_EXISTING" : action === "create" ? "CREATE_NEW" : "IGNORE",
+            ...(action !== "match" ? { targetCourseId: undefined } : {}),
+          };
+        });
+        const persisted = bbReview.courses.map(({ targetFingerprint: _fingerprint, ...course }) => course);
+        if (JSON.stringify(edits) !== JSON.stringify(persisted)) {
+          const revised = await reviseBlackboardScreenshotAction(bbReview.batchId, edits);
+          setBbReview(revised);
+          setBbCourses(revised.courses.map(({ targetFingerprint: _fingerprint, ...course }) => ({
+            ...course,
+            action: course.decision === "MATCH_EXISTING" ? "match" : course.decision === "CREATE_NEW" ? "create" : "ignore",
+          })));
+          setError("Edits saved as a new review. Check them once more, then approve separately.");
+          return;
+        }
+        const result = await applyBlackboardScreenshotAction(bbReview.batchId);
         if (result.ok) onClose();
         else setError("Failed to apply Blackboard courses.");
       } catch (err) {
@@ -208,14 +248,16 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     if (!syllabusReview) return;
     startApplyTransition(async () => {
       try {
-        let batchId = syllabusReview.batchId;
-        if (syllabusProposal) {
-          const revised = await reviseCourseImportAction(batchId, syllabusProposal);
+        if (syllabusProposal && JSON.stringify(syllabusProposal) !== JSON.stringify(syllabusReview.proposal)) {
+          const revised = await reviseCourseImportAction(syllabusReview.batchId, syllabusProposal);
           if (revised.ok && revised.review) {
-            batchId = revised.review.batchId;
+            setSyllabusReview(revised.review);
+            setSyllabusProposal(revised.review.proposal);
+            setError("Edits saved as a new review. Check them once more, then approve separately.");
+            return;
           }
         }
-        const result = await applyCourseImportAction(batchId);
+        const result = await applyCourseImportAction(syllabusReview.batchId);
         if (result.ok) onClose();
         else setError("Failed to apply syllabus.");
       } catch (err) {
@@ -228,11 +270,18 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
     if (!calendarReview) return;
     startApplyTransition(async () => {
       try {
-        const approvedEvents = calendarEvents.filter((e) => e.selected);
-        let batchId = calendarReview.batchId;
-        const revised = await reviseAcademicCalendarAction(batchId, approvedEvents);
-        batchId = revised.batchId;
-        const result = await applyAcademicCalendarAction(batchId);
+        const edits = calendarEvents.map(({ selected: _selected, offDecision: _off, ...edit }) => edit);
+        const persisted = calendarReview.events.map((item) => ({ entryId: item.entryId, decision: item.decision, event: item.reviewed }));
+        if (JSON.stringify(edits) !== JSON.stringify(persisted)) {
+          const revised = await reviseAcademicCalendarAction(calendarReview.batchId, edits);
+          setCalendarReview(revised);
+          setCalendarEvents(revised.events.map((item) => ({ entryId: item.entryId, decision: item.decision, event: item.reviewed,
+            selected: item.decision === "APPLY" || item.decision === "APPLY_SOURCE",
+            offDecision: item.operation === "CREATE" ? "IGNORE" : "KEEP_CURRENT" })));
+          setError("Edits saved as a new review. Check them once more, then approve separately.");
+          return;
+        }
+        const result = await applyAcademicCalendarAction(calendarReview.batchId);
         if (result.ok) onClose();
         else setError("Failed to apply academic calendar events.");
       } catch (err) {
@@ -399,10 +448,10 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
                     />
                     <input
                       className={styles.courseTitleInput}
-                      value={c.title}
+                      value={c.name}
                       onChange={(e) => {
                         const updated = [...scheduleCourses];
-                        updated[idx] = { ...updated[idx], title: e.target.value };
+                        updated[idx] = { ...updated[idx], name: e.target.value };
                         setScheduleCourses(updated);
                       }}
                       placeholder="Course Title"
@@ -452,7 +501,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
               {bbCourses.map((c, idx) => (
                 <div key={idx} className={styles.courseReviewCard}>
                   <div className={styles.courseHeaderRow}>
-                    <strong style={{ fontSize: "0.9rem", color: "var(--text-primary)" }}>{c.code}</strong>
+                    <strong style={{ fontSize: "0.9rem", color: "var(--text-primary)" }}>{c.code ?? "Course"}</strong>
                     <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", flex: 1 }}>
                       {c.title}
                     </span>
@@ -567,13 +616,17 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
                     checked={ev.selected}
                     onChange={(e) => {
                       const updated = [...calendarEvents];
-                      updated[idx] = { ...updated[idx], selected: e.target.checked };
+                      updated[idx] = {
+                        ...updated[idx],
+                        selected: e.target.checked,
+                        decision: e.target.checked ? "APPLY" : updated[idx].offDecision,
+                      };
                       setCalendarEvents(updated);
                     }}
                   />
-                  <span className={styles.eventTitle}>{ev.title}</span>
-                  <span className={styles.eventTypeBadge}>{ev.eventType}</span>
-                  <span className={styles.eventDate}>{ev.startDate}</span>
+                  <span className={styles.eventTitle}>{ev.event.title}</span>
+                  <span className={styles.eventTypeBadge}>{ev.event.eventType}</span>
+                  <span className={styles.eventDate}>{ev.event.start}</span>
                 </div>
               ))}
             </div>

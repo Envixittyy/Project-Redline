@@ -1,0 +1,11 @@
+.panel { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle); }
+.panel h3, .panel h4 { margin: 0 0 .5rem; }
+.panel p { color: var(--text-secondary); font-size: .85rem; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; align-items: end; gap: .5rem; }
+.panel label { display: grid; gap: .25rem; min-width: 0; }
+.panel button, .panel input, .panel select { min-height: 44px; max-width: 100%; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: .5rem .75rem; color: var(--text-primary); background: var(--surface); font: inherit; }
+.panel button { cursor: pointer; }
+.panel button:disabled { opacity: .6; cursor: default; }
+.review, .list li { margin-top: .75rem; padding: .75rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.panel fieldset { display: grid; gap: .5rem; min-width: 0; margin: .75rem 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+.list { list-style: none; padding: 0; }

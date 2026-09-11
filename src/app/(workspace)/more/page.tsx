@@ -64,31 +64,27 @@ export default function MorePage() {
             </p>
           </div>
 
-          <div className={styles.cardsGrid}>
-            <Link href="/inbox" className={styles.cardLink}>
-              <div className={styles.navCard}>
-                <div className={styles.cardIcon}>
-                  <Inbox size={20} aria-hidden="true" />
-                </div>
-                <div className={styles.cardContent}>
-                  <h3 className={styles.cardTitle}>Capture Inbox</h3>
-                  <p className={styles.cardDetail}>Raw input, proposals & reversible triage</p>
-                </div>
-                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+          <div className={styles.indexGroup}>
+            <Link href="/inbox" className={styles.indexRow}>
+              <div className={styles.rowIcon}>
+                <Inbox size={18} aria-hidden="true" />
               </div>
+              <div className={styles.rowContent}>
+                <h3 className={styles.rowTitle}>Capture Inbox</h3>
+                <p className={styles.rowDetail}>Raw input, proposals & reversible triage</p>
+              </div>
+              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
             </Link>
 
-            <Link href="/notes" className={styles.cardLink}>
-              <div className={styles.navCard}>
-                <div className={styles.cardIcon}>
-                  <NotebookPen size={20} aria-hidden="true" />
-                </div>
-                <div className={styles.cardContent}>
-                  <h3 className={styles.cardTitle}>Notes</h3>
-                  <p className={styles.cardDetail}>Quiet Markdown notes & attachments</p>
-                </div>
-                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+            <Link href="/notes" className={styles.indexRow}>
+              <div className={styles.rowIcon}>
+                <NotebookPen size={18} aria-hidden="true" />
               </div>
+              <div className={styles.rowContent}>
+                <h3 className={styles.rowTitle}>Notes</h3>
+                <p className={styles.rowDetail}>Quiet Markdown notes & attachments</p>
+              </div>
+              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
             </Link>
           </div>
         </section>
@@ -104,44 +100,38 @@ export default function MorePage() {
             </p>
           </div>
 
-          <div className={styles.cardsGrid}>
-            <Link href="/integrations/calendars" className={styles.cardLink}>
-              <div className={styles.navCard}>
-                <div className={styles.cardIcon}>
-                  <CalendarSync size={20} aria-hidden="true" />
-                </div>
-                <div className={styles.cardContent}>
-                  <h3 className={styles.cardTitle}>Calendar Connections</h3>
-                  <p className={styles.cardDetail}>Google Calendar mirrors & capabilities</p>
-                </div>
-                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+          <div className={styles.indexGroup}>
+            <Link href="/integrations/calendars" className={styles.indexRow}>
+              <div className={styles.rowIcon}>
+                <CalendarSync size={18} aria-hidden="true" />
               </div>
+              <div className={styles.rowContent}>
+                <h3 className={styles.rowTitle}>Calendar Connections</h3>
+                <p className={styles.rowDetail}>Google Calendar mirrors & capabilities</p>
+              </div>
+              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
             </Link>
 
-            <Link href="/integrations/blackboard" className={styles.cardLink}>
-              <div className={styles.navCard}>
-                <div className={styles.cardIcon}>
-                  <ShieldCheck size={20} aria-hidden="true" />
-                </div>
-                <div className={styles.cardContent}>
-                  <h3 className={styles.cardTitle}>Blackboard</h3>
-                  <p className={styles.cardDetail}>School email ingestion & observation</p>
-                </div>
-                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+            <Link href="/integrations/blackboard" className={styles.indexRow}>
+              <div className={styles.rowIcon}>
+                <ShieldCheck size={18} aria-hidden="true" />
               </div>
+              <div className={styles.rowContent}>
+                <h3 className={styles.rowTitle}>Blackboard</h3>
+                <p className={styles.rowDetail}>School email ingestion & observation</p>
+              </div>
+              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
             </Link>
 
-            <Link href="/integrations/notion" className={styles.cardLink}>
-              <div className={styles.navCard}>
-                <div className={styles.cardIcon}>
-                  <Layers size={20} aria-hidden="true" />
-                </div>
-                <div className={styles.cardContent}>
-                  <h3 className={styles.cardTitle}>Notion</h3>
-                  <p className={styles.cardDetail}>Selective note synchronization & export</p>
-                </div>
-                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+            <Link href="/integrations/notion" className={styles.indexRow}>
+              <div className={styles.rowIcon}>
+                <Layers size={18} aria-hidden="true" />
               </div>
+              <div className={styles.rowContent}>
+                <h3 className={styles.rowTitle}>Notion</h3>
+                <p className={styles.rowDetail}>Selective note synchronization & export</p>
+              </div>
+              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
             </Link>
           </div>
         </section>
@@ -157,18 +147,16 @@ export default function MorePage() {
             </p>
           </div>
 
-          <div className={styles.cardsGrid}>
-            <Link href="/settings/ai" className={styles.cardLink}>
-              <div className={styles.navCard}>
-                <div className={styles.cardIcon}>
-                  <Sparkles size={20} aria-hidden="true" />
-                </div>
-                <div className={styles.cardContent}>
-                  <h3 className={styles.cardTitle}>AI Settings</h3>
-                  <p className={styles.cardDetail}>Model routing, privacy gates & pairing</p>
-                </div>
-                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+          <div className={styles.indexGroup}>
+            <Link href="/settings/ai" className={styles.indexRow}>
+              <div className={styles.rowIcon}>
+                <Sparkles size={18} aria-hidden="true" />
               </div>
+              <div className={styles.rowContent}>
+                <h3 className={styles.rowTitle}>AI Settings</h3>
+                <p className={styles.rowDetail}>Model routing, privacy gates & pairing</p>
+              </div>
+              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
             </Link>
           </div>
         </section>
@@ -184,18 +172,16 @@ export default function MorePage() {
             </p>
           </div>
 
-          <div className={styles.cardsGrid}>
-            <Link href="/settings/notifications" className={styles.cardLink}>
-              <div className={styles.navCard}>
-                <div className={styles.cardIcon}>
-                  <Bell size={20} aria-hidden="true" />
-                </div>
-                <div className={styles.cardContent}>
-                  <h3 className={styles.cardTitle}>Notification Preferences</h3>
-                  <p className={styles.cardDetail}>Category toggles, quiet hours & Web Push</p>
-                </div>
-                <ChevronRight size={16} className={styles.cardTrailing} aria-hidden="true" />
+          <div className={styles.indexGroup}>
+            <Link href="/settings/notifications" className={styles.indexRow}>
+              <div className={styles.rowIcon}>
+                <Bell size={18} aria-hidden="true" />
               </div>
+              <div className={styles.rowContent}>
+                <h3 className={styles.rowTitle}>Notification Preferences</h3>
+                <p className={styles.rowDetail}>Category toggles, quiet hours & Web Push</p>
+              </div>
+              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
             </Link>
           </div>
         </section>
@@ -211,17 +197,17 @@ export default function MorePage() {
             </p>
           </div>
 
-          <div className={styles.cardsGrid}>
+          <div className={styles.indexGroup}>
             {secondarySections.map((sec) => {
               const Icon = sec.icon;
               return (
-                <div key={sec.title} className={styles.navCard} style={{ opacity: 0.7 }}>
-                  <div className={styles.cardIcon}>
-                    <Icon size={20} aria-hidden="true" />
+                <div key={sec.title} className={`${styles.indexRow} ${styles.disabledRow}`}>
+                  <div className={styles.rowIcon}>
+                    <Icon size={18} aria-hidden="true" />
                   </div>
-                  <div className={styles.cardContent}>
-                    <h3 className={styles.cardTitle}>{sec.title}</h3>
-                    <p className={styles.cardDetail}>{sec.detail}</p>
+                  <div className={styles.rowContent}>
+                    <h3 className={styles.rowTitle}>{sec.title}</h3>
+                    <p className={styles.rowDetail}>{sec.detail}</p>
                   </div>
                   <Badge tone="neutral" size="sm">
                     Later

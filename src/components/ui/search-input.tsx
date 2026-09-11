@@ -61,6 +61,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
           value={value}
           onChange={onChange}
           placeholder={placeholder}
+          aria-label={props["aria-label"] ?? placeholder}
           className={`${styles.input} ${styles.hasPrefix} ${
             hasValue || shortcut ? styles.hasSuffix : ""
           } ${className}`}

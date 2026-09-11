@@ -91,7 +91,10 @@ export function HomeDashboard({
           <h1 className={styles.greetingHeading}>
             {greeting?.greeting ?? "Welcome back, Kyle."}
             {greeting?.subtext ? (
-              <span className={styles.greetingSubtext}>{greeting.subtext}</span>
+              <>
+                {" "}
+                <span className={styles.greetingSubtext}>{greeting.subtext}</span>
+              </>
             ) : null}
           </h1>
           {telemetry ? (

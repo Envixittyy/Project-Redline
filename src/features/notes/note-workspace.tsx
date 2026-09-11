@@ -604,6 +604,7 @@ export function NoteWorkspace({
               ref={fileRef}
               hidden
               type="file"
+              aria-label="Upload note attachment"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) void upload(file);

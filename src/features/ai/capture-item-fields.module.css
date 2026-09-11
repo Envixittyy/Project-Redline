@@ -1,0 +1,26 @@
+.fields {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.8rem;
+  min-width: 0;
+}
+.fields label {
+  display: grid;
+  gap: 0.25rem;
+}
+.fields input,
+.fields select {
+  min-height: 44px;
+  min-width: 0;
+  width: 100%;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem;
+}
+.fields input[type="checkbox"] {
+  width: 44px;
+}

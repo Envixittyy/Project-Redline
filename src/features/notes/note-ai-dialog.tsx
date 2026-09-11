@@ -23,8 +23,10 @@ import type {
 } from "@/services/integrations/ai/note-intelligence-contract";
 
 import {
+  applyNoteSummaryAction,
   applyNoteRewriteAction,
   applyNoteActionItemsAction,
+  reviseNoteAction,
 } from "./note-ai-actions";
 import styles from "./note-ai-dialog.module.css";
 
@@ -50,16 +52,20 @@ export function NoteAiDialog({
   const [error, setError] = useState<string | null>(() =>
     !note.body.trim() ? "This note is empty. Add some text first." : null,
   );
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
   const [applying, startApplyTransition] = useTransition();
   const [copied, setCopied] = useState(false);
 
   // Proposal results
   const [summaryResult, setSummaryResult] = useState<NoteSummaryProposal | null>(null);
+  const [summaryBatchId, setSummaryBatchId] = useState<string | null>(null);
   const [rewriteResult, setRewriteResult] = useState<NoteRewriteProposal | null>(null);
   const [rewriteBatchId, setRewriteBatchId] = useState<string | null>(null);
   const [actionItemsResult, setActionItemsResult] = useState<
     Array<NoteActionItem & { selected: boolean }>
   >([]);
+  const [actionItemsProposal, setActionItemsProposal] =
+    useState<NoteActionItemsProposal | null>(null);
   const [actionItemsBatchId, setActionItemsBatchId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -99,6 +105,7 @@ export function NoteAiDialog({
         }).review;
 
         if (tab === "summary") {
+          setSummaryBatchId(rev.batchId);
           setSummaryResult({
             schema_version: 1,
             type: "propose_note_summary",
@@ -123,8 +130,9 @@ export function NoteAiDialog({
           });
         } else if (tab === "action_items") {
           setActionItemsBatchId(rev.batchId);
-          const items =
-            rev.items || (rev.proposal as NoteActionItemsProposal)?.actionItems || [];
+          const proposal = rev.proposal as NoteActionItemsProposal;
+          const items = rev.items || proposal?.actionItems || [];
+          setActionItemsProposal(proposal);
           setActionItemsResult(items.map((it) => ({ ...it, selected: true })));
         }
         setLoading(false);
@@ -145,16 +153,22 @@ export function NoteAiDialog({
   function handleTabSelect(nextTab: TabMode) {
     if (loading || applying || nextTab === tab) return;
     setError(null);
+    setReviewNotice(null);
     setLoading(true);
     setTab(nextTab);
   }
 
   function handleInsertSummary() {
-    if (!summaryResult) return;
-    const bullets = summaryResult.keyPoints.map((p) => `- ${p}`).join("\n");
-    const block = `## Summary\n${summaryResult.summary}\n\n### Key Points\n${bullets}\n\n---\n\n${note.body}`;
-    onNoteUpdated(block);
-    onClose();
+    if (!summaryBatchId) return;
+    startApplyTransition(async () => {
+      const res = await applyNoteSummaryAction(summaryBatchId);
+      if (res.ok && res.newBody) {
+        onNoteUpdated(res.newBody);
+        onClose();
+      } else {
+        setError("Failed to update note.");
+      }
+    });
   }
 
   function handleCopySummary() {
@@ -173,14 +187,40 @@ export function NoteAiDialog({
         onNoteUpdated(res.newBody);
         onClose();
       } else {
-        setError(res.message || "Failed to update note.");
+        setError("Failed to update note.");
       }
     });
   }
 
   function handleApplyActionItems() {
-    if (!actionItemsBatchId) return;
+    if (!actionItemsBatchId || !actionItemsProposal) return;
     startApplyTransition(async () => {
+      const editedProposal: NoteActionItemsProposal = {
+        ...actionItemsProposal,
+        actionItems: actionItemsResult
+          .filter((item) => item.selected)
+          .map(({ selected: _selected, ...item }) => item),
+      };
+      if (
+        JSON.stringify(editedProposal.actionItems) !==
+        JSON.stringify(actionItemsProposal.actionItems)
+      ) {
+        const revised = await reviseNoteAction(
+          actionItemsBatchId,
+          "note_action_items",
+          editedProposal,
+        );
+        setActionItemsBatchId(revised.batchId);
+        setActionItemsProposal(revised.proposal as NoteActionItemsProposal);
+        setActionItemsResult(
+          (revised.proposal as NoteActionItemsProposal).actionItems.map((item) => ({
+            ...item,
+            selected: true,
+          })),
+        );
+        setReviewNotice("Edits saved as a new proposal. Review once more, then approve task creation.");
+        return;
+      }
       const res = await applyNoteActionItemsAction(actionItemsBatchId, note.id);
       if (res.ok) {
         onClose();
@@ -189,6 +229,15 @@ export function NoteAiDialog({
       }
     });
   }
+
+  const actionItemsDirty = Boolean(
+    actionItemsProposal &&
+      JSON.stringify(
+        actionItemsResult
+          .filter((item) => item.selected)
+          .map(({ selected: _selected, ...item }) => item),
+      ) !== JSON.stringify(actionItemsProposal.actionItems),
+  );
 
   return (
     <Modal
@@ -251,7 +300,9 @@ export function NoteAiDialog({
                 onClick={handleApplyActionItems}
                 disabled={applying || actionItemsResult.filter((it) => it.selected).length === 0}
               >
-                Create {actionItemsResult.filter((it) => it.selected).length} Tasks
+                {actionItemsDirty
+                  ? "Save Edits for Review"
+                  : `Create ${actionItemsResult.filter((it) => it.selected).length} Tasks`}
               </Button>
             ) : null}
           </div>
@@ -273,6 +324,10 @@ export function NoteAiDialog({
           <Callout variant="error" role="alert">
             {error}
           </Callout>
+        ) : null}
+
+        {reviewNotice ? (
+          <Callout variant="info">{reviewNotice}</Callout>
         ) : null}
 
         {loading ? (

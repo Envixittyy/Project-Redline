@@ -12,8 +12,8 @@ import type { CourseMaterial } from "@/types/course-material";
 import type { SchoolEmailEvent, SchoolItem } from "@/types/school-item";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedControl, type SegmentOption } from "@/components/ui/segmented-control";
-import { Surface } from "@/components/ui/surface";
 import { SchoolTodayContext } from "./school-today-context";
 import { CourseCard } from "./course-card";
 import { CourseFormModal } from "./course-form-modal";
@@ -88,7 +88,7 @@ export function SchoolWorkspace({
   // If a specific course is selected, render Course Detail View
   if (selectedCourse) {
     return (
-      <div className={styles.layout}>
+      <div className={styles.pageContainer}>
         <SchoolCourseDetail
           course={selectedCourse}
           allCourses={courses}
@@ -104,9 +104,17 @@ export function SchoolWorkspace({
   }
 
   return (
-    <div className={styles.layout}>
-      {/* Overview Toolbar */}
-      <div className={styles.toolbar}>
+    <div className={styles.pageContainer}>
+      <div className={styles.pageHeaderWrap}>
+        <PageHeader
+          title="School"
+          description="Courses, assignments, timetable meetings, materials, and Blackboard notifications stay owner-scoped and project directly to Home, Tasks, and Calendar."
+        />
+      </div>
+
+      <div className={styles.layout}>
+        {/* Overview Toolbar */}
+        <div className={styles.toolbar}>
         <div className={styles.titleGroup}>
           <p className={styles.kicker}>Academic Operating System</p>
           <h2 className={styles.toolbarTitle}>
@@ -196,7 +204,7 @@ export function SchoolWorkspace({
             </div>
 
             {courses.length === 0 ? (
-              <Surface variant="base" className={styles.emptyCourses}>
+              <div className={styles.emptyCourses}>
                 <BookOpen size={36} aria-hidden="true" />
                 <h3>No courses configured yet</h3>
                 <p>
@@ -208,7 +216,7 @@ export function SchoolWorkspace({
                     <span>Add your first course</span>
                   </Button>
                 </div>
-              </Surface>
+              </div>
             ) : (
               <div className={styles.coursesGrid}>
                 {courses.map((course) => (
@@ -270,6 +278,7 @@ export function SchoolWorkspace({
           onClose={() => setShowImport(false)}
         />
       ) : null}
+      </div>
     </div>
   );
 }

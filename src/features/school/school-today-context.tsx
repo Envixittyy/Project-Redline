@@ -13,7 +13,6 @@ import {
   type ClassMeetingOccurrence,
 } from "@/features/home/home-classes";
 import { Badge } from "@/components/ui/badge";
-import { Surface } from "@/components/ui/surface";
 import styles from "./school-today-context.module.css";
 
 type SchoolTodayContextProps = {
@@ -50,7 +49,7 @@ export function SchoolTodayContext({
         ) : null}
       </div>
 
-      <Surface variant="base" className={styles.card}>
+      <div className={styles.scheduleCanvas}>
         {/* Featured in-progress or next class banner */}
         {featured ? (
           <div
@@ -207,7 +206,7 @@ export function SchoolTodayContext({
             </div>
           </div>
         )}
-      </Surface>
+      </div>
     </div>
   );
 }

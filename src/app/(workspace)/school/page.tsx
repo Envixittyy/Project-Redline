@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/ui/page-header";
 import { SchoolWorkspace } from "@/features/school/school-workspace";
 import { resolveTimeZone, todayIn } from "@/lib/date/day";
 import { listCourseMaterials } from "@/services/course-materials/course-material-repository";
@@ -31,20 +30,14 @@ export default async function SchoolPage({ searchParams }: SchoolPageProps) {
     : [[], [], [], []];
 
   return (
-    <>
-      <PageHeader
-        title="School"
-        description="Courses, assignments, timetable meetings, materials, and Blackboard notifications stay owner-scoped and project directly to Home, Tasks, and Calendar."
-      />
-      <SchoolWorkspace
-        courses={courses}
-        schoolItems={schoolItems}
-        materials={materials}
-        emailEvents={emailEvents}
-        today={todayIn(timeZone)}
-        timeZone={timeZone}
-        initialCourseId={initialCourseId}
-      />
-    </>
+    <SchoolWorkspace
+      courses={courses}
+      schoolItems={schoolItems}
+      materials={materials}
+      emailEvents={emailEvents}
+      today={todayIn(timeZone)}
+      timeZone={timeZone}
+      initialCourseId={initialCourseId}
+    />
   );
 }

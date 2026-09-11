@@ -36,12 +36,13 @@
 
 .input:focus {
   outline: none;
-  border-color: var(--accent-border);
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .inputInvalid {
-  border-color: var(--destructive-border, #f87171);
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 2px var(--destructive-muted);
 }
 
 .submit {

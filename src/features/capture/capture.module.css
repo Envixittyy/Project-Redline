@@ -3,10 +3,11 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: clamp(1rem, 3vw, 1.5rem);
-  border-radius: var(--radius-lg);
-  background: var(--surface-glass);
+  padding: clamp(1.15rem, 3vw, 1.5rem);
+  border-radius: var(--radius-card);
+  background: var(--surface-embedded);
   border: 1px solid var(--border-subtle);
+  transition: border-color var(--motion-fast) var(--motion-ease);
 }
 
 .composerHeading {
@@ -48,14 +49,14 @@
 
 .textarea {
   width: 100%;
-  min-height: 4.5rem;
+  min-height: 4.75rem;
   padding: 0.75rem 0.85rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--surface-interactive);
   color: var(--text-primary);
-  font-size: 0.9375rem;
-  line-height: 1.5;
+  font-size: 1rem; /* 16px prevents iOS Safari automatic zoom */
+  line-height: 1.55;
   resize: vertical;
   outline: none;
   transition: border-color var(--motion-fast) var(--motion-ease);
@@ -63,6 +64,7 @@
 
 .textarea:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .composerFooter {
@@ -102,7 +104,7 @@
 .triageQueue {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
   width: 100%;
 }
 
@@ -117,27 +119,52 @@
 .queueList {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
   list-style: none;
   margin: 0;
   padding: 0;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .queueItem {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-base);
-  transition: border-color var(--motion-fast) var(--motion-ease),
-              box-shadow var(--motion-fast) var(--motion-ease);
+  gap: 0.85rem;
+  padding: 1.25rem 0.5rem;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+.queueItem::before {
+  position: absolute;
+  top: 1.15rem;
+  bottom: 1.15rem;
+  left: -0.25rem;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  content: "";
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+.queueItem:hover::before,
+.queueItem:focus-within::before {
+  background: var(--accent);
+}
+
+.queueItem:hover {
+  background: color-mix(in oklch, var(--surface-hover) 35%, transparent);
 }
 
 .queueItem[data-targeted="true"] {
-  border-color: var(--accent-border);
-  box-shadow: 0 0 0 2px var(--accent-muted);
+  background: color-mix(in oklch, var(--accent-muted) 32%, transparent);
+}
+
+.queueItem[data-targeted="true"]::before {
+  background: var(--accent);
+  width: 3px;
 }
 
 .itemMeta {
@@ -156,15 +183,17 @@
 }
 
 .timeLabel {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
+  font-weight: 520;
   color: var(--text-tertiary);
 }
 
 .rawText {
   margin: 0;
-  font-size: 0.9375rem;
+  font-size: 1rem;
+  font-weight: 560;
   color: var(--text-primary);
-  line-height: 1.5;
+  line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -177,9 +206,10 @@
   flex-wrap: wrap;
   font-size: 0.8125rem;
   color: var(--text-secondary);
-  padding: 0.5rem 0.75rem;
+  padding: 0.45rem 0.75rem;
   border-radius: var(--radius-sm);
-  background: var(--surface-subtle);
+  background: var(--surface-embedded);
+  border: 1px solid var(--border-hairline, var(--border-subtle));
 }
 
 .sourceLink {
@@ -188,7 +218,7 @@
   gap: 0.35rem;
   color: var(--accent-text);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 0.78rem;
   margin-left: auto;
 }
@@ -201,42 +231,43 @@
 .proposalForm {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 0.75rem 0.85rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-subtle);
-  border: 1px solid var(--border-subtle);
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--accent-muted) 26%, transparent);
+  border: 1px solid var(--accent-border);
 }
 
 .proposalTitleGroup {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.35rem;
 }
 
 .proposalTitleGroup label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-tertiary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-text);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .proposalInput {
   width: 100%;
-  min-height: 44px;
-  padding: 0.5rem 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.85rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text-primary);
-  font-size: 0.9375rem;
+  font-size: 1rem; /* 16px prevents iOS Safari automatic zoom */
   outline: none;
   transition: border-color var(--motion-fast) var(--motion-ease);
 }
 
 .proposalInput:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .proposalActionsRow {

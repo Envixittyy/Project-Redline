@@ -105,10 +105,12 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
 
   return (
     <>
-      <PageHeader
-        title="Calendar"
-        description="Events, planned task work, and due-only deadlines in one view—without merging their underlying domains."
-      />
+      <div className={styles.pageHeaderWrap}>
+        <PageHeader
+          title="Calendar"
+          description="Events, planned task work, and due-only deadlines in one view—without merging their underlying domains."
+        />
+      </div>
       {content}
     </>
   );

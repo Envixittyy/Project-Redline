@@ -62,13 +62,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           </span>
         ) : null}
 
-        {isIconOnly && !children && icon && !loading ? (
-          <span aria-hidden="true" style={{ display: "inline-flex" }}>
-            {icon}
-          </span>
-        ) : (
-          children
-        )}
+        {isIconOnly ? null : children}
 
         {!loading && icon && iconPosition === "right" && !isIconOnly ? (
           <span aria-hidden="true" style={{ display: "inline-flex" }}>

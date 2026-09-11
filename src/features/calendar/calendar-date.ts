@@ -71,6 +71,11 @@ export function lastOccupiedDate(end: string, timeZone: string): string {
   return todayIn(timeZone, new Date(Date.parse(end) - 1));
 }
 
+export function weekDaysForAnchor(anchor: string): string[] {
+  const start = startOfWeek(anchor);
+  return eachDay(start, addDays(start, 7));
+}
+
 export function formatCalendarHeading(view: CalendarView, anchor: string): string {
   const noon = new Date(`${anchor}T12:00:00Z`);
   if (view === "month") {
@@ -82,20 +87,20 @@ export function formatCalendarHeading(view: CalendarView, anchor: string): strin
     const end = addDays(start, 6);
     const startDate = new Date(`${start}T12:00:00Z`);
     const endDate = new Date(`${end}T12:00:00Z`);
-    const sameMonth = start.slice(0, 7) === end.slice(0, 7);
-    const startText = new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      ...(sameMonth ? {} : { year: "numeric" as const }),
-      timeZone: "UTC",
-    }).format(startDate);
-    const endText = new Intl.DateTimeFormat("en-US", {
-      month: sameMonth ? undefined : "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    }).format(endDate);
-    return `${startText}–${endText}`;
+    const startMonth = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(startDate);
+    const endMonth = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(endDate);
+    const startYear = startDate.getUTCFullYear();
+    const endYear = endDate.getUTCFullYear();
+    const startDay = startDate.getUTCDate();
+    const endDay = endDate.getUTCDate();
+
+    if (startYear !== endYear) {
+      return `${startMonth} ${startDay}, ${startYear} – ${endMonth} ${endDay}, ${endYear}`;
+    }
+    if (startMonth !== endMonth) {
+      return `${startMonth} ${startDay} – ${endMonth} ${endDay}, ${endYear}`;
+    }
+    return `${startMonth} ${startDay}–${endDay}, ${startYear}`;
   }
 
   return `Next 30 days · ${new Intl.DateTimeFormat("en-US", {

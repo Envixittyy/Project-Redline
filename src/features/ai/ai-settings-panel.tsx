@@ -386,7 +386,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
                   />
                   <Button
                     variant="primary"
-                    size="sm"
+                    size="md"
                     type="submit"
                     disabled={pending || !pairingSecret}
                   >
@@ -400,7 +400,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
               <span className={styles.pairedText}>✓ Paired with ephemeral token</span>
               <Button
                 variant="secondary"
-                size="sm"
+                size="md"
                 onClick={() => {
                   const token = pairingToken;
                   setPairingToken(null);
@@ -418,7 +418,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
           <div className={styles.actions}>
             <Button
               variant="secondary"
-              size="sm"
+              size="md"
               icon={<RefreshCw size={14} />}
               onClick={checkStatus}
               disabled={pending}
@@ -562,7 +562,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
           </label>
 
           <div className={styles.actions}>
-            <Button variant="primary" size="sm" type="submit" disabled={pending} loading={pending}>
+            <Button variant="primary" size="md" type="submit" disabled={pending} loading={pending}>
               {pending ? "Saving…" : "Save Preferences"}
             </Button>
           </div>
@@ -594,7 +594,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
         <div className={styles.actions}>
           <Button
             variant="destructive"
-            size="sm"
+            size="md"
             icon={<Trash2 size={14} />}
             disabled={pending}
             onClick={handleClearHistory}

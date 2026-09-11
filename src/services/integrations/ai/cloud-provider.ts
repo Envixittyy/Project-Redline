@@ -1,5 +1,6 @@
 import "server-only";
 import { LocalAdapterError, readBoundedResponseText } from "@/companion/adapters/runtime-adapter";
+import { validatedImageMedia } from "@/companion/image-media";
 import type { LocalInferenceRequest } from "@/companion/types";
 import { AiTrustError } from "./trust-contract";
 import type { CloudProvider } from "./routing-contract";
@@ -18,8 +19,10 @@ function credential(provider: CloudProvider) {
   return key;
 }
 export function cloudAvailability(provider: CloudProvider) {
-  try { const model = cloudModel(provider); credential(provider); return { configured: true, model, status: "not_checked" as const }; }
-  catch { return { configured: false, model: null, status: "not_configured" as const }; }
+  try { const model = cloudModel(provider); credential(provider); const configuredModality = provider === "gemini" ? process.env.GEMINI_MODEL_MODALITY : process.env.OPENROUTER_MODEL_MODALITY;
+    const modality = configuredModality === "vision" ? "vision" as const : configuredModality === "text" ? "text" as const : "unknown" as const;
+    return { configured: true, model, modality, status: "not_checked" as const }; }
+  catch { return { configured: false, model: null, modality: "unknown" as const, status: "not_configured" as const }; }
 }
 export const CLOUD_PRIVACY_URLS = {
   gemini: "https://ai.google.dev/gemini-api/terms",
@@ -28,8 +31,15 @@ export const CLOUD_PRIVACY_URLS = {
 
 /** Fixed destinations. Caller must claim an exact persisted transfer first. */
 export async function inferCloud(provider: CloudProvider, input: LocalInferenceRequest): Promise<string> {
-  // No reviewed binary-transfer manifest or provider modality catalog exists yet.
   if (input.images !== undefined) throw new AiTrustError("capability_denied");
+  let image: string | undefined;
+  try { image = validatedImageMedia(input); }
+  catch (error) {
+    if (error instanceof LocalAdapterError && error.code === "unsupported_modality") throw new AiTrustError("unsupported_modality");
+    throw error;
+  }
+  const configuredModality = provider === "gemini" ? process.env.GEMINI_MODEL_MODALITY : process.env.OPENROUTER_MODEL_MODALITY;
+  if (image && configuredModality !== "vision") throw new AiTrustError("unsupported_modality");
   const key = credential(provider);
   if (input.model !== cloudModel(provider)) throw new AiTrustError("provider_configuration_changed");
   if (Buffer.byteLength(input.prompt) > 32768 || Buffer.byteLength(input.systemPrompt ?? "") > 8192 ||
@@ -41,11 +51,14 @@ export async function inferCloud(provider: CloudProvider, input: LocalInferenceR
 
   const body = gemini ? {
     systemInstruction: { parts: [{ text: input.systemPrompt }] },
-    contents: [{ role: "user", parts: [{ text: input.prompt }] }],
+    contents: [{ role: "user", parts: [{ text: input.prompt }, ...(image ? [{ inlineData: { mimeType: "image/png", data: image } }] : [])] }],
     generationConfig: { responseMimeType: "application/json", temperature: 0.2, maxOutputTokens: input.maxTokens ?? 2048, candidateCount: 1 },
   } : {
     model: input.model,
-    messages: [{ role: "system", content: input.systemPrompt }, { role: "user", content: input.prompt }],
+    messages: [{ role: "system", content: input.systemPrompt }, { role: "user", content: image ? [
+      { type: "text", text: input.prompt },
+      { type: "image_url", image_url: { url: `data:image/png;base64,${image}`, detail: "auto" } },
+    ] : input.prompt }],
     stream: false, temperature: 0.2, max_tokens: input.maxTokens ?? 2048,
     response_format: { type: "json_object" },
     provider: { allow_fallbacks: false, require_parameters: true, data_collection: "deny", zdr: true },

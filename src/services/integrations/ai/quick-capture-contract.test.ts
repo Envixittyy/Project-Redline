@@ -14,6 +14,7 @@ describe("Quick Capture Contract", () => {
       type: "propose_quick_capture",
       source_handle: validHandle,
       captured: {
+        timeZone: "local",
         entityType: "task",
         title: "Finish physics homework",
         dueDate: "2026-03-02",
@@ -35,9 +36,11 @@ describe("Quick Capture Contract", () => {
       type: "propose_quick_capture",
       source_handle: validHandle,
       captured: {
+        timeZone: "local",
         entityType: "calendar_event",
         title: "Dentist appointment",
         startDate: "2026-03-10",
+        endDate: "2026-03-10",
         startTime: "14:00",
         endTime: "15:00",
         allDay: false,

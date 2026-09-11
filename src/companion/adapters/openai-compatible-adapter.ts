@@ -6,6 +6,7 @@ import type {
   LocalRuntimeCapabilities,
   RuntimeHealthResult,
 } from "../types";
+import { validatedImageMedia } from "../image-media";
 import {
   LocalAdapterError,
   normalizeLocalError,
@@ -23,6 +24,7 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
       jsonFormat: true,
       modelDiscovery: true,
       abortSignal: true,
+      imageInput: true,
     };
   }
 
@@ -119,9 +121,7 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
     signal?: AbortSignal,
   ): Promise<LocalInferenceResponse> {
     try {
-      if (request.images !== undefined) {
-        throw new LocalAdapterError("Vision is not enabled for this capability.", "unsupported_modality");
-      }
+      const image = validatedImageMedia(request);
       const chatUrl = this.resolveUrl(endpoint, "/v1/chat/completions");
 
       const messages = [];
@@ -129,7 +129,10 @@ export class OpenAiCompatibleAdapter implements LocalRuntimeAdapter {
         messages.push({ role: "system", content: request.systemPrompt });
       }
 
-      messages.push({ role: "user", content: request.prompt });
+      messages.push({ role: "user", content: image ? [
+        { type: "text", text: request.prompt },
+        { type: "image_url", image_url: { url: `data:image/png;base64,${image}`, detail: "auto" } },
+      ] : request.prompt });
 
       const payload: Record<string, unknown> = {
         model: request.model,

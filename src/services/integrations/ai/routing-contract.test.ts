@@ -13,12 +13,18 @@ describe("provider-neutral routing and privacy", () => {
   it.each(["wellness.privateJournal", "notes.read", "delete_task", "__proto__", "constructor"])("denies unknown/sensitive capability %s even with all current toggles", cap => {
     expect(cloudAllowed(cap, { ...base, cloudEnabled: true, checklistCloud: true, courseImportCloud: true })).toBe(false);
   });
+  it("cloud permission groups cannot authorize any other group", () => {
+    const groups: Record<string,string[]>={dailyPlanCloud:["dailyPlanAdvice.propose"],courseMaterialCloud:["courseMaterialSummary.propose","courseMaterialStudyQuestions.propose"],contextualAssistantCloud:["contextualAssistant.propose"],notesCloud:["noteSummary.propose","noteRewrite.propose","noteActionItems.propose"],quickCaptureCloud:["quickCapture.propose"],checklistCloud:["taskChecklist.propose"],courseImportCloud:["courseImport.propose"],schoolScheduleCloud:["schoolScheduleImage.propose"],blackboardCourseCloud:["blackboardCourseImage.propose"],academicCalendarCloud:["academicCalendarImport.propose"]};
+    for(const [flag,caps] of Object.entries(groups))for(const cap of [...Object.values(groups).flat(),"unknown.propose","schoolAssessmentPrediction.propose","predictionTask.propose","predictionEvent.propose"]) {
+      expect(cloudAllowed(cap,{...base,cloudEnabled:true,[flag]:true}),flag+" vs "+cap).toBe(caps.includes(cap));
+    }
+  });
   it("checks each domain and explicit provider cannot bypass privacy", () => {
     expect(cloudAllowed("courseImport.propose", { ...base, cloudEnabled: true, checklistCloud: true })).toBe(false);
     expect(() => routingChain({ ...base, aiMode: "gemini" }, "taskChecklist.propose")).toThrow("cloud_disabled");
     expect(() => routingChain({ ...base, aiMode: "openrouter", cloudEnabled: true }, "taskChecklist.propose")).toThrow("cloud_privacy_denied");
   });
-  it.each(["invalid_output", "capability_denied", "source_changed", "pairing_invalid", "cancelled", "provider_rejected"])("never fallback for %s", code => {
+  it.each(["invalid_output", "unsupported_modality", "capability_denied", "source_changed", "pairing_invalid", "cancelled", "provider_rejected"])("never fallback for %s", code => {
     expect(mayFallback(code, "local")).toBe(false); expect(mayFallback(code, "cloud")).toBe(false);
   });
   it("allows infrastructure failure but stops ambiguous cloud transfers", () => {

@@ -1,203 +1,43 @@
 import "server-only";
-import { createHash, randomUUID } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
-import { validateImageBuffer } from "@/services/documents/image-validator";
-import { resolveTimeZone, todayIn } from "@/lib/date/day";
-import {
-  parseScheduleOutput,
-  SCHEDULE_IMAGE_CAPABILITY,
-  type ScheduleReview,
-  type ProposedCourseSchedule,
-} from "./school-schedule-contract";
+import { resolveTimeZone } from "@/lib/date/day";
+import { createValidatedImageSource, prepareImageDisclosure, type ImageRoute } from "./image-disclosure";
+import { parseScheduleExtraction, parseScheduleReview, SCHEDULE_IMAGE_CAPABILITY, type ScheduleEdit, type ScheduleReview } from "./school-schedule-contract";
 import { AiTrustError, uuid } from "./trust-contract";
-import { validInferenceProvider } from "./routing-contract";
 import { signAiCommand } from "./trust-signing";
 
-export async function prepareScheduleImport(
-  formData: FormData,
-  provider: unknown,
-  model: unknown,
-) {
+async function command(operation: string, data: Record<string, unknown>) {
   const { client, userId } = await requireAuthenticatedSupabase();
-  if (!validInferenceProvider(provider, model) || typeof model !== "string") {
-    throw new AiTrustError("invalid_provider");
-  }
-  const file = formData.get("file") as File | null;
-  if (!file) throw new AiTrustError("invalid_request");
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const validatedImage = await validateImageBuffer(buffer, file.name, file.type);
-
-  const requestId = randomUUID();
-  const handle = `sched_image_${randomUUID().replaceAll("-", "")}`;
-  const sourceText = validatedImage.dataUrl;
-  const sourceDigest = createHash("sha256").update(sourceText).digest("hex");
-  const timeZone = resolveTimeZone();
-  const startDate = todayIn(timeZone);
-
-  const { error } = await client.rpc(
-    "ai_create_scoped_request",
-    signAiCommand(userId, "prepare_scoped_request", {
-      id: requestId,
-      capability: SCHEDULE_IMAGE_CAPABILITY.id,
-      source_handle: handle,
-      source_digest: sourceDigest,
-      source_text: sourceText,
-      file_name: validatedImage.fileName,
-      start_date: startDate,
-      time_zone: timeZone,
-      provider,
-      model,
-    }),
-  );
-
-  if (error) throw new AiTrustError("request_not_prepared");
-
-  return {
-    requestId,
-    handle,
-    payloadDigest: sourceDigest,
-    bytes: validatedImage.byteLength,
-  };
+  const result = await client.rpc(`ai_${operation}`, signAiCommand(userId, operation === "apply_school_schedule" ? `approve_scoped:${SCHEDULE_IMAGE_CAPABILITY.id}` : operation, data));
+  if (result.error) throw new AiTrustError(result.error.message.includes("permission") ? "permission_denied" : result.error.message.includes("source_changed") ? "source_changed" : "request_unavailable");
+  return result.data;
 }
-
-async function loadReview(batchId: unknown) {
-  const { client } = await requireAuthenticatedSupabase();
-  const { data, error } = await client.rpc("ai_read_scoped_review", {
-    p_batch_id: uuid(batchId),
-  });
-  if (error || !data) throw new AiTrustError("untrusted_proposal");
-  const proposal = parseScheduleOutput(
-    JSON.stringify(data.input),
-    data.capability,
-    data.sourceHandle,
-  );
-  if (!/^[a-f0-9]{64}$/.test(data.proposalDigest)) {
-    throw new AiTrustError("untrusted_proposal");
-  }
-  return { ...data, courses: proposal.courses } as ScheduleReview & {
-    proposalDigest: string;
-    sourceHandle: string;
-  };
+export async function prepareScheduleImport(formData: FormData, route: ImageRoute) {
+  const file = formData.get("file"); if (!(file instanceof File)) throw new AiTrustError("invalid_request");
+  const image = await createValidatedImageSource(file, SCHEDULE_IMAGE_CAPABILITY.id);
+  const disclosure = await prepareImageDisclosure(image.imageId, SCHEDULE_IMAGE_CAPABILITY.id, route);
+  const requestId = await command("prepare_school_screenshot", { image_id: image.imageId, disclosure_id: disclosure.disclosureId, capability: SCHEDULE_IMAGE_CAPABILITY.id, provider: route.provider, model: route.model, location: route.location, file_name: file.name, time_zone: resolveTimeZone() });
+  if (typeof requestId !== "string") throw new AiTrustError("request_not_prepared");
+  return { requestId, handle: "trusted_image", payloadDigest: image.digest, bytes: image.byteCount, disclosureId: disclosure.disclosureId };
 }
-
-export async function readScheduleImportReview(
-  batchId: unknown,
-): Promise<ScheduleReview> {
-  const r = await loadReview(batchId);
-  return {
-    batchId: r.batchId,
-    courses: r.courses,
-    status: r.status,
-    sourceHandle: r.sourceHandle,
-    fileName: r.fileName,
-    provenance: r.provenance,
-  };
+async function loadReview(batchId: unknown): Promise<ScheduleReview> {
+  const { client } = await requireAuthenticatedSupabase(); const { data, error } = await client.rpc("ai_read_scoped_review", { p_batch_id: uuid(batchId) });
+  if (error || !data || data.capability !== SCHEDULE_IMAGE_CAPABILITY.id) throw new AiTrustError("untrusted_proposal");
+  const proposal = parseScheduleReview(data.input, data.capability, data.sourceHandle);
+  return { batchId: data.batchId, courses: proposal.courses, status: data.status, sourceHandle: data.sourceHandle, fileName: data.fileName, provenance: data.provenance };
 }
-
-export async function finalizeScheduleImport(
-  requestId: string,
-  rawOutput: unknown,
-): Promise<ScheduleReview> {
-  const { client, userId } = await requireAuthenticatedSupabase();
-
-  const { data: request, error: reqError } = await client
-    .from("ai_scoped_requests")
-    .select("id,source_handle,file_name,status,source_text,source_digest,capability,expires_at")
-    .eq("id", uuid(requestId))
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (
-    reqError ||
-    !request ||
-    request.status !== "prepared" ||
-    Date.parse(request.expires_at) <= Date.now()
-  ) {
-    throw new AiTrustError("request_unavailable");
-  }
-
-  if (createHash("sha256").update(request.source_text).digest("hex") !== request.source_digest) {
-    throw new AiTrustError("source_changed");
-  }
-
-  const proposal = parseScheduleOutput(
-    rawOutput,
-    request.capability,
-    request.source_handle,
-  );
-
-  const result = await client.rpc(
-    "ai_record_scoped_proposal",
-    signAiCommand(userId, "record_scoped_proposal", {
-      request_id: request.id,
-      proposal,
-      summary: `Class Schedule Import: ${proposal.courses.length} courses`,
-      target_entity: "course",
-    }),
-  );
-
-  if (result.error || typeof result.data !== "string") {
-    throw new AiTrustError("proposal_not_recorded");
-  }
-
-  return readScheduleImportReview(result.data);
+export const readScheduleImportReview = loadReview;
+export async function finalizeScheduleImport(requestId: string, rawOutput: unknown): Promise<ScheduleReview> {
+  const { client, userId } = await requireAuthenticatedSupabase(); const { data: request, error } = await client.from("ai_scoped_requests").select("id,source_handle,capability,status,expires_at").eq("id", uuid(requestId)).eq("user_id", userId).maybeSingle();
+  if (error || !request || request.status !== "prepared" || Date.parse(request.expires_at) <= Date.now()) throw new AiTrustError("request_unavailable");
+  const extracted = parseScheduleExtraction(rawOutput, request.capability, request.source_handle);
+  const proposal = { schema_version: 1, type: "review_schedule_import", source_handle: request.source_handle, courses: extracted.courses.map(course => ({ ...course, decision: "IGNORE" as const })) };
+  const batchId = await command("record_school_screenshot", { request_id: request.id, proposal });
+  if (typeof batchId !== "string") throw new AiTrustError("proposal_not_recorded"); return loadReview(batchId);
 }
-
-export async function reviseScheduleImport(
-  batchId: unknown,
-  editedCourses: ProposedCourseSchedule[],
-): Promise<ScheduleReview> {
-  const { client, userId } = await requireAuthenticatedSupabase();
-  const review = await loadReview(batchId);
-  const proposal = {
-    schema_version: 1,
-    type: "schedule_image_proposal",
-    source_handle: review.sourceHandle,
-    courses: editedCourses,
-  };
-
-  const result = await client.rpc(
-    "ai_revise_scoped_proposal",
-    signAiCommand(userId, "revise_scoped_proposal", {
-      batch_id: review.batchId,
-      proposal,
-      summary: `Edited Class Schedule: ${editedCourses.length} courses`,
-      target_entity: "course",
-    }),
-  );
-
-  if (result.error || typeof result.data !== "string") {
-    throw new AiTrustError("proposal_unavailable");
-  }
-
-  return readScheduleImportReview(result.data);
+export async function reviseScheduleImport(batchId: unknown, edits: ScheduleEdit[]): Promise<ScheduleReview> {
+  const safe = edits.map(({ targetFingerprint: _ignored, ...edit }: ScheduleEdit & { targetFingerprint?: string }) => edit);
+  const next = await command("revise_school_screenshot", { batch_id: uuid(batchId), courses: safe });
+  if (typeof next !== "string") throw new AiTrustError("proposal_unavailable"); return loadReview(next);
 }
-
-export async function applyScheduleImport(batchId: unknown) {
-  const { client, userId } = await requireAuthenticatedSupabase();
-  const review = await loadReview(batchId);
-
-  const { data, error } = await client.rpc(
-    "apply_ai_schedule_import",
-    signAiCommand(userId, "approve_schedule_import", {
-      batch_id: review.batchId,
-      proposal_digest: review.proposalDigest,
-    }),
-  );
-
-  if (error || !data) {
-    throw new AiTrustError("request_unavailable");
-  }
-
-  return { ok: true, ...data };
-}
-
-export async function rejectScheduleImport(batchId: unknown) {
-  const { client, userId } = await requireAuthenticatedSupabase();
-  const { error } = await client.rpc(
-    "ai_reject_scoped_proposal",
-    signAiCommand(userId, "reject_scoped_proposal", { batch_id: uuid(batchId) }),
-  );
-  if (error) throw new AiTrustError("proposal_unavailable");
-}
+export async function applyScheduleImport(batchId: unknown) { const data = await command("apply_school_schedule", { batch_id: uuid(batchId) }); return { ok: true, ...(data as object) }; }

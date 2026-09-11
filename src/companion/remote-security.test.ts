@@ -9,9 +9,10 @@ const user = randomUUID(), device = randomUUID();
 let daemon: CompanionServer | undefined;
 let runtime: http.Server | undefined;
 afterEach(async () => { vi.restoreAllMocks(); await daemon?.stop(); daemon = undefined; runtime?.closeAllConnections(); if (runtime) await new Promise<void>(resolve => runtime!.close(() => resolve())); runtime = undefined; });
-function ticket(path: string, body: unknown, token: string | null = null, deviceId = device) {
+function ticket(path: string, body: unknown, token: string | null = null, deviceId = device,
+  capability: "taskChecklist.propose" | "schoolAssessmentPrediction.propose" = "taskChecklist.propose") {
   return signCompanionTicket(key, { audience: `https://${audience}`, origin, userId: user, deviceId, path,
-    capability: path === "/v1/infer" ? "taskChecklist.propose" : "session", bodyDigest: ticketDigest(body), tokenHash: ticketDigest(token) });
+    capability: path === "/v1/infer" ? capability : "session", bodyDigest: ticketDigest(body), tokenHash: ticketDigest(token) });
 }
 describe("remote private mesh authentication", () => {
   it("requires mesh identity + Redline ticket + pairing; enforces device, replay, runtime and revocation over real HTTP", async () => {
@@ -71,6 +72,12 @@ describe("remote private mesh authentication", () => {
     const now = Date.now();
     vi.spyOn(Date, "now").mockReturnValue(now + 61_000);
     expect(() => verifier().verify(raw, origin, "/pair", { pairingSecret: "a" })).toThrow();
+  });
+  it("accepts the reviewed local prediction capability but still binds its exact body", () => {
+    const body = { provider: "ollama", endpoint: "http://127.0.0.1:11434", request: { model: "fixture", prompt: "bounded" } };
+    const raw = ticket("/v1/infer", body, null, device, "schoolAssessmentPrediction.propose");
+    expect(() => new CompanionTicketVerifier(key, `https://${audience}`).verify(raw, origin, "/v1/infer", body)).not.toThrow();
+    expect(() => new CompanionTicketVerifier(key, `https://${audience}`).verify(raw, origin, "/v1/infer", { ...body, request: { model: "fixture", prompt: "changed" } })).toThrow();
   });
   it.each(["https://evil.example", "http://home.tail.ts.net", "https://home.tail.ts.net/path", "https://user@home.tail.ts.net", "https://home.tail.ts.net:444", "https://home.tail.ts.net?x=1", "http://100.64.1.1:41400", "https://home.tail.ts.net.evil.net"])("rejects arbitrary targets %s", url => {
     expect(() => validatePrivateCompanionOrigin(url)).toThrow();

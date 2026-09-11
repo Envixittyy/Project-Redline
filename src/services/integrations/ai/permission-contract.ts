@@ -11,14 +11,16 @@ export type AiExecutionDecision = "allow_read" | "allow_mutation" | "needs_confi
 
 export const defaultAiPermissionMode: AiPermissionMode = "ask_before_changing";
 
-/** Permission is evaluated after schema and domain validation, never by the model. */
+/** Presentation decision only; signed, persisted SQL approval remains authoritative. */
 export function decideAiExecution(
   action: ProposedAiAction,
   mode: AiPermissionMode = defaultAiPermissionMode,
   userConfirmed = false,
 ): AiExecutionDecision {
   if (!isMutatingAiAction(action)) return "allow_read";
-  if (mode === "suggest_only") return "deny";
-  if (mode === "ask_before_changing" && !userConfirmed) return "needs_confirmation";
+  // Phase 11 automation is deferred. Match the active Phase 10A SQL policy;
+  // neither provider selection nor a browser confirmation boolean enables it.
+  if (mode !== "ask_before_changing") return "deny";
+  if (!userConfirmed) return "needs_confirmation";
   return "allow_mutation";
 }

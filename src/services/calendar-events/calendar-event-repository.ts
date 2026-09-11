@@ -3,6 +3,8 @@ import "server-only";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 import { formatPostgrestErrorDiagnostic } from "@/services/supabase/errors";
+import { AiTrustError } from "@/services/integrations/ai/trust-contract";
+import { signAiCommand } from "@/services/integrations/ai/trust-signing";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import type {
   CalendarEvent,
@@ -128,7 +130,7 @@ export async function updateCalendarEvent(
     .eq("id", id)
     .eq("user_id", userId)
     // External events are read-only until their integration phase.
-    .eq("source", "life_os")
+    .in("source", ["life_os", "academic_calendar"])
     .select(COLUMNS)
     .maybeSingle();
 
@@ -145,10 +147,23 @@ export async function deleteCalendarEvent(id: string): Promise<void> {
     .delete()
     .eq("id", id)
     .eq("user_id", userId)
-    .eq("source", "life_os")
+    .in("source", ["life_os", "academic_calendar"])
     .select("id")
     .maybeSingle();
 
   if (error) fail("delete the event", error);
   if (!data) throw new CalendarEventRepositoryError("That event no longer exists or is read-only.");
+}
+
+/** Fixed ID-only consumer for an exact trusted Academic Calendar successor. */
+export async function applyTrustedAcademicCalendarReview(batchId: string) {
+  const { client, userId } = await requireAuthenticatedSupabase();
+  const { data, error } = await client.rpc(
+    "ai_apply_academic_calendar",
+    signAiCommand(userId, "approve_scoped:academicCalendarImport.propose", { batch_id: batchId }),
+  );
+  if (error || !data) {
+    throw new AiTrustError(error?.message.includes("source_changed") ? "source_changed" : "request_unavailable");
+  }
+  return { ok: true, ...(data as object) };
 }

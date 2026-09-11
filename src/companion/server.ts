@@ -29,8 +29,11 @@ export type CompanionServerOptions = {
   runtimeEndpoints?: Partial<Record<LocalProviderType, string>>;
   // Separate loopback-only listener behind Tailscale Serve, never Funnel.
   remote?: { origin: string; userLogin: string; signingKey: string };
+  // Image requests on loopback also require an exact server-signed body ticket.
+  imageTrust?: { audience: string; signingKey: string };
 };
-const MAX_BODY = 96 * 1024;
+const MAX_BODY = 7 * 1024 * 1024;
+const IMAGE_CAPABILITIES = new Set(["schoolScheduleImage.propose", "blackboardCourseImage.propose", "academicCalendarImport.propose"]);
 const routes = new Map([
   ["/health", "GET"],
   ["/pair", "POST"],
@@ -57,6 +60,7 @@ function inference(value: unknown): LocalInferenceRequest {
     "temperature",
     "maxTokens",
     "formatJson",
+    "media",
   ]);
   if (
     !isModelId(v.model) ||
@@ -85,6 +89,7 @@ function inference(value: unknown): LocalInferenceRequest {
     temperature: Number(v.temperature ?? 0.2),
     maxTokens: Number(v.maxTokens ?? 2048),
     formatJson: true,
+    ...(v.media !== undefined ? { media: v.media as LocalInferenceRequest["media"] } : {}),
   };
 }
 
@@ -105,6 +110,7 @@ export class CompanionServer {
   private pairAttempts: number[] = [];
   private readonly remote?: CompanionServerOptions["remote"];
   private readonly tickets?: CompanionTicketVerifier;
+  private readonly imageTickets?: CompanionTicketVerifier;
   constructor(options: CompanionServerOptions = {}) {
     this.host = options.host ?? "127.0.0.1";
     this.port = options.port ?? 41400;
@@ -113,6 +119,12 @@ export class CompanionServer {
       if (!options.remote.userLogin || options.remote.userLogin.length > 254 || /[\r\n]/.test(options.remote.userLogin)) throw new Error("Invalid private network identity.");
       this.remote = options.remote;
       this.tickets = new CompanionTicketVerifier(options.remote.signingKey, options.remote.origin);
+    }
+    if (options.imageTrust) {
+      const audience = new URL(options.imageTrust.audience);
+      if (audience.origin !== options.imageTrust.audience || audience.protocol !== "http:" || audience.hostname !== "127.0.0.1")
+        throw new Error("Invalid local image ticket audience.");
+      this.imageTickets = new CompanionTicketVerifier(options.imageTrust.signingKey, options.imageTrust.audience);
     }
     this.allowedOrigins = options.allowedOrigins ?? DEFAULT_ALLOWED_ORIGINS;
     if (
@@ -230,7 +242,7 @@ export class CompanionServer {
       if (
         req.headers["access-control-request-method"] !== method ||
         requestedHeaders.some(
-          (h) => !["authorization", "content-type", ...(this.remote ? ["x-redline-ticket"] : [])].includes(h),
+          (h) => !["authorization", "content-type", ...(this.remote || this.imageTickets ? ["x-redline-ticket"] : [])].includes(h),
         )
       ) {
         this.send(res, 403, { ok: false, error: "invalid_preflight" }, origin);
@@ -240,7 +252,7 @@ export class CompanionServer {
         "Access-Control-Allow-Origin": origin!,
         Vary: "Origin",
         "Access-Control-Allow-Methods": method,
-        "Access-Control-Allow-Headers": `Authorization, Content-Type${this.remote ? ", X-Redline-Ticket" : ""}`,
+        "Access-Control-Allow-Headers": `Authorization, Content-Type${this.remote || this.imageTickets ? ", X-Redline-Ticket" : ""}`,
         "Access-Control-Max-Age": "60",
         ...(req.headers["access-control-request-private-network"] === "true"
           ? { "Access-Control-Allow-Private-Network": "true" }
@@ -311,6 +323,16 @@ export class CompanionServer {
           ? ["provider", "endpoint", "request"]
           : ["provider", "endpoint"],
       );
+      if (route === "/v1/infer") {
+        const request = record(body.request, ["model","prompt","systemPrompt","temperature","maxTokens","formatJson","media"]);
+        const hasMedia = request.media !== undefined;
+        if (hasMedia) {
+          const imageTicket = ticket ?? this.imageTickets?.verify(req.headers["x-redline-ticket"], origin!, route, body, token);
+          if (!imageTicket || !IMAGE_CAPABILITIES.has(imageTicket.capability)) throw new Error("authorization_denied");
+        } else if ((ticket && IMAGE_CAPABILITIES.has(ticket.capability)) || (!this.remote && req.headers["x-redline-ticket"] !== undefined)) {
+          throw new Error("authorization_denied");
+        }
+      }
       const { adapter, provider, endpoint } = this.runtime(body);
       if (this.busy) {
         this.send(res, 429, { ok: false, error: "companion_busy" }, origin);

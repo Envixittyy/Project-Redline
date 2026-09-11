@@ -3,10 +3,16 @@ import { createHash } from "node:crypto";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
 import { readTaskChecklistContext } from "@/services/tasks/task-repository";
 import { AiTrustError, checklistPrompt, uuid } from "./trust-contract";
+import { noteSummaryPrompt,noteRewritePrompt,noteActionItemsPrompt } from "./note-intelligence-contract";
+import { quickCapturePrompt } from "./quick-capture-contract";
+import { dailyPlanAdvicePrompt } from "./daily-plan-contract";
+import { courseMaterialSummaryPrompt,courseMaterialStudyQuestionsPrompt } from "./course-material-intelligence-contract";
+import { contextualAssistantPrompt } from "./contextual-assistant-contract";
 import { courseImportPrompt } from "./course-import-contract";
 import { schedulePrompt } from "./school-schedule-contract";
 import { blackboardCoursePrompt } from "./blackboard-screenshot-contract";
 import { academicCalendarPrompt } from "./academic-calendar-contract";
+import { assessmentPredictionPrompt } from "./assessment-prediction-contract";
 import { capabilityFor, type RequestKind } from "./routing-contract";
 
 export async function readInferenceSource(kind: RequestKind, requestId: unknown, model: string) {
@@ -14,11 +20,13 @@ export async function readInferenceSource(kind: RequestKind, requestId: unknown,
   const { client, userId } = await requireAuthenticatedSupabase();
   const tableName = kind === "checklist" ? "ai_requests" : kind === "course" ? "ai_course_requests" : "ai_scoped_requests";
   const { data, error } = await client.from(tableName)
-    .select(kind === "checklist" ? "task_id,task_handle,source_revision,capability,status,expires_at" : "source_text,source_digest,source_handle,capability,status,expires_at")
+    .select(kind === "checklist" ? "task_id,task_handle,source_revision,capability,status,expires_at" : (kind === "course" ? "source_text,source_digest,source_handle,capability,status,expires_at" : "source_text,source_digest,source_handle,capability,status,expires_at,source_manifest,trust_version"))
     .eq("id", uuid(requestId)).eq("user_id", userId).maybeSingle();
   const r = data as Record<string, string> | null;
   if (error || !r || r.status !== "prepared" || r.capability !== capability.id || Date.parse(r.expires_at) <= Date.now()) throw new AiTrustError("request_unavailable");
+  if (kind !== "checklist" && kind !== "course" && (data as {trust_version?: number}).trust_version !== 2) throw new AiTrustError("request_unavailable");
   let prompt;
+  let transferBytes: number | undefined;
   if (kind === "checklist") {
     const context = await readTaskChecklistContext(r.task_id);
     if (context.revision !== r.source_revision) throw new AiTrustError("source_changed");
@@ -26,27 +34,36 @@ export async function readInferenceSource(kind: RequestKind, requestId: unknown,
   } else if (kind === "course") {
     if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
     prompt = courseImportPrompt(r.source_text, r.source_handle);
-  } else if (kind === "schedule_image") {
+  } else if (kind === "schedule_image" || kind === "blackboard_image") {
     if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
-    const match = r.source_text.match(/^data:(image\/[a-z]+);base64,(.+)$/);
-    if (!match) throw new AiTrustError("source_changed");
-    prompt = schedulePrompt(r.source_handle, match[2], match[1]);
-  } else if (kind === "blackboard_image") {
-    if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
-    const match = r.source_text.match(/^data:(image\/[a-z]+);base64,(.+)$/);
-    if (!match) throw new AiTrustError("source_changed");
-    prompt = blackboardCoursePrompt(r.source_handle, match[2], match[1]);
+    let authority: { disclosureId?: unknown; imageDigest?: unknown; imageBytes?: unknown };
+    try { authority = JSON.parse(r.source_text); } catch { throw new AiTrustError("source_changed"); }
+    if (typeof authority.disclosureId !== "string" || typeof authority.imageDigest !== "string" || !/^[a-f0-9]{64}$/.test(authority.imageDigest) ||
+        typeof authority.imageBytes !== "number" || !Number.isInteger(authority.imageBytes) || authority.imageBytes < 1 || authority.imageBytes > 5 * 1024 * 1024)
+      throw new AiTrustError("source_changed");
+    transferBytes = authority.imageBytes;
+    prompt = kind === "schedule_image" ? schedulePrompt(r.source_handle) : blackboardCoursePrompt(r.source_handle);
   } else if (kind === "academic_calendar") {
     if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
-    if (r.source_text.startsWith("data:image/")) {
-      const match = r.source_text.match(/^data:(image\/[a-z]+);base64,(.+)$/);
-      if (!match) throw new AiTrustError("source_changed");
-      prompt = academicCalendarPrompt(r.source_handle, { image: { base64: match[2], mimeType: match[1] } });
+    let authority: { revisionId?: unknown; disclosureId?: unknown; imageBytes?: unknown };
+    try { authority = JSON.parse(r.source_text); } catch { throw new AiTrustError("source_changed"); }
+    if (typeof authority.revisionId !== "string") throw new AiTrustError("source_changed");
+    const { data: revision, error: revisionError } = await client.from("academic_calendar_source_revisions")
+      .select("format,normalized_text,content_digest,image_id").eq("id", authority.revisionId).eq("user_id", userId).maybeSingle();
+    if (revisionError || !revision || !["txt", "md", "png", "jpeg", "webp"].includes(revision.format)) throw new AiTrustError("source_changed");
+    if (revision.format === "txt" || revision.format === "md") {
+      if (!revision.normalized_text || createHash("sha256").update(revision.normalized_text).digest("hex") !== revision.content_digest || authority.disclosureId !== null) throw new AiTrustError("source_changed");
+      prompt = academicCalendarPrompt(r.source_handle, revision.format, revision.normalized_text);
     } else {
-      prompt = academicCalendarPrompt(r.source_handle, { text: r.source_text });
+      if (typeof authority.disclosureId !== "string") throw new AiTrustError("source_changed");
+      if (typeof authority.imageBytes !== "number" || !Number.isInteger(authority.imageBytes) || authority.imageBytes < 1 || authority.imageBytes > 5 * 1024 * 1024) throw new AiTrustError("source_changed");
+      transferBytes = authority.imageBytes;
+      prompt = academicCalendarPrompt(r.source_handle, revision.format);
     }
+  } else if (kind === "assessment_prediction") {
+    if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
+    prompt = assessmentPredictionPrompt(r.source_handle, r.source_text);
   } else if (
-    kind === "assessment_prediction" ||
     kind === "note_summary" ||
     kind === "note_rewrite" ||
     kind === "note_action_items" ||
@@ -58,7 +75,14 @@ export async function readInferenceSource(kind: RequestKind, requestId: unknown,
   ) {
     if (createHash("sha256").update(r.source_text).digest("hex") !== r.source_digest) throw new AiTrustError("source_changed");
     try {
-      prompt = JSON.parse(r.source_text);
+      const context=JSON.parse(r.source_text);
+      prompt = kind === "daily_plan_advice" ? dailyPlanAdvicePrompt(r.source_handle,context)
+        : kind === "material_summary" ? courseMaterialSummaryPrompt(r.source_handle,context)
+        : kind === "material_study_questions" ? courseMaterialStudyQuestionsPrompt(r.source_handle,context)
+        : kind === "contextual_assistant" ? contextualAssistantPrompt(r.source_handle,context) : kind === "note_summary" ? noteSummaryPrompt(r.source_handle,context)
+        : kind === "note_rewrite" ? noteRewritePrompt(r.source_handle,context)
+        : kind === "note_action_items" ? noteActionItemsPrompt(r.source_handle,context)
+        : kind === "quick_capture" ? quickCapturePrompt(r.source_handle,context.text,context.today,context.timeZone) : context;
     } catch {
       throw new AiTrustError("source_changed");
     }
@@ -70,5 +94,10 @@ export async function readInferenceSource(kind: RequestKind, requestId: unknown,
   // Stable insertion order, versioned and fixture-tested. Provider and capability are
   // separately immutable columns; the digest binds every transmitted inference field.
   const payload = JSON.stringify({ version: 1, capability: capability.id, inference });
-  return { inference, digest: createHash("sha256").update(payload).digest("hex"), bytes: Buffer.byteLength(payload), expiresAt: r.expires_at as string };
+  let disclosureId: string | undefined;
+  if (kind === "schedule_image" || kind === "blackboard_image" || kind === "academic_calendar") {
+    const value = JSON.parse(r.source_text) as { disclosureId?: string | null };
+    if (typeof value.disclosureId === "string") disclosureId = value.disclosureId;
+  }
+  return { inference, digest: createHash("sha256").update(payload).digest("hex"), bytes: Buffer.byteLength(payload), transferBytes, expiresAt: r.expires_at as string, disclosureId, sourceCount: Array.isArray((data as {source_manifest?: unknown}).source_manifest) ? (data as unknown as {source_manifest: unknown[]}).source_manifest.length : 1 };
 }

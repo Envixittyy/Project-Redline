@@ -247,12 +247,12 @@ export function NoteAiDialog({
       description="Notes AI Assistant"
       size="lg"
       footer={
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: "0.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", width: "100%", gap: "0.5rem" }}>
           <Button variant="secondary" onClick={onClose} disabled={applying}>
             Cancel
           </Button>
 
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
             {tab === "summary" && summaryResult ? (
               <>
                 <Button

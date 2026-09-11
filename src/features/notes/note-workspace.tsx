@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
+import { PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { enqueueOfflineMutation } from "@/lib/offline/queue";
@@ -260,8 +261,19 @@ export function NoteWorkspace({
     : null;
 
   return (
-    <div className={styles.layout} data-mobile-view={mobileView}>
-      {/* Sidebar: Note List & Search */}
+    <div className={styles.workspaceContainer}>
+      <div
+        className={styles.pageHeaderWrap}
+        data-mobile-editor={mobileView === "editor" ? "true" : undefined}
+      >
+        <PageHeader
+          title="Notes"
+          description="Private Markdown notes with reliable saving, task and course links, search, and authenticated attachments."
+        />
+      </div>
+
+      <div className={styles.layout} data-mobile-view={mobileView}>
+        {/* Sidebar: Note List & Search */}
       <aside className={styles.sidebar} aria-label="Notes directory">
         <div className={styles.sidebarHeader}>
           <form
@@ -635,6 +647,7 @@ export function NoteWorkspace({
           )}
         </section>
       </main>
+      </div>
     </div>
   );
 }

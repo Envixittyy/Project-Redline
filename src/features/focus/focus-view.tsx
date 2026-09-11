@@ -31,13 +31,18 @@ import { setTaskCompletionAction } from "@/features/tasks/task-actions";
 import type { FocusNow, FocusReadModel, FocusTodayItem } from "./focus-domain";
 import styles from "./focus-view.module.css";
 
+let currentClock = Date.now();
+
 function subscribeToClock(callback: () => void) {
-  const interval = setInterval(callback, 10_000);
+  const interval = setInterval(() => {
+    currentClock = Date.now();
+    callback();
+  }, 10_000);
   return () => clearInterval(interval);
 }
 
 function getClockSnapshot(): number {
-  return Date.now();
+  return currentClock;
 }
 
 function getServerSnapshot(): number | null {

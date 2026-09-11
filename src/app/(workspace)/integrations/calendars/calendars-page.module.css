@@ -1,13 +1,30 @@
-.layout,
-.providerGrid,
-.capabilities {
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 3vw, 2.25rem);
+  width: 100%;
+  max-width: 58rem;
+}
+
+.providerGrid {
   display: grid;
-  gap: 0.85rem;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+.capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
 }
 
 .summary,
 .providerCard {
-  padding: 1.25rem;
+  padding: clamp(1.15rem, 3vw, 1.5rem);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-embedded);
 }
 
 .summary h2,
@@ -18,8 +35,9 @@
 }
 
 .summary h2 {
-  font-size: 1.125rem;
-  font-weight: 650;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
 }
 
@@ -41,8 +59,9 @@
 }
 
 .providerHeading h2 {
-  font-size: 1rem;
-  font-weight: 650;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
 }
 

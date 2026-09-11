@@ -1,20 +1,27 @@
 .layout {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: clamp(1.5rem, 3vw, 2.25rem);
+  width: 100%;
+  max-width: 58rem;
 }
 
 .card {
-  padding: 1.25rem;
+  padding: clamp(1.15rem, 3vw, 1.5rem);
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-embedded);
 }
 
 .card header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .card header > svg {
@@ -28,16 +35,17 @@
 
 .card header p {
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 750;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   color: var(--text-tertiary);
   margin: 0;
 }
 
 .card header h2 {
-  font-size: 1.0625rem;
-  font-weight: 650;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
   margin: 0.15rem 0 0;
 }
@@ -104,11 +112,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1rem;
   border-radius: var(--radius-md);
-  background: var(--surface-subtle);
+  background: color-mix(in oklch, var(--surface-subtle) 75%, transparent);
   border: 1px solid var(--border-subtle);
   flex-wrap: wrap;
+  transition: background-color var(--motion-fast);
+}
+
+.linkItem:hover {
+  background: color-mix(in oklch, var(--surface-hover) 35%, transparent);
 }
 
 @media (max-width: 36rem) {
@@ -159,10 +172,10 @@
 }
 
 .conflictBox {
-  padding: 1rem;
+  padding: 1rem 1.15rem;
   border-radius: var(--radius-md);
-  background: var(--surface-interactive);
-  border: 1px solid var(--border-subtle);
+  background: color-mix(in oklch, var(--destructive) 8%, transparent);
+  border: 1px solid color-mix(in oklch, var(--destructive) 30%, transparent);
   display: flex;
   flex-direction: column;
   gap: 0.75rem;

@@ -1,7 +1,7 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 1rem;
 }
 
 .header {
@@ -9,6 +9,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--section-rule);
 }
 
 .headerTitle {
@@ -23,9 +25,7 @@
   margin: 0;
 }
 
-.card {
-  padding: 1.25rem;
-  border-radius: var(--radius-lg);
+.scheduleCanvas {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -35,19 +35,30 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.15rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-glass);
+  gap: 1.25rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--radius-md, 0.75rem);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--banner-accent, var(--accent));
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--banner-accent, var(--accent)) 10%, transparent),
+    transparent 80%
+  );
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  transition: background var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease);
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
 }
 
 .featuredBanner:hover {
-  background: var(--surface-hover);
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--banner-accent, var(--accent)) 16%, transparent),
+    var(--surface-hover) 80%
+  );
   border-color: var(--border-strong);
 }
 
@@ -57,9 +68,8 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3.5px;
+  width: 3px;
   background: var(--banner-accent, var(--accent));
-  border-radius: var(--radius-pill);
 }
 
 .bannerContent {
@@ -144,8 +154,8 @@
 
 .classesList {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 0.85rem;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -156,17 +166,16 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 0.65rem;
-  padding: 0.9rem 1rem;
+  padding: 0.95rem 1.15rem;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-embedded);
   cursor: pointer;
   position: relative;
   overflow: hidden;
   transition:
     background var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-ease);
+    border-color var(--motion-fast) var(--motion-ease);
 }
 
 .classItem::before {
@@ -175,14 +184,13 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 2.5px;
   background: var(--course-accent, var(--accent));
 }
 
 .classItem:hover {
   background: var(--surface-hover);
   border-color: var(--border-strong);
-  transform: translateY(-1px);
 }
 
 .classItem:focus-visible {
@@ -192,11 +200,11 @@
 
 .classItem[data-status="in_progress"] {
   border-color: color-mix(in oklch, var(--success) 35%, var(--border));
-  background: color-mix(in oklch, var(--success) 5%, var(--surface));
+  background: color-mix(in oklch, var(--success) 6%, var(--surface-embedded));
 }
 
 .classItem[data-status="past"] {
-  opacity: 0.65;
+  opacity: 0.6;
 }
 
 .classTop {
@@ -215,10 +223,10 @@
 }
 
 .classCode {
-  font-size: 0.9375rem;
-  font-weight: 800;
+  font-size: 0.95rem;
+  font-weight: 750;
   color: var(--text-primary);
-  letter-spacing: 0.03em;
+  letter-spacing: -0.01em;
 }
 
 .className {
@@ -248,7 +256,7 @@
   gap: 0.5rem;
   font-size: 0.75rem;
   color: var(--text-tertiary);
-  border-top: 1px solid var(--border-hairline);
+  border-top: 1px solid var(--section-rule);
   padding-top: 0.5rem;
 }
 
@@ -265,14 +273,14 @@
 
 .emptyToday {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  border-radius: var(--radius-md);
-  border: 1px dashed var(--border-subtle);
-  background: var(--surface-subtle);
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1.15rem 0;
+  border: 0;
+  background: transparent;
   color: var(--text-secondary);
-  font-size: 0.84rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .emptyToday svg {

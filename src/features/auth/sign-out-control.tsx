@@ -4,14 +4,14 @@ import { useActionState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
-import { signOutAction } from "./auth-actions";
 import { signOutInitialState, type SignOutFormState } from "./auth-domain";
+import { privacySafeSignOutAction } from "./privacy-actions";
 
 import styles from "./sign-out-control.module.css";
 
 export function SignOutControl() {
   const [state, formAction, isPending] = useActionState<SignOutFormState>(
-    signOutAction,
+    privacySafeSignOutAction,
     signOutInitialState,
   );
 

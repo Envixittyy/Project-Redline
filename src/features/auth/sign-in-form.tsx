@@ -4,14 +4,14 @@ import { useActionState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
-import { signInAction } from "./auth-actions";
 import { signInInitialState, type SignInFormState } from "./auth-domain";
+import { privacySafeSignInAction } from "./privacy-actions";
 
 import styles from "./sign-in-form.module.css";
 
 export function SignInForm() {
   const [state, formAction, isPending] = useActionState<SignInFormState, FormData>(
-    signInAction,
+    privacySafeSignInAction,
     signInInitialState,
   );
 

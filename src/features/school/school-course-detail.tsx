@@ -3,28 +3,46 @@
 import { useState, useTransition } from "react";
 import {
   ArrowLeft,
+  Calendar,
   CalendarPlus,
+  Clock,
   ExternalLink,
-  FileText,
+  FilePlus,
+  FolderOpen,
+  MapPin,
   Megaphone,
   Sparkles,
   Trash2,
+  User,
 } from "lucide-react";
-import type { CourseWithMeetings } from "@/types/course";
+import type { CourseWithMeetings, PersistedCourseMeeting } from "@/types/course";
 import type { CourseMaterial } from "@/types/course-material";
 import type { SchoolEmailEvent, SchoolItem } from "@/types/school-item";
-import { courseMaterialTypes } from "@/types/course-material";
-import { archiveCourseAction, deleteMeetingAction, saveMeetingAction } from "./school-actions";
-import { deleteCourseMaterialAction, saveCourseMaterialAction } from "./school-material-actions";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { SegmentedControl, type SegmentOption } from "@/components/ui/segmented-control";
+import { useCourseAccent } from "@/components/shell/ambient-context";
+import { ContextualAssistantModal } from "@/features/ai/contextual-assistant-modal";
+import { archiveCourseAction, deleteMeetingAction } from "./school-actions";
+import { deleteCourseMaterialAction } from "./school-material-actions";
 import { SchoolUpcomingWork } from "./school-upcoming-work";
 import { SchoolActivityFeed } from "./school-activity-feed";
 import { CoursePredictionsPanel } from "./course-predictions-panel";
 import { CourseMaterialIntelligenceModal } from "./course-material-intelligence-modal";
-import { ContextualAssistantModal } from "@/features/ai/contextual-assistant-modal";
+import { MeetingFormModal } from "./meeting-form-modal";
+import { MaterialFormModal } from "./material-form-modal";
 import { schoolEventBelongsToCourse } from "./school-ui-domain";
 import styles from "./school-course-detail.module.css";
 
-const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const weekdaysShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+type CourseTab = "overview" | "materials" | "intelligence";
+
+const tabOptions: Array<SegmentOption<CourseTab>> = [
+  { value: "overview", label: "Overview & Work" },
+  { value: "materials", label: "Materials & Notes" },
+  { value: "intelligence", label: "Intelligence & Activity" },
+];
 
 type SchoolCourseDetailProps = {
   course: CourseWithMeetings;
@@ -47,20 +65,27 @@ export function SchoolCourseDetail({
   timeZone,
   onBack,
 }: SchoolCourseDetailProps) {
+  // Apply restrained ambient course accent
+  useCourseAccent(course.color ?? undefined);
+
+  const [activeTab, setActiveTab] = useState<CourseTab>("overview");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const [showMeetingForm, setShowMeetingForm] = useState(false);
-  const [showMaterialForm, setShowMaterialForm] = useState(false);
+  // Modals
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [editingMeeting, setEditingMeeting] = useState<PersistedCourseMeeting | null>(null);
+  const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [aiStudyMaterials, setAiStudyMaterials] = useState<CourseMaterial[] | null>(null);
   const [showAssistant, setShowAssistant] = useState(false);
 
+  // Filter items for this course
   const courseItems = items.filter((i) => i.courseId === course.id);
   const courseMaterials = materials.filter((m) => m.courseId === course.id);
   const bbMaterials = courseItems.filter((i) => i.itemType === "material");
   const bbAnnouncements = courseItems.filter((i) => i.itemType === "announcement");
 
-  // Events related to this course
+  // Filter email events for this course using the canonical domain function
   const courseEvents = events.filter((event) => schoolEventBelongsToCourse(event, course.id));
 
   const run = (
@@ -78,405 +103,387 @@ export function SchoolCourseDetail({
     });
   };
 
+  function handleArchive() {
+    if (window.confirm(`Are you sure you want to archive ${course.code}?`)) {
+      run(() => archiveCourseAction(course.id), onBack);
+    }
+  }
+
   return (
     <div className={styles.container}>
-      <button
-        type="button"
-        className={styles.backButton}
-        onClick={onBack}
-        aria-label="Back to School Overview"
-      >
-        <ArrowLeft size={16} aria-hidden="true" />
-        <span>Back to School Overview</span>
-      </button>
+      {/* Top navigation bar */}
+      <div className={styles.topBar}>
+        <Button variant="secondary" size="sm" onClick={onBack} aria-label="Back to School Overview">
+          <ArrowLeft size={15} aria-hidden="true" />
+          <span>Back to School</span>
+        </Button>
+      </div>
 
       {error ? (
-        <div style={{ padding: "0.75rem", borderRadius: "var(--radius-md)", background: "color-mix(in oklch, var(--destructive) 15%, transparent)", color: "var(--destructive)" }}>
+        <div className={styles.errorBanner} role="alert">
           {error}
         </div>
       ) : null}
 
-      {/* Course Header */}
-      <div className={styles.courseHeader}>
-        <div className={styles.courseInfo}>
-          <span
-            className={styles.swatch}
-            style={{ backgroundColor: course.color ?? "var(--accent)" }}
-            aria-hidden="true"
-          />
-          <div className={styles.courseMeta}>
-            <p className={styles.courseCode}>{course.code}</p>
-            <h2>{course.name}</h2>
-            <p className={styles.courseDetails}>
-              {[course.instructor, course.location].filter(Boolean).join(" · ") ||
-                "No instructor or location set"}
-            </p>
+      {/* Course Header Banner */}
+      <div
+        className={styles.courseHeader}
+        style={
+          {
+            "--course-accent": course.color ?? "var(--accent)",
+          } as React.CSSProperties
+        }
+      >
+        <div className={styles.courseIdentity}>
+          <div className={styles.codeBadgeRow}>
+            <Badge variant="subtle" size="sm">
+              {course.code}
+            </Badge>
+            {course.meetings.length > 0 ? (
+              <Badge variant="outline" size="sm">
+                {course.meetings.length} {course.meetings.length === 1 ? "meeting" : "meetings"}/week
+              </Badge>
+            ) : null}
+          </div>
+
+          <h2 className={styles.courseTitle}>{course.name}</h2>
+
+          <div className={styles.courseMetaRow}>
+            {course.instructor ? (
+              <span className={styles.metaItem}>
+                <User size={13} aria-hidden="true" />
+                <span>{course.instructor}</span>
+              </span>
+            ) : null}
+            {course.location ? (
+              <span className={styles.metaItem}>
+                <MapPin size={13} aria-hidden="true" />
+                <span>{course.location}</span>
+              </span>
+            ) : null}
           </div>
         </div>
 
+        {/* Action buttons */}
         <div className={styles.headerActions}>
-          <button
-            type="button"
-            onClick={() => setShowMeetingForm((v) => !v)}
-            aria-expanded={showMeetingForm}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setEditingMeeting(null);
+              setShowMeetingModal(true);
+            }}
           >
-            <CalendarPlus size={15} aria-hidden="true" />
-            <span>Meeting</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowMaterialForm((v) => !v)}
-            aria-expanded={showMaterialForm}
+            <CalendarPlus size={14} aria-hidden="true" />
+            <span>+ Meeting</span>
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowMaterialModal(true)}
           >
-            <FileText size={15} aria-hidden="true" />
-            <span>Material</span>
-          </button>
-          <button
-            type="button"
+            <FilePlus size={14} aria-hidden="true" />
+            <span>+ Material</span>
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setShowAssistant(true)}
-            aria-label={`AI Assistant for ${course.code}`}
+            aria-label={`AI Study Assistant for ${course.code}`}
           >
-            <Sparkles size={15} aria-hidden="true" />
+            <Sparkles size={14} aria-hidden="true" />
             <span>AI Assistant</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => run(() => archiveCourseAction(course.id), onBack)}
-            style={{ color: "var(--text-muted)" }}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleArchive}
+            disabled={pending}
+            style={{ color: "var(--text-tertiary)" }}
           >
             Archive
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* Meeting Form */}
-      {showMeetingForm ? (
-        <form
-          className={styles.meetingForm}
-          onSubmit={(event) => {
-            event.preventDefault();
-            const data = new FormData(event.currentTarget);
-            run(
-              () =>
-                saveMeetingAction(null, {
-                  courseId: course.id,
-                  title: String(data.get("title")),
-                  weekdays: data.getAll("weekdays").map(Number),
-                  startDate: String(data.get("startDate")),
-                  endDateExclusive: String(data.get("endDate")),
-                  startTime: String(data.get("startTime")),
-                  endTime: String(data.get("endTime")),
-                  timeZone,
-                  location: String(data.get("location")),
-                }),
-              () => setShowMeetingForm(false),
-            );
-          }}
-        >
-          <label>
-            Meeting title
-            <input name="title" defaultValue="Lecture" required />
-          </label>
-          <fieldset>
-            <legend>Days</legend>
-            {weekdays.map((day, index) => (
-              <label key={day}>
-                <input type="checkbox" name="weekdays" value={index} />
-                {day}
-              </label>
-            ))}
-          </fieldset>
-          <div className={styles.formGrid}>
-            <label>
-              Starts
-              <input type="date" name="startDate" defaultValue={today} required />
-            </label>
-            <label>
-              Ends (optional)
-              <input type="date" name="endDate" />
-            </label>
-            <label>
-              Start time
-              <input type="time" name="startTime" defaultValue="10:00" required />
-            </label>
-            <label>
-              End time
-              <input type="time" name="endTime" defaultValue="11:30" required />
-            </label>
-            <label>
-              Room / Location
-              <input name="location" placeholder={course.location ?? "Room 101"} />
-            </label>
-          </div>
-          <button disabled={pending} type="submit">
-            {pending ? "Saving..." : "Save meeting"}
-          </button>
-        </form>
-      ) : null}
+      {/* Tab Navigation */}
+      <div className={styles.tabNavigation}>
+        <SegmentedControl
+          options={tabOptions}
+          value={activeTab}
+          onChange={setActiveTab}
+          ariaLabel="Course sections"
+        />
+      </div>
 
-      {/* Material Form */}
-      {showMaterialForm ? (
-        <form
-          className={styles.materialForm}
-          onSubmit={(event) => {
-            event.preventDefault();
-            const data = new FormData(event.currentTarget);
-            run(
-              () =>
-                saveCourseMaterialAction(course.id, null, {
-                  title: String(data.get("title")),
-                  type: String(data.get("type")),
-                  url: String(data.get("url")),
-                  description: String(data.get("description")),
-                }),
-              () => setShowMaterialForm(false),
-            );
-          }}
-        >
-          <label>
-            Material Title
-            <input
-              name="title"
-              maxLength={200}
-              placeholder="e.g. Week 1 Lecture Slides / Syllabus"
-              required
-            />
-          </label>
-          <div className={styles.formGrid}>
-            <label>
-              Type
-              <select name="type" defaultValue="document">
-                {courseMaterialTypes.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.label}
-                  </option>
+      {/* Tab 1: Overview & Work */}
+      {activeTab === "overview" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {/* Upcoming Work */}
+          <SchoolUpcomingWork
+            items={courseItems}
+            courses={allCourses}
+            today={today}
+            timeZone={timeZone}
+            title={`Upcoming Work for ${course.code}`}
+          />
+
+          {/* Weekly Meetings List */}
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h3 className={styles.sectionTitle}>
+                <Calendar size={14} aria-hidden="true" />
+                <span>Weekly Meetings</span>
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditingMeeting(null);
+                  setShowMeetingModal(true);
+                }}
+              >
+                + Add meeting
+              </Button>
+            </div>
+
+            {course.meetings.length === 0 ? (
+              <div className={styles.emptyState}>
+                No regular class meetings scheduled yet. Add recurring lectures or labs.
+              </div>
+            ) : (
+              <ul className={styles.resourceList}>
+                {course.meetings.map((meeting) => (
+                  <li key={meeting.id} className={styles.resourceCard}>
+                    <div className={styles.resourceBody}>
+                      <div className={styles.resourceTitleLine}>
+                        <span className={styles.resourceTitle}>{meeting.title}</span>
+                        <Badge variant="subtle" size="sm">
+                          {meeting.weekdays.map((d) => weekdaysShort[d]).join(", ")}
+                        </Badge>
+                      </div>
+                      <p className={styles.resourceDescription}>
+                        <Clock size={12} style={{ display: "inline", marginRight: "0.25rem" }} />
+                        {meeting.startTime} – {meeting.endTime}
+                        {meeting.location ? ` · ${meeting.location}` : ""}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={styles.deleteButton}
+                      onClick={() => run(() => deleteMeetingAction(meeting.id))}
+                      aria-label={`Delete ${meeting.title}`}
+                      title="Delete meeting"
+                    >
+                      <Trash2 size={15} aria-hidden="true" />
+                    </button>
+                  </li>
                 ))}
-              </select>
-            </label>
-            <label>
-              Resource URL / File Link (Optional)
-              <input
-                name="url"
-                type="url"
-                placeholder="https://..."
-              />
-            </label>
+              </ul>
+            )}
           </div>
-          <label>
-            Description / Notes (Optional)
-            <textarea
-              name="description"
-              rows={2}
-              placeholder="Key concepts or instructions..."
-            />
-          </label>
-          <button disabled={pending} type="submit">
-            {pending ? "Saving..." : "Save material"}
-          </button>
-        </form>
+        </div>
       ) : null}
 
-      {/* 1. Upcoming Work */}
-      <SchoolUpcomingWork
-        items={courseItems}
-        courses={allCourses}
-        today={today}
-        timeZone={timeZone}
-        title={`Upcoming Work for ${course.code}`}
-      />
+      {/* Tab 2: Materials & Notes */}
+      {activeTab === "materials" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {/* Course Materials */}
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h3 className={styles.sectionTitle}>
+                <FolderOpen size={14} aria-hidden="true" />
+                <span>Course Materials</span>
+                <Badge variant="subtle" size="sm">
+                  {courseMaterials.length + bbMaterials.length}
+                </Badge>
+              </h3>
 
-      {/* 2. Course Materials (both uploaded and Blackboard) */}
-      <div className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <h3 className={styles.sectionTitle}>
-            <span>Course Materials</span>
-            <span className={styles.badge}>
-              {courseMaterials.length + bbMaterials.length}
-            </span>
-          </h3>
-          {courseMaterials.length > 0 ? (
-            <button
-              type="button"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.3rem",
-                background: "transparent",
-                border: "none",
-                color: "var(--accent-text)",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-              onClick={() => setAiStudyMaterials(courseMaterials)}
-            >
-              <Sparkles size={13} />
-              <span>Study & Summarize</span>
-            </button>
-          ) : null}
-        </div>
-
-        {courseMaterials.length === 0 && bbMaterials.length === 0 ? (
-          <div className={styles.emptyState}>
-            No syllabus, readings, or slides attached to this course yet.
-          </div>
-        ) : (
-          <ul className={styles.resourceList}>
-            {/* Blackboard Ingested Materials */}
-            {bbMaterials.map((bbMat) => (
-              <li key={bbMat.id} className={styles.resourceCard}>
-                <div className={styles.resourceBody}>
-                  <div className={styles.resourceTitleLine}>
-                    <span className={styles.typeBadge}>Blackboard Material</span>
-                    <span className={styles.resourceTitle}>{bbMat.title}</span>
-                  </div>
-                  {bbMat.sourceUrl ? (
-                    <a
-                      href={bbMat.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.resourceLink}
-                    >
-                      <span>Open in Blackboard</span>
-                      <ExternalLink size={12} aria-hidden="true" />
-                    </a>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-
-            {/* Custom Uploaded Course Materials */}
-            {courseMaterials.map((mat) => (
-              <li key={mat.id} className={styles.resourceCard}>
-                <div className={styles.resourceBody}>
-                  <div className={styles.resourceTitleLine}>
-                    <span className={styles.typeBadge}>{mat.type}</span>
-                    <span className={styles.resourceTitle}>{mat.title}</span>
-                  </div>
-                  {mat.url ? (
-                    <a
-                      href={mat.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.resourceLink}
-                    >
-                      <span>Open resource</span>
-                      <ExternalLink size={12} aria-hidden="true" />
-                    </a>
-                  ) : null}
-                  {mat.description ? (
-                    <p className={styles.resourceDescription}>{mat.description}</p>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  className={styles.deleteButton}
-                  onClick={() => run(() => deleteCourseMaterialAction(mat.id))}
-                  aria-label={`Delete ${mat.title}`}
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                {courseMaterials.length > 0 ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setAiStudyMaterials(courseMaterials)}
+                  >
+                    <Sparkles size={13} aria-hidden="true" />
+                    <span>Study & Summarize</span>
+                  </Button>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMaterialModal(true)}
                 >
-                  <Trash2 size={16} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                  + Add material
+                </Button>
+              </div>
+            </div>
 
-      {/* 3. Course Announcements */}
-      <div className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <h3 className={styles.sectionTitle}>
-            <span>Announcements</span>
-            <span className={styles.badge}>{bbAnnouncements.length}</span>
-          </h3>
-        </div>
+            {courseMaterials.length === 0 && bbMaterials.length === 0 ? (
+              <div className={styles.emptyState}>
+                No syllabus, readings, or slides attached to this course yet.
+              </div>
+            ) : (
+              <ul className={styles.resourceList}>
+                {/* Blackboard Ingested Materials */}
+                {bbMaterials.map((bbMat) => (
+                  <li key={bbMat.id} className={styles.resourceCard}>
+                    <div className={styles.resourceBody}>
+                      <div className={styles.resourceTitleLine}>
+                        <Badge variant="outline" size="sm">
+                          Blackboard
+                        </Badge>
+                        <span className={styles.resourceTitle}>{bbMat.title}</span>
+                      </div>
+                      {bbMat.sourceUrl ? (
+                        <a
+                          href={bbMat.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.resourceLink}
+                        >
+                          <span>Open in Blackboard</span>
+                          <ExternalLink size={12} aria-hidden="true" />
+                        </a>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
 
-        {bbAnnouncements.length === 0 ? (
-          <div className={styles.emptyState}>
-            No announcements posted for this course.
-          </div>
-        ) : (
-          <ul className={styles.resourceList}>
-            {bbAnnouncements.map((ann) => (
-              <li key={ann.id} className={styles.resourceCard}>
-                <div className={styles.resourceBody}>
-                  <div className={styles.resourceTitleLine}>
-                    <Megaphone size={14} style={{ color: "var(--text-secondary)" }} aria-hidden="true" />
-                    <span className={styles.resourceTitle}>{ann.title}</span>
-                  </div>
-                  {ann.sourceUrl ? (
-                    <a
-                      href={ann.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.resourceLink}
+                {/* Custom Uploaded Course Materials */}
+                {courseMaterials.map((mat) => (
+                  <li key={mat.id} className={styles.resourceCard}>
+                    <div className={styles.resourceBody}>
+                      <div className={styles.resourceTitleLine}>
+                        <Badge variant="subtle" size="sm">
+                          {mat.type}
+                        </Badge>
+                        <span className={styles.resourceTitle}>{mat.title}</span>
+                      </div>
+                      {mat.url ? (
+                        <a
+                          href={mat.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.resourceLink}
+                        >
+                          <span>Open resource</span>
+                          <ExternalLink size={12} aria-hidden="true" />
+                        </a>
+                      ) : null}
+                      {mat.description ? (
+                        <p className={styles.resourceDescription}>{mat.description}</p>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.deleteButton}
+                      onClick={() => run(() => deleteCourseMaterialAction(mat.id))}
+                      aria-label={`Delete ${mat.title}`}
+                      title="Delete material"
                     >
-                      <span>Open in Blackboard</span>
-                      <ExternalLink size={12} aria-hidden="true" />
-                    </a>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* 4. Weekly Timetable Meetings */}
-      <div className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <h3 className={styles.sectionTitle}>
-            <span>Weekly Timetable</span>
-            <span className={styles.badge}>{course.meetings.length}</span>
-          </h3>
-        </div>
-
-        {course.meetings.length === 0 ? (
-          <div className={styles.emptyState}>
-            No weekly meetings scheduled.
+                      <Trash2 size={15} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        ) : (
-          <ul className={styles.resourceList}>
-            {course.meetings.map((meeting) => (
-              <li key={meeting.id} className={styles.resourceCard}>
-                <div className={styles.resourceBody}>
-                  <div className={styles.resourceTitleLine}>
-                    <span className={styles.resourceTitle}>{meeting.title}</span>
-                  </div>
-                  <p className={styles.resourceDescription}>
-                    {meeting.weekdays.map((day) => weekdays[day]).join(", ")} · {meeting.startTime}–{meeting.endTime}
-                    {meeting.location ? ` · ${meeting.location}` : ""}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className={styles.deleteButton}
-                  onClick={() => run(() => deleteMeetingAction(meeting.id))}
-                  aria-label={`Delete ${meeting.title}`}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
 
-      {/* 5. Predictions Panel */}
-      <CoursePredictionsPanel
-        courseId={course.id}
-        courseCode={course.code}
-      />
+          {/* Course Announcements */}
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h3 className={styles.sectionTitle}>
+                <Megaphone size={14} aria-hidden="true" />
+                <span>Announcements</span>
+                <Badge variant="subtle" size="sm">
+                  {bbAnnouncements.length}
+                </Badge>
+              </h3>
+            </div>
 
-      {/* 6. Recent Blackboard Activity for this Course */}
-      <SchoolActivityFeed
-        events={courseEvents}
-        courses={allCourses}
-        timeZone={timeZone}
-        title={`Recent Blackboard Activity for ${course.code}`}
-      />
+            {bbAnnouncements.length === 0 ? (
+              <div className={styles.emptyState}>
+                No announcements posted for this course.
+              </div>
+            ) : (
+              <ul className={styles.resourceList}>
+                {bbAnnouncements.map((ann) => (
+                  <li key={ann.id} className={styles.resourceCard}>
+                    <div className={styles.resourceBody}>
+                      <div className={styles.resourceTitleLine}>
+                        <Megaphone
+                          size={14}
+                          style={{ color: "var(--text-secondary)" }}
+                          aria-hidden="true"
+                        />
+                        <span className={styles.resourceTitle}>{ann.title}</span>
+                      </div>
+                      {ann.sourceUrl ? (
+                        <a
+                          href={ann.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.resourceLink}
+                        >
+                          <span>Open in Blackboard</span>
+                          <ExternalLink size={12} aria-hidden="true" />
+                        </a>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ) : null}
 
-      {/* AI Modals */}
+      {/* Tab 3: Intelligence & Activity */}
+      {activeTab === "intelligence" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {/* Predictions Panel */}
+          <CoursePredictionsPanel
+            courseId={course.id}
+            courseCode={course.code}
+          />
+
+          {/* Recent Blackboard Activity for this Course */}
+          <SchoolActivityFeed
+            events={courseEvents}
+            courses={allCourses}
+            timeZone={timeZone}
+            title={`Recent Blackboard Activity for ${course.code}`}
+          />
+        </div>
+      ) : null}
+
+      {/* Modals */}
+      {showMeetingModal ? (
+        <MeetingFormModal
+          courseId={course.id}
+          courseCode={course.code}
+          courseLocation={course.location}
+          today={today}
+          timeZone={timeZone}
+          meeting={editingMeeting}
+          onClose={() => {
+            setShowMeetingModal(false);
+            setEditingMeeting(null);
+          }}
+        />
+      ) : null}
+
+      {showMaterialModal ? (
+        <MaterialFormModal
+          courseId={course.id}
+          courseCode={course.code}
+          onClose={() => setShowMaterialModal(false)}
+        />
+      ) : null}
+
       {aiStudyMaterials ? (
         <CourseMaterialIntelligenceModal
           materials={aiStudyMaterials.map((m) => ({

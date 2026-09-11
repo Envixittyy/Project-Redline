@@ -4,75 +4,80 @@
   gap: 1.5rem;
 }
 
-.backButton {
-  display: inline-flex;
+.topBar {
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
-  align-self: flex-start;
-  min-height: 2.75rem;
-  padding: 0.5rem 0.85rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-interactive);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background var(--motion-fast) var(--motion-ease);
-}
-
-.backButton:hover {
-  background: var(--surface-hover);
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .courseHeader {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.25rem;
   padding: 1.5rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--surface-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  flex-wrap: wrap;
+  position: relative;
+  overflow: hidden;
 }
 
-.courseInfo {
+.courseHeader::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--course-accent, var(--accent));
+}
+
+.courseIdentity {
   display: flex;
-  align-items: flex-start;
-  gap: 0.85rem;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1;
 }
 
-.swatch {
-  width: 1.1rem;
-  height: 1.1rem;
-  border-radius: 50%;
-  margin-top: 0.35rem;
-  flex-shrink: 0;
+.codeBadgeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.courseMeta h2 {
-  margin: 0.15rem 0 0.35rem;
-  font-size: 1.4rem;
-  font-weight: 750;
-  color: var(--text-primary);
-}
-
-.courseCode {
-  margin: 0;
-  font-size: 0.8rem;
+.codeBadge {
+  font-size: 0.8125rem;
   font-weight: 800;
   color: var(--accent-text);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.courseDetails {
+.courseTitle {
+  font-size: 1.5rem;
+  font-weight: 750;
+  color: var(--text-primary);
   margin: 0;
+  line-height: 1.25;
+}
+
+.courseMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   font-size: 0.8125rem;
   color: var(--text-secondary);
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .headerActions {
@@ -82,24 +87,14 @@
   flex-wrap: wrap;
 }
 
-.headerActions button {
-  display: inline-flex;
-  min-height: 2.75rem;
+.tabNavigation {
+  display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.85rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-interactive);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.headerActions button:hover {
-  background: var(--surface-hover);
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-hairline);
+  padding-bottom: 0.75rem;
 }
 
 .section {
@@ -116,18 +111,15 @@
 }
 
 .sectionTitle {
-  font-size: 1.05rem;
+  font-size: 0.8125rem;
   font-weight: 750;
-  color: var(--text-primary);
-}
-
-.badge {
-  font-size: 0.72rem;
-  padding: 0.15rem 0.45rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-subtle);
-  color: var(--text-secondary);
-  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
 }
 
 .resourceList {
@@ -148,6 +140,11 @@
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
+  transition: background var(--motion-fast) var(--motion-ease);
+}
+
+.resourceCard:hover {
+  background: var(--surface-hover);
 }
 
 .resourceBody {
@@ -169,16 +166,6 @@
   font-size: 0.925rem;
   font-weight: 650;
   color: var(--text-primary);
-}
-
-.typeBadge {
-  font-size: 0.68rem;
-  font-weight: 750;
-  text-transform: uppercase;
-  padding: 0.12rem 0.45rem;
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklch, var(--info) 15%, transparent);
-  color: var(--info);
 }
 
 .resourceDescription {
@@ -204,117 +191,55 @@
 }
 
 .deleteButton {
-  min-height: 2.75rem;
-  width: 2.75rem;
-  display: flex;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0.4rem;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: color var(--motion-fast) var(--motion-ease);
+  transition: all var(--motion-fast) var(--motion-ease);
+  min-width: 2.25rem;
+  min-height: 2.25rem;
 }
 
 .deleteButton:hover {
   color: var(--destructive);
-  background: color-mix(in oklch, var(--destructive) 10%, transparent);
+  background: color-mix(in oklch, var(--destructive) 15%, transparent);
 }
 
 .emptyState {
-  padding: 2rem 1rem;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
   border-radius: var(--radius-md);
-  border: 1px dashed var(--border);
+  border: 1px dashed var(--border-subtle);
   background: var(--surface-subtle);
   color: var(--text-secondary);
-  font-size: 0.875rem;
+  font-size: 0.84rem;
 }
 
-.formGrid {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.materialForm,
-.meetingForm {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1rem;
+.errorBanner {
+  padding: 0.75rem 1rem;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-glass);
+  background: color-mix(in oklch, var(--destructive) 15%, transparent);
+  color: var(--destructive);
+  font-size: 0.84rem;
+  font-weight: 600;
 }
 
-.materialForm label,
-.meetingForm label {
-  display: grid;
-  gap: 0.35rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-}
+@media (max-width: 640px) {
+  .courseHeader {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1.15rem;
+  }
 
-.materialForm input,
-.materialForm select,
-.materialForm textarea,
-.meetingForm input {
-  min-height: 2.75rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-strong);
-  background: var(--surface-interactive);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.8125rem;
-}
-
-.materialForm textarea {
-  min-height: 4.5rem;
-}
-
-.meetingForm fieldset {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  padding: 0.5rem 0;
-  border: none;
-  margin: 0;
-}
-
-.meetingForm fieldset legend {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  margin-bottom: 0.25rem;
-}
-
-.meetingForm fieldset label {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.35rem;
-  cursor: pointer;
-}
-
-.materialForm button,
-.meetingForm button {
-  min-height: 2.75rem;
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--accent-foreground);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  cursor: pointer;
-  align-self: flex-start;
-}
-
-.materialForm button:disabled,
-.meetingForm button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  .headerActions {
+    border-top: 1px solid var(--border-hairline);
+    padding-top: 0.75rem;
+  }
 }

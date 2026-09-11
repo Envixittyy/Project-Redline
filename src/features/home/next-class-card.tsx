@@ -2,7 +2,6 @@ import { BookOpen, CalendarCheck, Clock, MapPin, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { Surface } from "@/components/ui/surface";
 import type { CourseWithMeetings } from "@/types/course";
 
 import { resolveNextClass } from "./home-classes";
@@ -18,8 +17,7 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
 
   if (result.kind === "none_configured") {
     return (
-      <Surface
-        variant="base"
+      <section
         className={`${styles.sectionCard} motion-enter`}
         data-dashboard-widget="next_class"
       >
@@ -40,7 +38,7 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
         <p className={styles.empty}>
           Add courses and your weekly timetable in School to track classes here.
         </p>
-      </Surface>
+      </section>
     );
   }
 
@@ -49,8 +47,7 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
     const nextOcc = result.nextOccurrence;
 
     return (
-      <Surface
-        variant="base"
+      <section
         className={`${styles.sectionCard} motion-enter`}
         data-dashboard-widget="next_class"
       >
@@ -95,7 +92,7 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
               : "No classes scheduled for today. Enjoy the open time."}
           </p>
         )}
-      </Surface>
+      </section>
     );
   }
 
@@ -103,8 +100,7 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
   const isInProgress = result.kind === "in_progress";
 
   return (
-    <Surface
-      variant="base"
+    <section
       className={`${styles.sectionCard} ${isInProgress ? styles.cardActive : ""} motion-enter`}
       data-dashboard-widget="next_class"
     >
@@ -162,7 +158,7 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
           ) : null}
         </div>
       </div>
-    </Surface>
+    </section>
   );
 }
 

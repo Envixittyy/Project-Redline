@@ -13,7 +13,6 @@ import { useMemo, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import buttonStyles from "@/components/ui/button.module.css";
-import { Surface } from "@/components/ui/surface";
 import type { CalendarItem } from "@/features/calendar/calendar-items";
 import type { Task } from "@/types/task";
 
@@ -77,8 +76,7 @@ export function WhatShouldIDoNow({
 
   return (
     <>
-      <Surface
-        variant="glass"
+      <section
         className={`${styles.container} ${isLiveAction ? styles.containerLive : ""} motion-enter`}
         data-dashboard-widget="planning"
       >
@@ -129,7 +127,7 @@ export function WhatShouldIDoNow({
         </div>
 
         {children ? <div className={styles.extraContent}>{children}</div> : null}
-      </Surface>
+      </section>
 
       {planningModalOpen ? (
         <PlanMyDayDialog

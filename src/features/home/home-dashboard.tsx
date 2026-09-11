@@ -2,15 +2,11 @@ import Link from "next/link";
 import {
   AlertCircle,
   ArrowRight,
-  BookOpen,
-  CalendarClock,
-  CalendarDays,
   NotebookPen,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import buttonStyles from "@/components/ui/button.module.css";
-import { Surface } from "@/components/ui/surface";
 import type { CalendarItem } from "@/features/calendar/calendar-items";
 import { WhatShouldIDoNow } from "@/features/planning/what-should-i-do-now";
 import type { CourseWithMeetings } from "@/types/course";
@@ -67,6 +63,14 @@ export function HomeDashboard({
     timeZone,
   }).format(new Date());
 
+  const currentInstant = new Date();
+  const formattedTime = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone,
+  }).format(currentInstant);
+
   const loadBadgeTone =
     telemetry?.loadLevel === "nominal"
       ? "success"
@@ -77,7 +81,7 @@ export function HomeDashboard({
           : "destructive";
 
   return (
-    <div>
+    <div className={styles.dailyCanvas}>
       {/* 1. Restrained S7 Greeting & Control Strip */}
       <header className={styles.homeHeader}>
         <div className={styles.greetingBlock}>
@@ -101,34 +105,40 @@ export function HomeDashboard({
             </div>
           ) : null}
         </div>
+        <div className={styles.clockBlock} aria-label={`Current time ${formattedTime}`}>
+          <time className={styles.clock} dateTime={currentInstant.toISOString()}>
+            {formattedTime}
+          </time>
+          <span className={styles.clockCaption}>Your day, in {timeZone}</span>
+        </div>
       </header>
 
       {/* 2. Customizable Daily Control Surface */}
       <DashboardCustomizer>
-        {/* Anchor: What Matters Now */}
-        <WhatShouldIDoNow
-          tasks={today}
-          scheduleItems={schedule}
-          timeZone={timeZone}
-        >
-          <PossibleAssessmentsCard />
-        </WhatShouldIDoNow>
+        <div className={styles.focusBand}>
+          <div className={styles.nextClassFocus} data-dashboard-widget="next_class">
+            <NextClassCard courses={courses} timeZone={timeZone} />
+          </div>
+          <WhatShouldIDoNow
+            tasks={today}
+            scheduleItems={schedule}
+            timeZone={timeZone}
+          >
+            <PossibleAssessmentsCard />
+          </WhatShouldIDoNow>
+        </div>
 
         {/* Two-Column Asymmetric Flow */}
         <div className={styles.mainLayout}>
           {/* Column 1 (Left ~62%): The Daily Agenda & Tasks */}
           <div className={styles.primaryColumn}>
             {/* Today's Schedule Timeline */}
-            <Surface
-              variant="base"
+            <section
               className={`${styles.sectionCard} motion-enter`}
               data-dashboard-widget="schedule"
             >
               <div className={styles.sectionHeader}>
                 <div className={styles.sectionTitleGroup}>
-                  <span className={styles.sectionIconWrap} aria-hidden="true">
-                    <CalendarDays size={16} />
-                  </span>
                   <div>
                     <p className={styles.sectionKicker}>Today&apos;s Agenda</p>
                     <h3 className={styles.sectionTitle}>
@@ -147,7 +157,7 @@ export function HomeDashboard({
                 timeZone={timeZone}
                 empty="Nothing scheduled for today. Your day is open."
               />
-            </Surface>
+            </section>
 
             {/* Optional Today's Classes Breakdown */}
             <div data-dashboard-widget="today_classes">
@@ -155,20 +165,18 @@ export function HomeDashboard({
             </div>
 
             {/* Tasks Section: Overdue Triage + Today's Focus */}
-            <Surface
-              variant="base"
+            <section
               className={`${styles.sectionCard} motion-enter`}
               data-dashboard-widget="today"
             >
               <div className={styles.sectionHeader}>
                 <div className={styles.sectionTitleGroup}>
-                  <span className={styles.sectionIconWrap} aria-hidden="true">
-                    <CalendarClock size={16} />
-                  </span>
                   <div>
                     <p className={styles.sectionKicker}>Action Items</p>
                     <h3 className={styles.sectionTitle}>
-                      {today.length
+                      {overdue.length
+                        ? `${overdue.length} need attention`
+                        : today.length
                         ? `${today.length} task${today.length === 1 ? "" : "s"} for today`
                         : "Clear tasks"}
                     </h3>
@@ -190,9 +198,6 @@ export function HomeDashboard({
                       <AlertCircle size={15} aria-hidden="true" />
                       <span>Overdue Tasks</span>
                     </div>
-                    <Badge tone="destructive" size="sm">
-                      {overdue.length} need attention
-                    </Badge>
                   </div>
                   <ul className={styles.overdueList}>
                     {overdue.slice(0, 3).map((task) => (
@@ -253,29 +258,20 @@ export function HomeDashboard({
                   View upcoming →
                 </Link>
               </div>
-            </Surface>
+            </section>
           </div>
 
           {/* Column 2 (Right ~38%): Academic Context & Quick Workspace */}
           <div className={styles.secondaryColumn}>
-            {/* Next Class Card */}
-            <div data-dashboard-widget="next_class">
-              <NextClassCard courses={courses} timeZone={timeZone} />
-            </div>
-
             {/* Enrolled Courses Reference */}
-            <Surface
-              variant="base"
+            <section
               className={`${styles.sectionCard} motion-enter`}
               data-dashboard-widget="school"
             >
               <div className={styles.sectionHeader}>
                 <div className={styles.sectionTitleGroup}>
-                  <span className={styles.sectionIconWrap} aria-hidden="true">
-                    <BookOpen size={16} />
-                  </span>
                   <div>
-                    <p className={styles.sectionKicker}>Academic</p>
+                    <p className={styles.sectionKicker}>Courses</p>
                     <h3 className={styles.sectionTitle}>
                       {courses.length
                         ? `${courses.length} active course${courses.length === 1 ? "" : "s"}`
@@ -313,11 +309,10 @@ export function HomeDashboard({
                   Add courses and weekly meeting schedules in School.
                 </p>
               )}
-            </Surface>
+            </section>
 
             {/* Quick Notes Tile */}
-            <Surface
-              variant="subtle"
+            <section
               className={`${styles.notesCard} motion-enter`}
               data-dashboard-widget="notes"
             >
@@ -339,7 +334,7 @@ export function HomeDashboard({
                   <ArrowRight size={13} aria-hidden="true" />
                 </Link>
               </div>
-            </Surface>
+            </section>
           </div>
         </div>
       </DashboardCustomizer>

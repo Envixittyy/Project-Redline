@@ -1,7 +1,6 @@
 import { BookOpen, MapPin } from "lucide-react";
 import Link from "next/link";
 
-import { Surface } from "@/components/ui/surface";
 import type { CourseWithMeetings } from "@/types/course";
 
 import { projectTodayClasses } from "./home-classes";
@@ -16,8 +15,7 @@ export function TodayClassesCard({ courses, timeZone }: TodayClassesCardProps) {
   const occurrences = projectTodayClasses(courses, timeZone);
 
   return (
-    <Surface
-      variant="base"
+    <section
       className={`${styles.sectionCard} motion-enter`}
       data-dashboard-widget="today_classes"
     >
@@ -91,6 +89,6 @@ export function TodayClassesCard({ courses, timeZone }: TodayClassesCardProps) {
           Add courses and weekly meeting schedules in School.
         </p>
       )}
-    </Surface>
+    </section>
   );
 }

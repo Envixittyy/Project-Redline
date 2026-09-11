@@ -3,16 +3,31 @@
   gap: 1.25rem;
 }
 
+.heading {
+  display: flex;
+  flex-direction: column;
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--accent-text);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .heading h1 {
   margin: 0;
   color: var(--text-primary);
-  font-size: 1.75rem;
+  font-size: clamp(1.75rem, 5vw, 2.15rem);
   font-weight: 700;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
 }
 
-.heading p {
-  margin: 0.4rem 0 0;
+.description {
+  margin: 0.45rem 0 0;
   color: var(--text-secondary);
   font-size: 0.875rem;
   line-height: 1.5;

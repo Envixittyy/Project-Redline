@@ -7,7 +7,7 @@ import {
   ShieldCheck,
   Smartphone,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,20 @@ import {
   sendTestNotificationAction,
 } from "./notification-actions";
 import styles from "./notification-preferences.module.css";
+
+type PushStatus = "active" | "disabled" | "blocked" | "unsupported";
+
+function readPushStatus(): PushStatus {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return "unsupported";
+  }
+  if (Notification.permission === "denied") return "blocked";
+  if (Notification.permission === "granted") return "active";
+  return "disabled";
+}
+
+const subscribeToPushStatus = () => () => {};
+const readServerPushStatus = (): PushStatus => "unsupported";
 
 export function NotificationPreferences() {
   const [loading, setLoading] = useState(true);
@@ -48,24 +62,17 @@ export function NotificationPreferences() {
   const [timeZone, setTimeZone] = useState("Asia/Manila");
 
   // Push notification state
-  const [pushStatus, setPushStatus] = useState<
-    "active" | "disabled" | "blocked" | "unsupported"
-  >("unsupported");
+  const detectedPushStatus = useSyncExternalStore(
+    subscribeToPushStatus,
+    readPushStatus,
+    readServerPushStatus,
+  );
+  const [pushStatusOverride, setPushStatusOverride] =
+    useState<PushStatus | null>(null);
+  const pushStatus = pushStatusOverride ?? detectedPushStatus;
   const [pushLoading, setPushLoading] = useState(false);
   const [testPushLoading, setTestPushLoading] = useState(false);
   const [testPushMessage, setTestPushMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission === "denied") {
-        setPushStatus("blocked");
-      } else if (Notification.permission === "granted") {
-        setPushStatus("active");
-      } else {
-        setPushStatus("disabled");
-      }
-    }
-  }, []);
 
   useEffect(() => {
     async function load() {
@@ -133,7 +140,7 @@ export function NotificationPreferences() {
     try {
       const permission = await Notification.requestPermission();
       if (permission === "granted") {
-        setPushStatus("active");
+        setPushStatusOverride("active");
 
         if ("serviceWorker" in navigator) {
           const registration = await navigator.serviceWorker.ready;
@@ -160,7 +167,7 @@ export function NotificationPreferences() {
           }
         }
       } else if (permission === "denied") {
-        setPushStatus("blocked");
+        setPushStatusOverride("blocked");
       }
     } catch (err) {
       console.error("[push] Permission request failed:", err);
@@ -180,7 +187,7 @@ export function NotificationPreferences() {
           await disablePushSubscriptionAction(sub.endpoint);
         }
       }
-      setPushStatus("disabled");
+      setPushStatusOverride("disabled");
     } catch (err) {
       console.error("[push] Failed to disable push:", err);
     } finally {

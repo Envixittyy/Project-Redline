@@ -33,15 +33,18 @@
 /* Desktop Grid View */
 .desktopGrid {
   display: grid;
-  grid-template-columns: repeat(var(--day-columns, 5), minmax(0, 1fr));
+  grid-template-columns: repeat(var(--day-columns, 5), minmax(9rem, 1fr));
   gap: 0.85rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  -webkit-overflow-scrolling: touch;
 }
 
 .dayColumn {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  min-width: 0;
+  min-width: 9rem;
 }
 
 .dayColumnHeader {
@@ -127,6 +130,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.4rem;
+  flex-wrap: wrap;
 }
 
 .meetingTime {
@@ -149,6 +153,8 @@
   color: var(--text-primary);
   line-height: 1.3;
   margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .meetingLocation {
@@ -160,6 +166,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .emptyDay {

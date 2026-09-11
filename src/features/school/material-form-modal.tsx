@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { courseMaterialTypes, type CourseMaterial } from "@/types/course-material";
 import { saveCourseMaterialAction } from "./school-material-actions";
+import styles from "./course-form-modal.module.css";
 
 type MaterialFormModalProps = {
   courseId: string;
@@ -63,7 +64,7 @@ export function MaterialFormModal({
       description="Attach syllabi, lecture slides, readings, or resource links."
       onClose={onClose}
       footer={
-        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", width: "100%" }}>
+        <div className={styles.footerActions}>
           <Button variant="ghost" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
@@ -73,34 +74,15 @@ export function MaterialFormModal({
         </div>
       }
     >
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <form onSubmit={handleSubmit} className={styles.form}>
         {error ? (
-          <div
-            style={{
-              padding: "0.6rem 0.8rem",
-              borderRadius: "var(--radius-sm)",
-              background: "color-mix(in oklch, var(--destructive) 15%, transparent)",
-              color: "var(--destructive)",
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-            }}
-            role="alert"
-          >
+          <div className={styles.errorBanner} role="alert">
             {error}
           </div>
         ) : null}
 
-        <div>
-          <label
-            htmlFor="material-title"
-            style={{
-              display: "block",
-              marginBottom: "0.35rem",
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              color: "var(--text-secondary)",
-            }}
-          >
+        <div className={styles.field}>
+          <label htmlFor="material-title" className={styles.label}>
             Material Title *
           </label>
           <Input
@@ -114,35 +96,16 @@ export function MaterialFormModal({
           />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-          <div>
-            <label
-              htmlFor="material-type"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
-            >
+        <div className={styles.grid2Col}>
+          <div className={styles.field}>
+            <label htmlFor="material-type" className={styles.label}>
               Material Type *
             </label>
             <select
               id="material-type"
               value={type}
               onChange={(e) => setType(e.target.value)}
-              style={{
-                width: "100%",
-                minHeight: "2.75rem",
-                padding: "0.6rem 0.75rem",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border)",
-                background: "var(--surface)",
-                color: "var(--text-primary)",
-                font: "inherit",
-                fontSize: "0.875rem",
-              }}
+              className={styles.select}
             >
               {courseMaterialTypes.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -152,17 +115,8 @@ export function MaterialFormModal({
             </select>
           </div>
 
-          <div>
-            <label
-              htmlFor="material-url"
-              style={{
-                display: "block",
-                marginBottom: "0.35rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}
-            >
+          <div className={styles.field}>
+            <label htmlFor="material-url" className={styles.label}>
               Link / URL (Optional)
             </label>
             <Input
@@ -175,17 +129,8 @@ export function MaterialFormModal({
           </div>
         </div>
 
-        <div>
-          <label
-            htmlFor="material-desc"
-            style={{
-              display: "block",
-              marginBottom: "0.35rem",
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              color: "var(--text-secondary)",
-            }}
-          >
+        <div className={styles.field}>
+          <label htmlFor="material-desc" className={styles.label}>
             Notes / Instructions (Optional)
           </label>
           <textarea
@@ -194,18 +139,7 @@ export function MaterialFormModal({
             placeholder="Key concepts, reading instructions, or exam guidelines..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            style={{
-              width: "100%",
-              minHeight: "4rem",
-              padding: "0.6rem 0.75rem",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border)",
-              background: "var(--surface)",
-              color: "var(--text-primary)",
-              font: "inherit",
-              fontSize: "0.875rem",
-              resize: "vertical",
-            }}
+            className={styles.textarea}
           />
         </div>
       </form>

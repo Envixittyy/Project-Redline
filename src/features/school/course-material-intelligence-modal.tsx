@@ -173,9 +173,12 @@ export function CourseMaterialIntelligenceModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close"
             style={{
-              width: "2.25rem",
-              height: "2.25rem",
+              minWidth: "2.75rem",
+              minHeight: "2.75rem",
+              width: "2.75rem",
+              height: "2.75rem",
               borderRadius: "var(--radius-sm)",
               border: "1px solid var(--border-subtle)",
               background: "var(--surface)",
@@ -190,7 +193,7 @@ export function CourseMaterialIntelligenceModal({
         </div>
 
         {/* Material Selection Chips */}
-        <div style={{ padding: "0.75rem 1.5rem", borderBottom: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
+        <div style={{ padding: "0.75rem 1rem", borderBottom: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-secondary)", display: "block", marginBottom: "0.4rem" }}>
             Select Materials (Max 3):
           </span>
@@ -206,7 +209,8 @@ export function CourseMaterialIntelligenceModal({
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "0.35rem",
-                    padding: "0.35rem 0.65rem",
+                    padding: "0.4rem 0.75rem",
+                    minHeight: "2.25rem",
                     borderRadius: "var(--radius-pill)",
                     border: `1px solid ${isSelected ? "var(--accent-border)" : "var(--border-subtle)"}`,
                     background: isSelected ? "var(--accent-muted)" : "var(--surface-subtle)",
@@ -225,8 +229,8 @@ export function CourseMaterialIntelligenceModal({
         </div>
 
         {/* Tabs & Trigger */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 1.5rem", borderBottom: "1px solid var(--border-subtle)" }}>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", padding: "0.75rem 1rem", borderBottom: "1px solid var(--border-subtle)" }}>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             <button
               type="button"
               onClick={() => {
@@ -237,7 +241,8 @@ export function CourseMaterialIntelligenceModal({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.35rem",
-                padding: "0.45rem 0.8rem",
+                padding: "0.5rem 0.8rem",
+                minHeight: "2.75rem",
                 borderRadius: "var(--radius-md)",
                 border: `1px solid ${mode === "summary" ? "var(--accent-border)" : "transparent"}`,
                 background: mode === "summary" ? "var(--surface)" : "transparent",
@@ -259,7 +264,8 @@ export function CourseMaterialIntelligenceModal({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.35rem",
-                padding: "0.45rem 0.8rem",
+                padding: "0.5rem 0.8rem",
+                minHeight: "2.75rem",
                 borderRadius: "var(--radius-md)",
                 border: `1px solid ${mode === "questions" ? "var(--accent-border)" : "transparent"}`,
                 background: mode === "questions" ? "var(--surface)" : "transparent",
@@ -282,7 +288,8 @@ export function CourseMaterialIntelligenceModal({
               display: "inline-flex",
               alignItems: "center",
               gap: "0.35rem",
-              padding: "0.45rem 1rem",
+              padding: "0.5rem 1rem",
+              minHeight: "2.75rem",
               borderRadius: "var(--radius-md)",
               background: "var(--accent)",
               color: "var(--accent-foreground)",

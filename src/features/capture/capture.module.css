@@ -268,3 +268,198 @@
   margin: 0;
   font-style: italic;
 }
+
+/* Universal Capture Launcher & Triggers */
+.captureTrigger,
+.compactTrigger {
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-control, 0.625rem);
+  font-family: var(--font-sans);
+  font-size: 0.86rem;
+  font-weight: 650;
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.captureTrigger {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-muted);
+  color: var(--accent-text);
+}
+
+.captureTrigger span {
+  margin-right: auto;
+}
+
+.captureTrigger kbd {
+  padding: 0.16rem 0.38rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 0.4rem;
+  color: var(--accent-text);
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+}
+
+.compactTrigger {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.9rem;
+  background: var(--surface-translucent);
+  box-shadow: var(--shadow-card);
+  color: var(--accent-text);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
+}
+
+.captureTrigger:active,
+.compactTrigger:active {
+  transform: scale(0.97);
+}
+
+.launcherBackdrop {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  align-items: end;
+  padding:
+    max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  background: var(--scrim);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.launcherPanel {
+  width: min(100%, 38rem);
+  max-height: calc(
+    100svh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+  );
+  margin-inline: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem;
+  border: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-highlight);
+  border-radius: var(--radius-xl);
+  background: var(--surface-modal, oklch(19.5% 0.03 255 / 92%));
+  box-shadow: var(--shadow-modal);
+  backdrop-filter: blur(var(--blur-surface, 16px));
+  -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
+}
+
+.launcherHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.launcherIcon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--accent-muted);
+  color: var(--accent-text);
+  flex-shrink: 0;
+}
+
+.launcherHeading > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
+.launcherHeading > div:nth-child(2) > p {
+  margin: 0;
+  color: var(--accent-text);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.launcherHeading > div:nth-child(2) > h2 {
+  margin: 0.15rem 0 0;
+  font-size: clamp(1.1rem, 3.5vw, 1.25rem);
+  font-weight: 750;
+  color: var(--text-primary);
+  letter-spacing: -0.025em;
+}
+
+.launcherHeading > button {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control, 0.5rem);
+  background: var(--surface-subtle);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-spring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .launcherHeading > button:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+  }
+}
+
+.launcherHeading > button:active {
+  transform: scale(0.96);
+}
+
+.inboxLink {
+  display: block;
+  margin-top: 0.95rem;
+  color: var(--accent-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  transition: color var(--motion-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .inboxLink:hover {
+    color: var(--accent-bright);
+    text-decoration: underline;
+  }
+}
+
+@media (min-width: 40rem) {
+  .launcherBackdrop {
+    align-items: center;
+  }
+}
+

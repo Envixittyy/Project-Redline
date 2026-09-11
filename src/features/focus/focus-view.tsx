@@ -232,7 +232,7 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
             {renderNowIcon(now)}
             <span>NOW</span>
           </div>
-          {renderNowCountdown(now)}
+          <div className={styles.focalCountdown}>{renderNowCountdown(now)}</div>
         </div>
 
         <h1 id="focus-now-title" className={styles.focalTitle}>

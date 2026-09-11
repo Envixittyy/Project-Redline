@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  max-width: 46rem;
+  max-width: 44rem;
   margin: 0 auto;
   padding: 1.25rem 1rem max(5.5rem, calc(4rem + env(safe-area-inset-bottom, 0px)));
   width: 100%;
@@ -14,13 +14,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.65rem 1rem;
-  border-radius: var(--radius-lg);
+  padding: 0.5rem 0.875rem 0.5rem 0.75rem;
+  border-radius: var(--radius-full);
   background: var(--surface-glass);
-  backdrop-filter: blur(var(--blur-surface, 16px));
-  -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
+  backdrop-filter: blur(var(--blur-surface, 20px));
+  -webkit-backdrop-filter: blur(var(--blur-surface, 20px));
   border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.25);
 }
 
 .topbarLeft {
@@ -33,6 +33,7 @@
   display: flex;
   flex-direction: column;
   text-align: right;
+  padding-right: 0.5rem;
 }
 
 .clockTime {
@@ -40,26 +41,40 @@
   font-weight: 600;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 .clockDate {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: var(--text-tertiary);
+  line-height: 1.2;
 }
 
-/* Main Focal Surface: NOW */
+/* Main Focal Surface: NOW Execution Cocoon */
 .focalCard {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
-  padding: clamp(1.5rem, 4vw, 2.25rem);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-strong);
-  border-top: 1px solid var(--border-highlight);
-  background: var(--surface-base);
-  box-shadow: var(--shadow-card);
+  gap: 1.25rem;
+  padding: clamp(1.75rem, 5vw, 2.5rem);
+  border-radius: var(--radius-2xl, 1.5rem);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-embedded);
+  box-shadow: 0 0 0 1px var(--border-subtle), 0 12px 40px -12px rgba(0, 0, 0, 0.4);
   overflow: hidden;
+}
+
+.focalCard::before {
+  content: "";
+  position: absolute;
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 360px;
+  height: 160px;
+  background: radial-gradient(ellipse at center, var(--accent-muted), transparent 70%);
+  pointer-events: none;
+  opacity: 0.45;
 }
 
 .focalHeader {
@@ -73,20 +88,28 @@
 .focalEyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 750;
   color: var(--accent-text);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
+.focalCountdown {
+  display: inline-flex;
+}
+
+.focalCountdown :global([class*="badge"]) {
+  box-shadow: 0 0 14px -2px var(--accent-muted);
+}
+
 .focalTitle {
-  margin: 0;
-  font-size: clamp(1.4rem, 3.5vw, 1.85rem);
-  font-weight: 750;
-  letter-spacing: -0.025em;
-  line-height: 1.3;
+  margin: 0.25rem 0;
+  font-size: clamp(1.75rem, 4.5vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
   color: var(--text-primary);
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -104,14 +127,15 @@
 .focalMeta p {
   margin: 0;
   line-height: 1.5;
+  color: var(--text-secondary);
 }
 
 .metaTag {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-md);
   background: var(--surface-subtle);
   border: 1px solid var(--border-subtle);
   font-size: 0.8125rem;
@@ -121,20 +145,26 @@
 .focalActions {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  margin-top: 0.5rem;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
   flex-wrap: wrap;
 }
 
-/* Secondary Surface: NEXT UP */
+/* Secondary Surface: NEXT UP (Horizon indicator) */
 .nextCard {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 1.15rem 1.35rem;
-  border-radius: var(--radius-md);
+  gap: 0.45rem;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-xl);
   border: 1px solid var(--border-subtle);
-  background: var(--surface-subtle);
+  background: var(--surface-embedded);
+  opacity: 0.88;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.nextCard:hover {
+  opacity: 1;
 }
 
 .nextHeader {
@@ -148,17 +178,17 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.72rem;
+  font-size: 0.6875rem;
   font-weight: 700;
   color: var(--text-tertiary);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
 
 .nextTitle {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 650;
+  font-size: 1.0625rem;
+  font-weight: 600;
   letter-spacing: -0.015em;
   color: var(--text-primary);
   overflow-wrap: anywhere;
@@ -167,15 +197,15 @@
 
 .nextMeta {
   font-size: 0.8125rem;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
 }
 
-/* Today's Essentials Section */
+/* Today's Essentials Section: Continuous Distraction-Free Checklist */
 .todaySection {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .todayHeader {
@@ -183,15 +213,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0 0.25rem;
+  padding: 0 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .todayTitle {
   margin: 0;
-  font-size: 0.9375rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
 }
 
 .todayCount {
@@ -202,7 +234,7 @@
 .todayList {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -213,22 +245,31 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  min-height: 44px;
-  padding: 0.65rem 0.85rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
+  min-height: 48px;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  border-radius: var(--radius-sm);
   transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+.todayItem:last-child {
+  border-bottom: none;
 }
 
 .todayItem:hover {
   background: var(--surface-interactive);
 }
 
+/* Circular checkbox in Today's Essentials */
+.todayItem label[class*="container"] span[class*="box"] {
+  border-radius: var(--radius-full);
+}
+
 .todayItemLeft {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.75rem;
   min-width: 0;
   flex: 1;
 }
@@ -238,7 +279,7 @@
   width: 1.75rem;
   height: 1.75rem;
   place-items: center;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   background: var(--surface-subtle);
   color: var(--text-tertiary);
   flex-shrink: 0;
@@ -264,6 +305,7 @@
 .itemTitle[data-completed="true"] {
   text-decoration: line-through;
   color: var(--text-tertiary);
+  opacity: 0.65;
 }
 
 .itemMeta {
@@ -282,13 +324,13 @@
 
 .itemTiming[data-overdue="true"] {
   color: var(--warning, #fbbf24);
-  font-weight: 550;
+  font-weight: 600;
 }
 
 .emptyToday {
-  padding: 2rem 1.5rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-subtle);
+  padding: 2.25rem 1.5rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-embedded);
   border: 1px solid var(--border-subtle);
   text-align: center;
 }
@@ -296,6 +338,7 @@
 .emptyToday h3 {
   margin: 0;
   font-size: 0.9375rem;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
@@ -303,6 +346,7 @@
   margin: 0.35rem 0 0;
   font-size: 0.8125rem;
   color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 @media (max-height: 40rem) {
@@ -315,13 +359,13 @@
     padding: 1rem 1.25rem;
   }
   .focalTitle {
-    font-size: 1.25rem;
+    font-size: 1.35rem;
   }
   .nextCard {
     padding: 0.75rem 1rem;
-    gap: 0.45rem;
+    gap: 0.35rem;
   }
   .todaySection {
-    gap: 0.5rem;
+    gap: 0.35rem;
   }
 }

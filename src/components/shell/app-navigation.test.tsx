@@ -29,6 +29,11 @@ describe("S7C Navigation Architecture", () => {
     it("matches nested subroutes without false positives", () => {
       expect(isActiveRoute("/tasks/123", "/tasks")).toBe(true);
       expect(isActiveRoute("/school/cs101", "/school")).toBe(true);
+      expect(isActiveRoute("/settings/ai", "/more")).toBe(true);
+      expect(isActiveRoute("/settings/notifications", "/more")).toBe(true);
+      expect(isActiveRoute("/integrations/calendars", "/more")).toBe(true);
+      expect(isActiveRoute("/integrations/blackboard", "/more")).toBe(true);
+      expect(isActiveRoute("/integrations/notion", "/more")).toBe(true);
       expect(isActiveRoute("/tasks-archive", "/tasks")).toBe(false);
       expect(isActiveRoute("/schoolyard", "/school")).toBe(false);
     });

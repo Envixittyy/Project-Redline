@@ -54,5 +54,14 @@ export function isActiveRoute(pathname: string, href: string, exact = false): bo
     return cleanPath === cleanHref;
   }
 
+  if (cleanHref === "/more") {
+    return (
+      cleanPath === "/more" ||
+      cleanPath.startsWith("/more/") ||
+      cleanPath.startsWith("/settings/") ||
+      cleanPath.startsWith("/integrations/")
+    );
+  }
+
   return cleanPath === cleanHref || cleanPath.startsWith(cleanHref + "/");
 }

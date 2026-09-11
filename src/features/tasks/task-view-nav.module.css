@@ -1,53 +1,192 @@
 .nav {
   min-width: 0;
+  position: relative;
+  z-index: 20;
 }
 
-.list {
+.navBar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.25rem 0.3rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.segmentsTrack {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1;
   overflow-x: auto;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0.15rem 0 0.35rem;
-  list-style: none;
   scrollbar-width: none;
-  scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
 }
 
-.list::-webkit-scrollbar {
+.segmentsTrack::-webkit-scrollbar {
   display: none;
 }
 
-.chip {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  padding: 0 0.85rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-  background: var(--surface-interactive);
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  font-weight: 680;
-  text-decoration: none;
-  white-space: nowrap;
-  scroll-snap-align: start;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    color var(--motion-fast) ease,
-    border-color var(--motion-fast) ease,
-    background-color var(--motion-fast) ease;
+.popoverWrap {
+  flex: none;
+  position: relative;
 }
 
-.chip[data-active] {
+.segment {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+.segment:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.segment[data-active] {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  font-weight: 650;
+}
+
+.overdueBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--destructive);
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.moreButton {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
+}
+
+.moreButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.moreButton[data-active] {
+  background: var(--surface-elevated);
+  color: var(--accent-text);
   border-color: var(--accent-border);
+  box-shadow: var(--shadow-sm);
+  font-weight: 650;
+}
+
+.chevron {
+  color: var(--text-tertiary);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.chevron[data-open] {
+  transform: rotate(180deg);
+}
+
+.menuList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 10rem;
+  padding: 0.35rem;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 550;
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.menuItem:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.menuItem:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.menuItem[data-active] {
   background: var(--accent-muted);
   color: var(--accent-text);
+  font-weight: 650;
+}
+
+.activeDot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .chip:hover:not([data-active]) {
-    border-color: var(--border-strong);
+  .segment:hover:not([data-active]),
+  .moreButton:hover:not([data-active]) {
     color: var(--text-primary);
+    background: var(--surface-hover);
   }
 }
+
+@media (max-width: 30rem) {
+  .segment,
+  .moreButton {
+    min-height: 2.75rem;
+    padding: 0 0.7rem;
+    font-size: 0.8rem;
+  }
+}
+

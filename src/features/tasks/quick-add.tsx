@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, Loader2, Calendar, Flag } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
 
 import { Surface } from "@/components/ui/surface";
@@ -66,9 +66,15 @@ export function QuickAdd({ defaultDueDate }: { defaultDueDate?: string }) {
   }
 
   return (
-    <Surface variant="glass" className={styles.card}>
-      <form ref={formRef} className={styles.form} onSubmit={handleSubmit} noValidate>
-        <div className={styles.primaryRow}>
+    <Surface variant="glass" className={styles.composer}>
+      <form
+        ref={formRef}
+        id="tasks-quick-add"
+        className={styles.form}
+        onSubmit={handleSubmit}
+        noValidate
+      >
+        <div className={styles.inputRow}>
           <label className={styles.titleField}>
             <span className={styles.visuallyHidden}>Task title</span>
             <input
@@ -77,7 +83,7 @@ export function QuickAdd({ defaultDueDate }: { defaultDueDate?: string }) {
               name="title"
               type="text"
               maxLength={200}
-              placeholder="Add a task"
+              placeholder="Add a task… (Press Enter to save)"
               autoComplete="off"
               enterKeyHint="done"
               disabled={pending}
@@ -86,27 +92,45 @@ export function QuickAdd({ defaultDueDate }: { defaultDueDate?: string }) {
             />
           </label>
 
-          <button className={styles.submit} type="submit" disabled={pending}>
-            <Plus size={18} aria-hidden="true" />
-            <span>{pending ? "Adding" : "Add"}</span>
+          <button
+            className={styles.submitButton}
+            type="submit"
+            disabled={pending}
+            aria-label={pending ? "Adding task" : "Add task"}
+          >
+            {pending ? (
+              <Loader2 size={16} className={styles.spinner} aria-hidden="true" />
+            ) : (
+              <Plus size={16} aria-hidden="true" />
+            )}
+            <span className={styles.submitLabel}>{pending ? "Adding" : "Add"}</span>
           </button>
         </div>
 
-        <div className={styles.optionsRow}>
-          <label className={styles.option}>
-            <span>Due</span>
+        <div className={styles.optionsStrip}>
+          <label className={styles.optionPill}>
+            <Calendar size={13} className={styles.optionIcon} aria-hidden="true" />
+            <span className={styles.optionLabel}>Due:</span>
             <input
-              className={styles.control}
+              className={styles.dateControl}
               name="dueDate"
               type="date"
               defaultValue={defaultDueDate}
               disabled={pending}
+              aria-label="Task due date"
             />
           </label>
 
-          <label className={styles.option}>
-            <span>Priority</span>
-            <select className={styles.control} name="priority" defaultValue="none" disabled={pending}>
+          <label className={styles.optionPill}>
+            <Flag size={13} className={styles.optionIcon} aria-hidden="true" />
+            <span className={styles.optionLabel}>Priority:</span>
+            <select
+              className={styles.selectControl}
+              name="priority"
+              defaultValue="none"
+              disabled={pending}
+              aria-label="Task priority"
+            >
               {taskPriorities.map((priority) => (
                 <option key={priority.id} value={priority.id}>
                   {priority.label}

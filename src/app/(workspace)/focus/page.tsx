@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { Surface } from "@/components/ui/surface";
+import { Callout } from "@/components/ui/callout";
 import {
   buildCalendarItems,
   type CalendarItem,
@@ -102,13 +102,9 @@ export default async function FocusPage() {
   if (!configured) {
     return (
       <div style={{ maxWidth: "48rem", margin: "2rem auto", padding: "1rem" }}>
-        <Surface variant="glass" style={{ padding: "1.5rem" }}>
-          <h2>Connect Supabase to enter Focus Mode</h2>
-          <p>
-            Configure the public Supabase URL and publishable key to load your
-            tasks and commitments in Focus Mode.
-          </p>
-        </Surface>
+        <Callout variant="warning" title="Connect Supabase to enter Focus Mode">
+          Configure the public Supabase URL and publishable key to load your tasks and commitments in Focus Mode.
+        </Callout>
       </div>
     );
   }

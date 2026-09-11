@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
+import { Callout } from "@/components/ui/callout";
 import { PageHeader } from "@/components/ui/page-header";
-import { Surface } from "@/components/ui/surface";
 import { CaptureComposer } from "@/features/capture/capture-composer";
 import { CaptureInbox, type CaptureInboxViewItem } from "@/features/capture/capture-inbox";
 import { listCaptureInbox } from "@/services/captures/capture-repository";
@@ -16,10 +16,9 @@ export default async function InboxPage() {
     return (
       <>
         <PageHeader title="Capture Inbox" description="Raw input stays intact until you review and confirm what it should become." />
-        <Surface variant="glass" className={styles.notice}>
-          <h2>Connect Supabase to use universal capture</h2>
-          <p>Apply the P2 capture migration after configuring the project environment.</p>
-        </Surface>
+        <Callout variant="warning" title="Connect Supabase to use universal capture">
+          Apply the P2 capture migration after configuring the project environment.
+        </Callout>
       </>
     );
   }

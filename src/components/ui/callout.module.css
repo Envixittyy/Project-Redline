@@ -1,0 +1,123 @@
+.callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  transition: border-color var(--motion-fast) var(--motion-ease),
+              background-color var(--motion-fast) var(--motion-ease);
+}
+
+.iconWrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+  color: var(--text-secondary);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.body {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.body p {
+  margin: 0;
+}
+
+.body p + p {
+  margin-top: 0.35rem;
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* Variants */
+.callout[data-variant="info"] {
+  background: var(--accent-muted);
+  border-color: var(--accent-border);
+  color: var(--text-primary);
+}
+
+.callout[data-variant="info"] .iconWrapper {
+  color: var(--accent-text);
+}
+
+.callout[data-variant="info"] .title {
+  color: var(--accent-text);
+}
+
+.callout[data-variant="success"] {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: var(--text-primary);
+}
+
+.callout[data-variant="success"] .iconWrapper {
+  color: #34d399;
+}
+
+.callout[data-variant="success"] .title {
+  color: #34d399;
+}
+
+.callout[data-variant="warning"] {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: var(--text-primary);
+}
+
+.callout[data-variant="warning"] .iconWrapper {
+  color: #fbbf24;
+}
+
+.callout[data-variant="warning"] .title {
+  color: #fbbf24;
+}
+
+.callout[data-variant="error"] {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--text-primary);
+}
+
+.callout[data-variant="error"] .iconWrapper {
+  color: #f87171;
+}
+
+.callout[data-variant="error"] .title {
+  color: #f87171;
+}
+
+.callout[data-variant="neutral"] {
+  background: var(--surface-subtle);
+  border-color: var(--border-subtle);
+}

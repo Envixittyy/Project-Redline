@@ -1,6 +1,6 @@
 .form {
   display: grid;
-  gap: 1rem;
+  gap: 1.15rem;
   width: 100%;
 }
 
@@ -11,22 +11,23 @@
 
 .label {
   color: var(--text-secondary);
-  font-size: 0.78rem;
-  font-weight: 640;
+  font-size: 0.8125rem;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
 .input {
   width: 100%;
-  padding: 0.72rem 0.85rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.85rem;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--surface-interactive);
   color: var(--text-primary);
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   transition:
     border-color var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease);
+    box-shadow var(--motion-fast) var(--motion-ease);
 }
 
 .input::placeholder {
@@ -34,40 +35,17 @@
 }
 
 .input:focus {
+  outline: none;
   border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .inputInvalid {
-  border-color: var(--border-strong);
-}
-
-.error {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  line-height: 1.45;
+  border-color: var(--destructive-border, #f87171);
 }
 
 .submit {
-  justify-self: stretch;
-  padding: 0.72rem 1rem;
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-sm);
-  background: var(--accent-muted);
-  color: var(--accent-text);
-  font-size: 0.9rem;
-  font-weight: 680;
-  letter-spacing: -0.01em;
-  transition:
-    background-color var(--motion-fast) var(--motion-ease),
-    opacity var(--motion-fast) var(--motion-ease);
+  width: 100%;
+  margin-top: 0.25rem;
 }
 
-.submit:hover:not(:disabled) {
-  background: var(--surface-hover);
-}
-
-.submit:disabled {
-  opacity: 0.72;
-  cursor: wait;
-}

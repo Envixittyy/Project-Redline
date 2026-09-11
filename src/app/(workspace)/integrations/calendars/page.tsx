@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
 import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
 import { syncGoogleCalendarAction } from "@/features/integrations/google-calendar-actions";
@@ -41,40 +44,34 @@ export default async function CalendarConnectionsPage({ searchParams }: PageProp
       />
       <div className={styles.layout}>
         {googleResult === "connected" ? (
-          <Surface variant="subtle" className={styles.notice} role="status">
-            <h2>Google Calendar connected</h2>
-            <p>The credential is encrypted. Use Sync now to discover calendars and refresh the source-aware mirror.</p>
-          </Surface>
+          <Callout tone="success" title="Google Calendar connected">
+            The credential is encrypted. Use Sync now to discover calendars and refresh the source-aware mirror.
+          </Callout>
         ) : null}
         {googleResult && googleResult !== "connected" ? (
-          <Surface variant="subtle" className={styles.notice} role="alert">
-            <h2>Google Calendar was not connected</h2>
-            <p>The request was denied, expired, or could not be exchanged. No provider error detail or credential was stored in the browser.</p>
-          </Surface>
+          <Callout tone="error" title="Google Calendar was not connected">
+            The request was denied, expired, or could not be exchanged. No provider error detail or credential was stored in the browser.
+          </Callout>
         ) : null}
         {googleSyncSummary ? (
-          <Surface variant="subtle" className={styles.notice} role="status">
-            <h2>Google Calendar synchronized</h2>
-            <p>{googleSyncSummary}</p>
-          </Surface>
+          <Callout tone="success" title="Google Calendar synchronized">
+            {googleSyncSummary}
+          </Callout>
         ) : null}
         {googleSync === "busy" ? (
-          <Surface variant="subtle" className={styles.notice} role="status">
-            <h2>Credential refresh is already running</h2>
-            <p>Wait a moment, then synchronize again. The existing calendar mirror was not cleared.</p>
-          </Surface>
+          <Callout tone="warning" title="Credential refresh is already running">
+            Wait a moment, then synchronize again. The existing calendar mirror was not cleared.
+          </Callout>
         ) : null}
         {googleSync === "failed" ? (
-          <Surface variant="subtle" className={styles.notice} role="alert">
-            <h2>Google Calendar sync needs attention</h2>
-            <p>No provider error detail or credential was exposed. Reconnect if the saved authorization has expired.</p>
-          </Surface>
+          <Callout tone="error" title="Google Calendar sync needs attention">
+            No provider error detail or credential was exposed. Reconnect if the saved authorization has expired.
+          </Callout>
         ) : null}
         {failure ? (
-          <Surface variant="subtle" className={styles.notice} role="alert">
-            <h2>Connections are not available yet</h2>
-            <p>{failure} Apply the latest P3 migration before connecting a provider.</p>
-          </Surface>
+          <Callout tone="error" title="Connections are not available yet">
+            {failure} Apply the latest P3 migration before connecting a provider.
+          </Callout>
         ) : null}
         <Surface variant="glass" className={styles.summary}>
           <h2>{connections.filter((connection) => connection.status === "connected").length} connected</h2>
@@ -92,32 +89,38 @@ export default async function CalendarConnectionsPage({ searchParams }: PageProp
               <Surface key={provider.id} variant="base" className={styles.providerCard}>
                 <div className={styles.providerHeading}>
                   <h2>{provider.label}</h2>
-                  <span className={styles.status} data-connected={connected || undefined}>
+                  <Badge tone={connected ? "success" : "neutral"} size="sm">
                     {connection?.status ?? "Not configured"}
-                  </span>
+                  </Badge>
                 </div>
                 <p>{provider.description}</p>
                 <div className={styles.providerMeta}>
-                  <span className={styles.kind}>{provider.connectionKind}</span>
+                  <Badge tone="neutral" size="sm">{provider.connectionKind}</Badge>
                   <span>{connection?.access.replace("_", " ") ?? "No access granted"}</span>
                 </div>
                 {connection?.capabilities.length ? (
                   <div className={styles.capabilities} aria-label={`${provider.label} capabilities`}>
                     {connection.capabilities.map((capability) => (
-                      <span className={styles.capability} key={capability}>{capability.replaceAll("_", " ")}</span>
+                      <Badge tone="neutral" size="sm" key={capability}>
+                        {capability.replaceAll("_", " ")}
+                      </Badge>
                     ))}
                   </div>
                 ) : null}
                 {provider.id === "google" && !connected ? (
                   isGoogleCalendarOAuthConfigured() ? (
-                    <Link className={styles.connectLink} href="/api/integrations/calendar/google/start">Connect read-only</Link>
+                    <Link className={styles.connectLink} href="/api/integrations/calendar/google/start">
+                      Connect read-only
+                    </Link>
                   ) : (
                     <p className={styles.setupHint}>Set APP_ORIGIN and the two GOOGLE_CALENDAR_* server variables to enable OAuth.</p>
                   )
                 ) : null}
                 {provider.id === "google" && canSync ? (
-                  <form action={syncGoogleCalendarAction}>
-                    <button className={styles.connectLink} type="submit">Sync now</button>
+                  <form action={syncGoogleCalendarAction} className={styles.actionForm}>
+                    <Button type="submit" variant="secondary" size="md" className={styles.syncButton}>
+                      Sync now
+                    </Button>
                   </form>
                 ) : null}
               </Surface>

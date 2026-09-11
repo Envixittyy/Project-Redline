@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
+import { Callout } from "@/components/ui/callout";
 import { PageHeader } from "@/components/ui/page-header";
-import { Surface } from "@/components/ui/surface";
 import { AiSettingsPanel } from "@/features/ai/ai-settings-panel";
 import { getAiPreferences } from "@/services/integrations/ai/ai-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
@@ -17,9 +17,9 @@ export default async function AiSettingsPage() {
           title="AI Settings"
           description="Privacy boundaries and provider configuration."
         />
-        <Surface variant="glass" style={{ padding: "1rem" }}>
+        <Callout variant="warning" title="Supabase Required">
           Configure Supabase before managing AI settings.
-        </Surface>
+        </Callout>
       </>
     );
   }

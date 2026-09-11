@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
 import { signOutAction } from "./auth-actions";
 import { signOutInitialState, type SignOutFormState } from "./auth-domain";
 
@@ -15,13 +17,19 @@ export function SignOutControl() {
 
   return (
     <form className={styles.control} action={formAction}>
-      <button type="submit" className={styles.button} disabled={isPending}>
-        {isPending ? "Signing out…" : "Sign out of this device"}
-      </button>
+      <Button
+        type="submit"
+        variant="secondary"
+        size="sm"
+        loading={isPending}
+        disabled={isPending}
+      >
+        Sign out of this device
+      </Button>
       {state.status === "error" ? (
-        <p role="alert" className={styles.error}>
+        <Callout tone="error" title="Sign out failed">
           {state.message}
-        </p>
+        </Callout>
       ) : null}
     </form>
   );

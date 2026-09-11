@@ -1,9 +1,22 @@
 "use client";
 
-import { Check, ExternalLink, GraduationCap, RotateCcw, Sparkles, X } from "lucide-react";
+import {
+  Check,
+  ExternalLink,
+  GraduationCap,
+  Inbox,
+  RotateCcw,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Surface } from "@/components/ui/surface";
 import {
   acknowledgeProposalDivergenceAction,
@@ -21,7 +34,9 @@ export type CaptureInboxViewItem = CaptureInboxItem & {
   canUndo: boolean;
 };
 
-function CaptureCard({ item }: { item: CaptureInboxViewItem }) {
+type TriageFilter = "review" | "committed" | "all";
+
+function QueueItemCard({ item }: { item: CaptureInboxViewItem }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const targetProposalId = searchParams?.get("proposal");
@@ -53,44 +68,72 @@ function CaptureCard({ item }: { item: CaptureInboxViewItem }) {
   }
 
   return (
-    <Surface
+    <li
       id={item.proposal ? `proposal-${item.proposal.id}` : `capture-${item.id}`}
       data-targeted={isTargeted ? "true" : undefined}
-      variant={isTargeted ? "elevated" : "base"}
-      className={`${styles.captureCard} motion-enter`}
+      className={`${styles.queueItem} motion-enter`}
     >
-      <div className={styles.captureMeta}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+      {/* Top Metadata Row */}
+      <div className={styles.itemMeta}>
+        <div className={styles.itemBadges}>
           {isExternal ? (
-            <span className={styles.sourceBadge}>
-              <GraduationCap size={13} aria-hidden="true" />
-              Blackboard Calendar Item
-            </span>
+            <Badge tone="course" size="sm" icon={<GraduationCap size={12} aria-hidden="true" />}>
+              Blackboard Item
+            </Badge>
           ) : (
-            <span>{item.stage === "undone" ? "Undone" : item.stage}</span>
+            <Badge
+              tone={
+                item.stage === "proposed"
+                  ? "accent"
+                  : item.stage === "committed"
+                  ? "success"
+                  : item.stage === "undone"
+                  ? "neutral"
+                  : "info"
+              }
+              size="sm"
+            >
+              {item.stage === "proposed"
+                ? "Needs Review"
+                : item.stage === "committed"
+                ? "Added to Tasks"
+                : item.stage === "undone"
+                ? "Undone"
+                : item.stage}
+            </Badge>
           )}
+
           {external?.courseCode ? (
-            <span className={styles.courseBadge}>
+            <Badge tone="neutral" size="sm">
               {external.courseCode}
               {external.courseName ? ` · ${external.courseName}` : ""}
-            </span>
+            </Badge>
           ) : null}
         </div>
-        <time dateTime={item.capturedAt}>{item.capturedLabel}</time>
+
+        <time className={styles.timeLabel} dateTime={item.capturedAt}>
+          {item.capturedLabel}
+        </time>
       </div>
 
+      {/* Raw Captured Text */}
       <p className={styles.rawText}>{text}</p>
 
+      {/* External Blackboard Metadata */}
       {external ? (
-        <div className={styles.proposalDetails}>
+        <div className={styles.sourceDetails}>
           {external.dueDate ? (
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+            <span>
               Due: <strong>{external.dueDate}</strong>
-              {external.dueAt ? ` at ${new Intl.DateTimeFormat("en", { timeStyle: "short" }).format(new Date(external.dueAt))}` : ""}
+              {external.dueAt
+                ? ` at ${new Intl.DateTimeFormat("en", { timeStyle: "short" }).format(
+                    new Date(external.dueAt),
+                  )}`
+                : ""}
             </span>
           ) : null}
           {external.duePrecision === "unresolved" ? (
-            <span style={{ fontSize: "0.78rem", color: "var(--text-tertiary)" }}>
+            <span style={{ color: "var(--text-tertiary)" }}>
               (Timezone floating — specify deadline on task)
             </span>
           ) : null}
@@ -110,24 +153,24 @@ function CaptureCard({ item }: { item: CaptureInboxViewItem }) {
 
       {/* Manual text capture without proposal yet */}
       {!isExternal && (item.stage === "captured" || item.stage === "failed") ? (
-        <div className={styles.cardAction}>
-          <p>Ready to interpret this as a task?</p>
-          <button
-            className={`${styles.secondaryButton} motion-interactive`}
-            type="button"
+        <div className={styles.committedRow}>
+          <span>Ready to interpret this as a task?</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Sparkles size={14} aria-hidden="true" />}
             disabled={pending}
             onClick={() => run(() => prepareCaptureTaskAction(item.id))}
           >
-            <Sparkles size={17} aria-hidden="true" />
             {pending ? "Preparing…" : "Propose task"}
-          </button>
+          </Button>
         </div>
       ) : null}
 
       {/* Proposed review form */}
       {item.stage === "proposed" && item.proposal ? (
         <form
-          className={styles.proposal}
+          className={styles.proposalForm}
           onSubmit={(event) => {
             event.preventDefault();
             const formData = new FormData(event.currentTarget);
@@ -150,42 +193,45 @@ function CaptureCard({ item }: { item: CaptureInboxViewItem }) {
             );
           }}
         >
-          <label>
-            <span>Proposed task title</span>
+          <div className={styles.proposalTitleGroup}>
+            <label htmlFor={`proposal-title-${item.id}`}>Proposed task title</label>
             <input
+              id={`proposal-title-${item.id}`}
               name="title"
               defaultValue={item.proposal.title}
               maxLength={200}
               disabled={pending || isMissing}
+              className={styles.proposalInput}
             />
-          </label>
+          </div>
 
           {isMissing ? (
-            <div className={styles.missingNotice}>
+            <Callout variant="warning">
               This item is no longer in the Blackboard feed. Adding to tasks is disabled.
-            </div>
+            </Callout>
           ) : null}
 
-          <div className={styles.proposalReview}>
-            <p>Nothing is created until you confirm.</p>
-            <div className={styles.actionButtons}>
-              <button
-                className={`${styles.dismissButton} motion-interactive`}
-                type="button"
+          <div className={styles.proposalActionsRow}>
+            <p className={styles.proposalHelpText}>Nothing is created until you confirm.</p>
+            <div className={styles.buttonGroup}>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<X size={14} aria-hidden="true" />}
                 disabled={pending}
                 onClick={() => run(() => dismissProposalAction(item.proposal?.id))}
               >
-                <X size={15} aria-hidden="true" />
                 {pending ? "Dismissing…" : "Dismiss"}
-              </button>
-              <button
-                className={`${styles.primaryButton} motion-interactive`}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 type="submit"
+                icon={<Check size={14} aria-hidden="true" />}
                 disabled={pending || isMissing}
               >
-                <Check size={17} aria-hidden="true" />
                 {pending ? "Adding…" : "Add to Tasks"}
-              </button>
+              </Button>
             </div>
           </div>
         </form>
@@ -193,78 +239,159 @@ function CaptureCard({ item }: { item: CaptureInboxViewItem }) {
 
       {/* Committed state */}
       {item.stage === "committed" ? (
-        <div className={styles.cardAction}>
-          <div>
-            <p>
-              {item.canUndo
-                ? "Task added to Tasks. You can still undo this operation."
-                : "Task added to Tasks."}
-            </p>
-            {isDivergent ? (
-              <div className={styles.divergenceNotice} style={{ marginTop: "0.5rem" }}>
-                <p>Source updated on Blackboard. Your native task remains unchanged.</p>
-                <button
-                  className={`${styles.secondaryButton} motion-interactive`}
-                  type="button"
-                  style={{ minHeight: "2.2rem", padding: "0.3rem 0.6rem", fontSize: "0.75rem" }}
-                  disabled={pending}
-                  onClick={() => run(() => acknowledgeProposalDivergenceAction(item.proposal?.id))}
-                >
-                  Acknowledge
-                </button>
-              </div>
-            ) : null}
-          </div>
+        <div className={styles.committedRow}>
+          <span>
+            {item.canUndo
+              ? "Task added to Tasks. You can still safely undo."
+              : "Task added to Tasks."}
+          </span>
 
           {item.canUndo ? (
-            <button
-              className={`${styles.secondaryButton} motion-interactive`}
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<RotateCcw size={14} aria-hidden="true" />}
               disabled={pending}
               onClick={() => run(() => undoCaptureTaskAction(item.id))}
             >
-              <RotateCcw size={17} aria-hidden="true" />
               {pending ? "Undoing…" : "Undo task"}
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : null}
 
+      {isDivergent ? (
+        <Callout
+          variant="warning"
+          title="Source updated on Blackboard"
+          action={
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={pending}
+              onClick={() => run(() => acknowledgeProposalDivergenceAction(item.proposal?.id))}
+            >
+              Acknowledge
+            </Button>
+          }
+        >
+          Source changed on Blackboard. Your native task remains unchanged.
+        </Callout>
+      ) : null}
+
       {item.stage === "undone" ? (
-        <p className={styles.finalState}>The created task was safely removed.</p>
+        <p className={styles.finalStateText}>The created task was safely removed.</p>
       ) : null}
       {item.stage === "interpreted" || item.stage === "confirmed" ? (
-        <p className={styles.finalState}>
-          This capture is finishing its current operation. Refresh to check again.
+        <p className={styles.finalStateText}>
+          Finishing current operation. Refresh to check again.
         </p>
       ) : null}
+
       {message ? (
-        <p className={styles.actionError} role="alert">
+        <Callout variant="error" role="alert">
           {message}
-        </p>
+        </Callout>
       ) : null}
-    </Surface>
+    </li>
   );
 }
 
 export function CaptureInbox({ items }: { items: CaptureInboxViewItem[] }) {
+  const [filter, setFilter] = useState<TriageFilter>("review");
+
+  const counts = useMemo(() => {
+    let reviewCount = 0;
+    let committedCount = 0;
+    for (const item of items) {
+      if (
+        item.stage === "proposed" ||
+        item.stage === "captured" ||
+        item.stage === "failed"
+      ) {
+        reviewCount++;
+      } else if (item.stage === "committed") {
+        committedCount++;
+      }
+    }
+    return { review: reviewCount, committed: committedCount, all: items.length };
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    if (filter === "review") {
+      return items.filter(
+        (i) =>
+          i.stage === "proposed" ||
+          i.stage === "captured" ||
+          i.stage === "failed",
+      );
+    }
+    if (filter === "committed") {
+      return items.filter((i) => i.stage === "committed");
+    }
+    return items;
+  }, [items, filter]);
+
   if (!items.length) {
     return (
-      <Surface variant="subtle" className={styles.emptyState}>
-        <h2>Your Inbox is quiet</h2>
-        <p>
-          Capture something above or connect Blackboard in Integrations to review upcoming
-          coursework.
-        </p>
+      <Surface variant="subtle" style={{ padding: "2rem 1.5rem" }}>
+        <EmptyState
+          icon={<Inbox size={36} />}
+          title="Your Inbox is clear"
+          description="Capture something above or connect Blackboard in Integrations to review upcoming coursework."
+        />
       </Surface>
     );
   }
 
   return (
-    <section className={styles.inboxList} aria-label="Captured items">
-      {items.map((item) => (
-        <CaptureCard item={item} key={item.id} />
-      ))}
+    <section className={styles.triageQueue} aria-label="Triage queue">
+      <div className={styles.queueHeader}>
+        <SegmentedControl
+          value={filter}
+          onChange={(val) => setFilter(val as TriageFilter)}
+          options={[
+            {
+              value: "review",
+              label: `Needs Review (${counts.review})`,
+            },
+            {
+              value: "committed",
+              label: `Committed (${counts.committed})`,
+            },
+            {
+              value: "all",
+              label: `All (${counts.all})`,
+            },
+          ]}
+        />
+      </div>
+
+      {filteredItems.length > 0 ? (
+        <ul className={styles.queueList} role="list">
+          {filteredItems.map((item) => (
+            <QueueItemCard item={item} key={item.id} />
+          ))}
+        </ul>
+      ) : (
+        <Surface variant="subtle" style={{ padding: "2rem 1.5rem" }}>
+          <EmptyState
+            icon={<Inbox size={32} />}
+            title={
+              filter === "review"
+                ? "No items need review"
+                : filter === "committed"
+                ? "No committed tasks yet"
+                : "No captured items"
+            }
+            description={
+              filter === "review"
+                ? "All captured items have been processed or committed."
+                : "Your captured tasks and history will appear here."
+            }
+          />
+        </Surface>
+      )}
     </section>
   );
 }

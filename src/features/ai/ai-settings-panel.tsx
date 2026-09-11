@@ -1,10 +1,22 @@
 "use client";
 
-import { CheckCircle2, Cpu, Laptop, RefreshCw, ShieldCheck, Trash2, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Cpu,
+  Laptop,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
 import { Surface } from "@/components/ui/surface";
+import { Toggle } from "@/components/ui/toggle";
 import type {
   AiPermissionMode,
   AiPreferences,
@@ -16,8 +28,16 @@ import {
   clearAiTransferHistoryAction,
   updateAiPreferencesAction,
 } from "./ai-actions";
-import { checkCompanionHealth, getCompanionStatus, pairCompanion, unpairCompanion } from "@/services/integrations/ai/companion-client";
-import { clearCompanionSession, setCompanionSession } from "@/services/integrations/ai/companion-session";
+import {
+  checkCompanionHealth,
+  getCompanionStatus,
+  pairCompanion,
+  unpairCompanion,
+} from "@/services/integrations/ai/companion-client";
+import {
+  clearCompanionSession,
+  setCompanionSession,
+} from "@/services/integrations/ai/companion-session";
 import styles from "./ai-settings-panel.module.css";
 import type { AiMode, CloudProvider } from "@/services/integrations/ai/routing-contract";
 
@@ -39,7 +59,9 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
   const [aiMode, setAiMode] = useState<AiMode>(preferences.aiMode ?? "auto");
   const [secondaryCloud, setSecondaryCloud] = useState(preferences.secondaryCloud ?? false);
   const [checklistCloud, setChecklistCloud] = useState(preferences.checklistCloud ?? false);
-  const [courseImportCloud, setCourseImportCloud] = useState(preferences.courseImportCloud ?? false);
+  const [courseImportCloud, setCourseImportCloud] = useState(
+    preferences.courseImportCloud ?? false,
+  );
   const remoteOrigin = process.env.NEXT_PUBLIC_COMPANION_REMOTE_ORIGIN;
   const [fallbackMode, setFallbackMode] = useState<CloudFallbackMode>(
     preferences.cloudFallbackMode === "off" ? "off" : "ask_each_time",
@@ -63,9 +85,7 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
   );
   const [pairingSecret, setPairingSecret] = useState("");
   const [pairingExpiresAt, setPairingExpiresAt] = useState<string | null>(null);
-  const [pairingToken, setPairingToken] = useState<string | null>(
-    null,
-  );
+  const [pairingToken, setPairingToken] = useState<string | null>(null);
 
   // Live status state
   const [companionRunning, setCompanionRunning] = useState<boolean | null>(null);
@@ -74,11 +94,23 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
   const [companionError, setCompanionError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!pairingToken || !pairingExpiresAt) { clearCompanionSession(); return; }
-    setCompanionSession({ enabled: true, companionUrl, provider: localProvider, endpoint: localEndpoint, model: localModel, pairingToken }, pairingExpiresAt);
+    if (!pairingToken || !pairingExpiresAt) {
+      clearCompanionSession();
+      return;
+    }
+    setCompanionSession(
+      {
+        enabled: true,
+        companionUrl,
+        provider: localProvider,
+        endpoint: localEndpoint,
+        model: localModel,
+        pairingToken,
+      },
+      pairingExpiresAt,
+    );
   }, [companionUrl, localProvider, localEndpoint, localModel, pairingToken, pairingExpiresAt]);
 
-  // Update default endpoint when switching provider
   function handleProviderChange(provider: LocalProviderType) {
     setLocalProvider(provider);
     if (provider === "ollama") setLocalEndpoint("http://127.0.0.1:11434");
@@ -149,7 +181,6 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
       }
     }
 
-    // Local-network permission should be requested by an explicit user action.
     if (pairingToken) void loadStatus();
 
     return () => {
@@ -165,8 +196,18 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
       const res = await pairCompanion(companionUrl, pairingSecret.trim());
       if (res.ok && res.token) {
         setPairingToken(res.token);
-        setPairingExpiresAt(res.expiresAt!);
-        setCompanionSession({ enabled: true, companionUrl, provider: localProvider, endpoint: localEndpoint, model: localModel, pairingToken: res.token }, res.expiresAt!);
+        setPairingExpiresAt(res.expiresAt ?? null);
+        setCompanionSession(
+          {
+            enabled: true,
+            companionUrl,
+            provider: localProvider,
+            endpoint: localEndpoint,
+            model: localModel,
+            pairingToken: res.token,
+          },
+          res.expiresAt ?? "",
+        );
         setMessage("Companion paired successfully.");
         setCompanionError(null);
         setPairingSecret("");
@@ -178,11 +219,15 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    setMessage(null);
     startTransition(async () => {
       const res = await updateAiPreferencesAction({
         cloudEnabled,
         preferredCloud: defaultProvider,
-        aiMode, secondaryCloud, checklistCloud, courseImportCloud,
+        aiMode,
+        secondaryCloud,
+        checklistCloud,
+        courseImportCloud,
         cloudFallbackMode: fallbackMode,
         permissionMode,
       });
@@ -192,9 +237,8 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
   }
 
   function handleClearHistory() {
-    if (!window.confirm("Clear legacy cloud-transfer history? Protected routing metadata, course sources and reviewed proposals are not deleted. Created tasks and notes are unchanged.")) {
-      return;
-    }
+    if (!window.confirm("Clear all legacy cloud transfer audit records?")) return;
+    setMessage(null);
     startTransition(async () => {
       const res = await clearAiTransferHistoryAction();
       setMessage(res.message);
@@ -205,30 +249,41 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
   return (
     <div className={styles.layout}>
       {/* 1. Local AI Companion Panel */}
-      <Surface variant="glass" className={styles.card}>
+      <Surface variant="base" className={styles.card}>
         <header className={styles.header}>
-          <Laptop size={22} color="var(--accent-text)" />
-          <div>
+          <div className={styles.headerIcon}>
+            <Laptop size={20} aria-hidden="true" />
+          </div>
+          <div className={styles.headerTitleGroup}>
             <h2>Local / Remote Companion</h2>
-            <p>Same-PC loopback, or the configured home PC over private Tailscale HTTPS. Other devices require Tailscale, pairing and a running home PC. No public runtime ports.</p>
+            <p>
+              Same-PC loopback, or the configured home PC over private Tailscale HTTPS. Other
+              devices require Tailscale, pairing, and a running home PC. No public runtime ports.
+            </p>
           </div>
           <div className={styles.statusBadge}>
             {companionRunning === true ? (
               pairingToken && runtimeConnected ? (
-                <span className={styles.badgeSuccess}>
-                  <CheckCircle2 size={14} /> Ready
-                </span>
+                <Badge tone="success" size="sm" icon={<CheckCircle2 size={13} />}>
+                  Ready
+                </Badge>
               ) : pairingToken ? (
-                <span className={styles.badgeWarning}>Runtime Offline</span>
+                <Badge tone="warning" size="sm">
+                  Runtime Offline
+                </Badge>
               ) : (
-                <span className={styles.badgeWarning}>Pairing Required</span>
+                <Badge tone="warning" size="sm">
+                  Pairing Required
+                </Badge>
               )
             ) : companionRunning === false ? (
-              <span className={styles.badgeError}>
-                <XCircle size={14} /> Disconnected
-              </span>
+              <Badge tone="destructive" size="sm" icon={<XCircle size={13} />}>
+                Disconnected
+              </Badge>
             ) : (
-              <span className={styles.badgeMuted}>Not checked</span>
+              <Badge tone="neutral" size="sm">
+                Not checked
+              </Badge>
             )}
           </div>
         </header>
@@ -240,13 +295,18 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
               className={styles.select}
               value={companionUrl}
               disabled={!!pairingToken}
-              onChange={(e) => { setCompanionUrl(e.target.value); setCompanionRunning(null); setRuntimeConnected(null); }}
+              onChange={(e) => {
+                setCompanionUrl(e.target.value);
+                setCompanionRunning(null);
+                setRuntimeConnected(null);
+              }}
             >
               <option value="http://127.0.0.1:41400">Same PC · loopback</option>
               {remoteOrigin && <option value={remoteOrigin}>Home PC · private Tailscale</option>}
             </select>
             <span className={styles.fieldHint}>
-              {companionUrl}. Unpair before switching. Remote address is configured by the server operator, not browser input.
+              {companionUrl}. Unpair before switching. Remote address is configured by the server
+              operator, not browser input.
             </span>
           </label>
 
@@ -312,7 +372,8 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
               <div className={styles.field}>
                 <strong>Pair Companion Daemon</strong>
                 <span className={styles.fieldHint}>
-                  Run <code>pnpm companion</code> on the home PC. Copy the local or remote pairing code matching this transport. It expires after five minutes.
+                  Run <code>pnpm companion</code> on the home PC. Copy the pairing code matching
+                  this transport. It expires after five minutes.
                 </span>
                 <div className={styles.pairInputRow}>
                   <input
@@ -321,82 +382,95 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
                     value={pairingSecret}
                     onChange={(e) => setPairingSecret(e.target.value)}
                     placeholder="Enter companion pairing secret"
+                    style={{ flex: 1, minWidth: "14rem" }}
                   />
-                  <button className={styles.buttonPrimary} type="submit" disabled={pending || !pairingSecret}>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    type="submit"
+                    disabled={pending || !pairingSecret}
+                  >
                     Pair
-                  </button>
+                  </Button>
                 </div>
               </div>
             </form>
           ) : (
             <div className={styles.pairedRow}>
               <span className={styles.pairedText}>✓ Paired with ephemeral token</span>
-              <button
-                className={styles.buttonSecondary}
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   const token = pairingToken;
                   setPairingToken(null);
                   clearCompanionSession();
-                  void unpairCompanion(companionUrl, token).then(result => setMessage(result.message));
+                  void unpairCompanion(companionUrl, token).then((result) =>
+                    setMessage(result.message),
+                  );
                 }}
               >
                 Unpair
-              </button>
+              </Button>
             </div>
           )}
 
           <div className={styles.actions}>
-            <button
-              className={styles.buttonSecondary}
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<RefreshCw size={14} />}
               onClick={checkStatus}
               disabled={pending}
             >
-              <RefreshCw size={16} /> Test Connection
-            </button>
+              Test Connection
+            </Button>
           </div>
 
           {companionError ? (
-            <p className={styles.errorMessage} role="alert">
+            <Callout variant="error" role="alert">
               {companionError}
-            </p>
+            </Callout>
           ) : null}
         </div>
       </Surface>
 
       {/* 2. Cloud AI Privacy & Settings Panel */}
-      <Surface variant="glass" className={styles.card}>
+      <Surface variant="base" className={styles.card}>
         <header className={styles.header}>
-          <Cpu size={22} color="var(--accent-text)" />
-          <div>
-            <h2>AI routing & privacy</h2>
-            <p>Provider choice changes inference, never permissions. Only checklist and course-import capabilities are enabled. Every cloud transfer asks first.</p>
+          <div className={styles.headerIcon}>
+            <Cpu size={20} aria-hidden="true" />
+          </div>
+          <div className={styles.headerTitleGroup}>
+            <h2>AI Routing & Privacy</h2>
+            <p>
+              Provider choice changes inference, never permissions. Only checklist and course-import
+              capabilities are enabled. Every cloud transfer asks first.
+            </p>
           </div>
         </header>
 
         <form className={styles.form} onSubmit={handleSave}>
-          <label className={styles.field}>AI mode
-            <select className={styles.select} value={aiMode} onChange={e => setAiMode(e.target.value as AiMode)}>
-              <option value="auto">Auto · local first</option><option value="local">Local only</option>
-              <option value="gemini">Gemini</option><option value="openrouter">OpenRouter</option>
+          <label className={styles.field}>
+            AI Mode
+            <select
+              className={styles.select}
+              value={aiMode}
+              onChange={(e) => setAiMode(e.target.value as AiMode)}
+            >
+              <option value="auto">Auto · local first</option>
+              <option value="local">Local only</option>
+              <option value="gemini">Gemini</option>
+              <option value="openrouter">OpenRouter</option>
             </select>
           </label>
-          <div className={styles.toggleRow}>
-            <div>
-              <strong>Enable Cloud AI</strong>
-              <div className={styles.fieldHint}>
-                Allow cloud offers for the capabilities you enable below. This is not transfer consent.
-              </div>
-            </div>
-            <input
-              type="checkbox"
-              checked={cloudEnabled}
-              aria-label="Enable cloud AI offers"
-              onChange={(e) => setCloudEnabled(e.target.checked)}
-              style={{ width: "2.75rem", height: "2.75rem" }}
-            />
-          </div>
+
+          <Toggle
+            label="Enable Cloud AI"
+            description="Allow cloud offers for enabled capabilities. This is not transfer consent."
+            checked={cloudEnabled}
+            onChange={(e) => setCloudEnabled(e.target.checked)}
+          />
 
           <label className={styles.field}>
             Default Cloud Provider
@@ -427,11 +501,51 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
             </span>
           </label>
 
-          <label className={styles.toggleRow}><span>Offer secondary cloud provider after an infrastructure failure (Auto only)</span><input type="checkbox" checked={secondaryCloud} disabled={!cloudEnabled} onChange={e => setSecondaryCloud(e.target.checked)} /></label>
-          <label className={styles.toggleRow}><span>Allow cloud disclosure for task checklists</span><input type="checkbox" checked={checklistCloud} disabled={!cloudEnabled} onChange={e => setChecklistCloud(e.target.checked)} /></label>
-          <label className={styles.toggleRow}><span>Allow cloud disclosure for selected course text</span><input type="checkbox" checked={courseImportCloud} disabled={!cloudEnabled} onChange={e => setCourseImportCloud(e.target.checked)} /></label>
-          <p className={styles.fieldHint}>Fallback availability: {cloudEnabled && fallbackMode !== "off" && (checklistCloud || courseImportCloud) ? "may be offered for enabled capabilities; fresh consent required" : "disabled"}. Unknown/private future domains are local-only. Model IDs and keys are configured on the server.</p>
-          {providers && <div className={styles.fieldHint}>{(["gemini", "openrouter"] as const).map(p => <p key={p}>{p}: {providers[p].configured ? `configured · ${providers[p].model} · online status not checked` : "not configured"}</p>)}</div>}
+          <Toggle
+            label="Secondary Cloud Provider Offer"
+            description="Offer secondary cloud provider after an infrastructure failure (Auto only)."
+            checked={secondaryCloud}
+            disabled={!cloudEnabled}
+            onChange={(e) => setSecondaryCloud(e.target.checked)}
+          />
+
+          <Toggle
+            label="Task Checklists Cloud Disclosure"
+            description="Allow cloud offers for task checklist generation."
+            checked={checklistCloud}
+            disabled={!cloudEnabled}
+            onChange={(e) => setChecklistCloud(e.target.checked)}
+          />
+
+          <Toggle
+            label="Selected Course Text Cloud Disclosure"
+            description="Allow cloud offers for selected course text import."
+            checked={courseImportCloud}
+            disabled={!cloudEnabled}
+            onChange={(e) => setCourseImportCloud(e.target.checked)}
+          />
+
+          <Callout variant="neutral">
+            Fallback availability:{" "}
+            {cloudEnabled && fallbackMode !== "off" && (checklistCloud || courseImportCloud)
+              ? "may be offered for enabled capabilities; fresh consent required."
+              : "disabled."}{" "}
+            Unknown/private future domains are local-only. Model IDs and keys are configured on the
+            server.
+          </Callout>
+
+          {providers ? (
+            <div className={styles.fieldHint}>
+              {(["gemini", "openrouter"] as const).map((p) => (
+                <span key={p} style={{ display: "block" }}>
+                  {p}:{" "}
+                  {providers[p].configured
+                    ? `configured · ${providers[p].model} · online status not checked`
+                    : "not configured"}
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           <label className={styles.field}>
             Mutation Permission Policy
@@ -440,45 +554,53 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
               value={permissionMode}
               onChange={(e) => setPermissionMode(e.target.value as AiPermissionMode)}
             >
-              <option value="ask_before_changing">Ask before changing (Review proposal before commit)</option>
+              <option value="ask_before_changing">
+                Ask before changing (Review proposal before commit)
+              </option>
               <option value="suggest_only">Suggest only (Do not enable mutation commits)</option>
             </select>
           </label>
 
           <div className={styles.actions}>
-            <button className={styles.buttonPrimary} type="submit" disabled={pending}>
-              {pending ? "Saving..." : "Save Preferences"}
-            </button>
+            <Button variant="primary" size="sm" type="submit" disabled={pending} loading={pending}>
+              {pending ? "Saving…" : "Save Preferences"}
+            </Button>
           </div>
         </form>
 
         {message ? (
-          <p role="status" className={styles.message}>
+          <Callout variant="info" role="status">
             {message}
-          </p>
+          </Callout>
         ) : null}
       </Surface>
 
       {/* 3. Data Retention & Audit */}
       <Surface variant="base" className={styles.card}>
         <header className={styles.header}>
-          <ShieldCheck size={20} />
-          <div>
+          <div className={styles.headerIcon}>
+            <ShieldCheck size={20} aria-hidden="true" />
+          </div>
+          <div className={styles.headerTitleGroup}>
             <h2>Data Retention & Audit</h2>
-            <p>New routing metadata and reviewed proposals remain in the protected audit. Course source text is retained there too. Five-minute expiry stops execution; it does not erase content. This button clears legacy cloud history only.</p>
+            <p>
+              New routing metadata and reviewed proposals remain in the protected audit. Course
+              source text is retained there too. Five-minute expiry stops execution; it does not
+              erase content. This button clears legacy cloud history only.
+            </p>
           </div>
         </header>
 
         <div className={styles.actions}>
-          <button
-            className={styles.buttonDanger}
-            type="button"
+          <Button
+            variant="destructive"
+            size="sm"
+            icon={<Trash2 size={14} />}
             disabled={pending}
             onClick={handleClearHistory}
           >
-            <Trash2 size={16} />
             Clear Legacy Cloud Transfer History
-          </button>
+          </Button>
         </div>
       </Surface>
     </div>

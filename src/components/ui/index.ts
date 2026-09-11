@@ -1,5 +1,6 @@
 export * from "./badge";
 export * from "./button";
+export * from "./callout";
 export * from "./checkbox";
 export * from "./empty-state";
 export * from "./input";

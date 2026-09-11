@@ -1,19 +1,4 @@
 .layout {
   display: grid;
-  gap: 1rem;
-}
-
-.notice {
-  padding: 1rem;
-}
-
-.notice h2,
-.notice p {
-  margin: 0;
-}
-
-.notice p {
-  margin-top: 0.4rem;
-  color: var(--text-secondary);
-  line-height: 1.6;
+  gap: 1.25rem;
 }

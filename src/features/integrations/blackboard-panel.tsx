@@ -15,6 +15,10 @@ import {
 import Link from "next/link";
 import { useState, useTransition } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button, IconButton } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Surface } from "@/components/ui/surface";
 import type { BlackboardStatus } from "@/services/integrations/blackboard/blackboard-repository";
 import type { BlackboardCalendarCharacterization } from "@/services/integrations/blackboard/characterization";
@@ -116,9 +120,20 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
             <p>Private iCalendar feed</p>
             <h2>{status.connected ? "Connected" : "Not connected"}</h2>
           </div>
-          <span className={styles.stateTag} data-state={status.syncState}>
+          <Badge
+            tone={
+              status.syncState === "syncing"
+                ? "warning"
+                : status.syncState === "idle"
+                  ? "neutral"
+                  : status.syncState === "failed"
+                    ? "destructive"
+                    : "success"
+            }
+            size="sm"
+          >
             {status.syncState}
-          </span>
+          </Badge>
         </header>
         <p className={styles.modeLine}>
           Current mode: <strong>{status.mode}</strong>
@@ -152,31 +167,31 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
               required
             />
           </label>
-          <button className={styles.buttonPrimary} disabled={pending} type="submit">
+          <Button variant="primary" loading={pending} disabled={pending} type="submit">
             {status.connected ? "Replace credential" : "Connect feed"}
-          </button>
+          </Button>
         </form>
         {status.connected ? (
-          <button
-            className={styles.buttonSecondary}
-            disabled={pending || status.syncState === "syncing" || status.mode === "off"}
-            type="button"
-            onClick={() => run(syncBlackboardAction)}
-          >
-            <RefreshCw size={16} />
-            Sync now
-          </button>
-        ) : null}
-        {status.connected ? (
-          <button
-            className={styles.buttonSecondary}
-            disabled={pending || status.mode === "off"}
-            type="button"
-            onClick={inspectStructure}
-          >
-            <FileSearch size={16} />
-            Inspect redacted structure
-          </button>
+          <div className={styles.cardActions}>
+            <Button
+              variant="secondary"
+              disabled={pending || status.syncState === "syncing" || status.mode === "off"}
+              type="button"
+              icon={<RefreshCw size={16} />}
+              onClick={() => run(syncBlackboardAction)}
+            >
+              Sync now
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={pending || status.mode === "off"}
+              type="button"
+              icon={<FileSearch size={16} />}
+              onClick={inspectStructure}
+            >
+              Inspect redacted structure
+            </Button>
+          </div>
         ) : null}
         {characterization ? (
           <details className={styles.report}>
@@ -185,9 +200,9 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
           </details>
         ) : null}
         {message ? (
-          <p role="status" className={styles.message}>
+          <Callout tone="info" title="Status">
             {message}
-          </p>
+          </Callout>
         ) : null}
       </Surface>
 
@@ -221,15 +236,14 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
                     />
                     {m.course.code} · {m.course.name}
                   </Link>
-                  <button
-                    className={styles.buttonDanger}
-                    type="button"
-                    title="Remove mapping"
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Remove mapping"
+                    icon={<Trash2 size={14} />}
                     disabled={pending}
                     onClick={() => run(() => deleteCourseMappingAction(m.id))}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  />
                 </div>
               </li>
             ))}
@@ -268,18 +282,19 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
                 </select>
               </label>
             </div>
-            <button
-              className={styles.buttonSecondary}
+            <Button
+              variant="secondary"
               type="submit"
+              icon={<Plus size={16} />}
               disabled={pending || !newSourceCourse.trim()}
             >
-              <Plus size={16} /> Save New Mapping
-            </button>
+              Save New Mapping
+            </Button>
           </form>
         ) : (
-          <p className={styles.warning}>
+          <Callout tone="warning" title="Courses Needed">
             Add courses in <Link href="/school">School</Link> before setting up mappings.
-          </p>
+          </Callout>
         )}
       </Surface>
 
@@ -306,22 +321,24 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
 
             {status.courses.length > 0 ? (
               <form className={styles.batchBar} onSubmit={handleBatchAssign}>
-                <label className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedRecordIds.size === status.unassigned.length &&
-                      status.unassigned.length > 0
-                    }
-                    onChange={toggleSelectAll}
-                  />
-                  Select all ({status.unassigned.length})
-                </label>
+                <Checkbox
+                  checked={
+                    selectedRecordIds.size === status.unassigned.length &&
+                    status.unassigned.length > 0
+                  }
+                  indeterminate={
+                    selectedRecordIds.size > 0 &&
+                    selectedRecordIds.size < status.unassigned.length
+                  }
+                  onChange={toggleSelectAll}
+                  label={`Select all (${status.unassigned.length})`}
+                />
 
                 <select
                   className={styles.select}
                   value={batchTargetCourseId}
                   onChange={(e) => setBatchTargetCourseId(e.target.value)}
+                  aria-label="Target course for assignment"
                 >
                   {status.courses.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -330,22 +347,19 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
                   ))}
                 </select>
 
-                <label className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={rememberMapping}
-                    onChange={(e) => setRememberMapping(e.target.checked)}
-                  />
-                  Remember mapping for future items
-                </label>
+                <Checkbox
+                  checked={rememberMapping}
+                  onChange={(e) => setRememberMapping(e.target.checked)}
+                  label="Remember mapping for future items"
+                />
 
-                <button
-                  className={styles.buttonPrimary}
+                <Button
+                  variant="primary"
                   type="submit"
                   disabled={pending || selectedRecordIds.size === 0}
                 >
                   Assign {selectedRecordIds.size > 0 ? `(${selectedRecordIds.size})` : ""}
-                </button>
+                </Button>
               </form>
             ) : null}
 
@@ -354,28 +368,25 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
                 const isSelected = selectedRecordIds.has(rec.id);
                 return (
                   <li key={rec.id} className={styles.unassignedItem}>
-                    <input
-                      type="checkbox"
-                      className={styles.itemCheckbox}
+                    <Checkbox
                       checked={isSelected}
                       onChange={() => toggleRecordSelection(rec.id)}
+                      aria-label={`Select ${rec.title}`}
                     />
                     <div className={styles.itemDetails}>
                       <strong>{rec.title}</strong>
                       <div className={styles.itemMeta}>
-                        {rec.sourceCourseName ? (
-                          <span className={styles.sourceTag}>
-                            Source: {rec.sourceCourseName}
-                          </span>
-                        ) : (
-                          <span className={styles.sourceTag}>No source course</span>
-                        )}
+                        <Badge tone="neutral" size="sm">
+                          {rec.sourceCourseName ? `Source: ${rec.sourceCourseName}` : "No source course"}
+                        </Badge>
                         {rec.dueDate ? <span>Due: {rec.dueDate}</span> : null}
                         {rec.dueAt ? (
                           <span>At: {new Date(rec.dueAt).toLocaleTimeString()}</span>
                         ) : null}
                         {rec.proposalStatus ? (
-                          <span>Proposal: {rec.proposalStatus}</span>
+                          <Badge tone="accent" size="sm">
+                            Proposal: {rec.proposalStatus}
+                          </Badge>
                         ) : null}
                       </div>
                     </div>
@@ -405,7 +416,9 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
           </div>
         </header>
         {status.lastErrorCode ? (
-          <p className={styles.warning}>Action required: {status.lastErrorCode}</p>
+          <Callout tone="warning" title="Action required">
+            {status.lastErrorCode}
+          </Callout>
         ) : null}
         <ul className={styles.runs}>
           {status.runs.map((run) => (

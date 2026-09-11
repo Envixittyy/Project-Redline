@@ -1,6 +1,6 @@
 .layout {
   display: grid;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 @media (min-width: 56rem) {
@@ -39,7 +39,7 @@
 .card header p {
   margin: 0;
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -48,19 +48,8 @@
 .card header h2 {
   margin: 0.15rem 0 0;
   font-size: 1.0625rem;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--text-primary);
-}
-
-.stateTag {
-  margin-left: auto;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-subtle);
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
 }
 
 .copy {
@@ -79,6 +68,12 @@
 .modeLine strong {
   color: var(--text-primary);
   text-transform: uppercase;
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .report {
@@ -125,14 +120,16 @@
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--surface-subtle);
+  background: var(--surface-interactive);
   color: var(--text-primary);
   font-size: 0.875rem;
+  transition: border-color var(--motion-fast);
 }
 
 .input:focus, .select:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .twoCol {
@@ -145,83 +142,6 @@
   .twoCol {
     grid-template-columns: 1fr;
   }
-}
-
-.buttonPrimary {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: var(--radius-md);
-  background: var(--accent);
-  color: var(--accent-text);
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-
-.buttonPrimary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.buttonSecondary {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-subtle);
-  color: var(--text-primary);
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 0.875rem;
-}
-
-.buttonDanger {
-  display: inline-flex;
-  min-height: 2rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.65rem;
-  border: 1px solid var(--destructive-border, rgba(239, 68, 68, 0.3));
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--destructive-text, #f87171);
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.buttonDanger:hover {
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.message {
-  margin: 0;
-  padding: 0.625rem 0.75rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-subtle);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-primary);
-  font-size: 0.8125rem;
-}
-
-.warning {
-  margin: 0;
-  padding: 0.625rem 0.75rem;
-  border-radius: var(--radius-md);
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  color: #f59e0b;
-  font-size: 0.8125rem;
 }
 
 /* Course Mappings List */
@@ -261,7 +181,7 @@
 }
 
 .mappingSource small {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--text-tertiary);
 }
 
@@ -276,9 +196,9 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.2rem 0.5rem;
+  padding: 0.25rem 0.55rem;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-interactive);
   border: 1px solid var(--border-subtle);
   font-size: 0.75rem;
   font-weight: 600;
@@ -317,23 +237,13 @@
   gap: 0.75rem;
   padding: 0.75rem;
   border-radius: var(--radius-md);
-  background: rgba(var(--accent-rgb, 59, 130, 246), 0.08);
+  background: var(--surface-interactive);
   border: 1px solid var(--border-subtle);
 }
 
 .batchBar select {
   flex: 1;
   min-width: 12rem;
-}
-
-.checkboxLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
 }
 
 .unassignedList {
@@ -355,16 +265,10 @@
   border: 1px solid var(--border-subtle);
 }
 
-.itemCheckbox {
-  width: 1.125rem;
-  height: 1.125rem;
-  cursor: pointer;
-}
-
 .itemDetails {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
   flex: 1;
   min-width: 0;
 }
@@ -384,16 +288,6 @@
   gap: 0.5rem;
   font-size: 0.75rem;
   color: var(--text-tertiary);
-}
-
-.sourceTag {
-  display: inline-flex;
-  padding: 0.1rem 0.35rem;
-  border-radius: var(--radius-xs, 0.25rem);
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  font-weight: 500;
 }
 
 /* Sync Runs & Notifications */
@@ -424,3 +318,4 @@
   color: inherit;
   text-decoration: none;
 }
+

@@ -2,7 +2,6 @@
 
 import {
   CalendarDays,
-  Check,
   GraduationCap,
   ListTodo,
   ShieldCheck,
@@ -10,7 +9,13 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
+import { Surface } from "@/components/ui/surface";
+import { Toggle } from "@/components/ui/toggle";
 import type { NotificationPreferencesState } from "@/types/notification";
+
 import {
   disablePushSubscriptionAction,
   getNotificationPreferencesAction,
@@ -45,17 +50,22 @@ export function NotificationPreferences() {
   // Push notification state
   const [pushStatus, setPushStatus] = useState<
     "active" | "disabled" | "blocked" | "unsupported"
-  >(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) {
-      return "unsupported";
-    }
-    if (Notification.permission === "denied") return "blocked";
-    if (Notification.permission === "granted") return "active";
-    return "disabled";
-  });
+  >("unsupported");
   const [pushLoading, setPushLoading] = useState(false);
   const [testPushLoading, setTestPushLoading] = useState(false);
   const [testPushMessage, setTestPushMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "denied") {
+        setPushStatus("blocked");
+      } else if (Notification.permission === "granted") {
+        setPushStatus("active");
+      } else {
+        setPushStatus("disabled");
+      }
+    }
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -143,23 +153,17 @@ export function NotificationPreferences() {
                   p256dh: json.keys.p256dh,
                   auth: json.keys.auth,
                 },
-                expirationTime: sub.expirationTime,
               });
             }
-          } catch (subErr) {
-            console.warn(
-              "[push] Local browser subscription created without remote push gateway:",
-              subErr,
-            );
+          } catch (err) {
+            console.error("[push] Failed to subscribe with PushManager:", err);
           }
         }
       } else if (permission === "denied") {
         setPushStatus("blocked");
-      } else {
-        setPushStatus("disabled");
       }
     } catch (err) {
-      console.error("[push] Request permission error:", err);
+      console.error("[push] Permission request failed:", err);
     } finally {
       setPushLoading(false);
     }
@@ -172,13 +176,13 @@ export function NotificationPreferences() {
         const registration = await navigator.serviceWorker.ready;
         const sub = await registration.pushManager.getSubscription();
         if (sub) {
-          await disablePushSubscriptionAction(sub.endpoint);
           await sub.unsubscribe();
+          await disablePushSubscriptionAction(sub.endpoint);
         }
       }
       setPushStatus("disabled");
     } catch (err) {
-      console.error("[push] Disable push error:", err);
+      console.error("[push] Failed to disable push:", err);
     } finally {
       setPushLoading(false);
     }
@@ -189,14 +193,14 @@ export function NotificationPreferences() {
     setTestPushMessage(null);
     try {
       const res = await sendTestNotificationAction();
-      if (res.ok) {
-        setTestPushMessage(res.data.message);
-      } else {
-        setTestPushMessage(res.message);
-      }
-    } catch (err) {
-      console.error("[push] Test notification error:", err);
-      setTestPushMessage("Failed to send test notification.");
+      setTestPushMessage(
+        res.ok
+          ? "Test notification dispatched to your push endpoints."
+          : `Failed to send test: ${res.message}`,
+      );
+      setTimeout(() => setTestPushMessage(null), 5000);
+    } catch {
+      setTestPushMessage("Error sending test notification.");
     } finally {
       setTestPushLoading(false);
     }
@@ -205,12 +209,11 @@ export function NotificationPreferences() {
   return (
     <div className={styles.container}>
       {/* Category Toggles */}
-      <div className={styles.card}>
+      <Surface variant="base" className={styles.card}>
         <div className={styles.cardHeader}>
           <h3 className={styles.cardTitle}>Notification Categories</h3>
           <p className={styles.cardDescription}>
-            Control which personal domains and integrations surface meaningful
-            in-app updates.
+            Control which personal domains and integrations surface meaningful in-app updates.
           </p>
         </div>
 
@@ -218,32 +221,27 @@ export function NotificationPreferences() {
           <div className={styles.toggleRow}>
             <div className={styles.toggleInfo}>
               <span className={styles.toggleIcon} aria-hidden="true">
-                <ListTodo size={17} />
+                <ListTodo size={16} />
               </span>
               <div>
                 <h4 className={styles.toggleLabel}>Tasks</h4>
                 <p className={styles.toggleDetail}>
-                  Reminders for tasks due today, upcoming deadlines, and overdue
-                  items.
+                  Reminders for tasks due today, upcoming deadlines, and overdue items.
                 </p>
               </div>
             </div>
-            <label className={styles.switch}>
-              <input
-                type="checkbox"
-                checked={preferences.taskReminders}
-                onChange={() => handleToggle("taskReminders", "task_reminders")}
-                disabled={loading}
-                aria-label="Toggle task reminders"
-              />
-              <span className={styles.slider} />
-            </label>
+            <Toggle
+              checked={preferences.taskReminders}
+              onChange={() => handleToggle("taskReminders", "task_reminders")}
+              disabled={loading}
+              aria-label="Toggle task reminders"
+            />
           </div>
 
           <div className={styles.toggleRow}>
             <div className={styles.toggleInfo}>
               <span className={styles.toggleIcon} aria-hidden="true">
-                <CalendarDays size={17} />
+                <CalendarDays size={16} />
               </span>
               <div>
                 <h4 className={styles.toggleLabel}>Calendar</h4>
@@ -252,24 +250,18 @@ export function NotificationPreferences() {
                 </p>
               </div>
             </div>
-            <label className={styles.switch}>
-              <input
-                type="checkbox"
-                checked={preferences.calendarReminders}
-                onChange={() =>
-                  handleToggle("calendarReminders", "calendar_reminders")
-                }
-                disabled={loading}
-                aria-label="Toggle calendar reminders"
-              />
-              <span className={styles.slider} />
-            </label>
+            <Toggle
+              checked={preferences.calendarReminders}
+              onChange={() => handleToggle("calendarReminders", "calendar_reminders")}
+              disabled={loading}
+              aria-label="Toggle calendar reminders"
+            />
           </div>
 
           <div className={styles.toggleRow}>
             <div className={styles.toggleInfo}>
               <span className={styles.toggleIcon} aria-hidden="true">
-                <GraduationCap size={17} />
+                <GraduationCap size={16} />
               </span>
               <div>
                 <h4 className={styles.toggleLabel}>School</h4>
@@ -278,121 +270,105 @@ export function NotificationPreferences() {
                 </p>
               </div>
             </div>
-            <label className={styles.switch}>
-              <input
-                type="checkbox"
-                checked={preferences.schoolClassReminders}
-                onChange={() =>
-                  handleToggle("schoolClassReminders", "school_class_reminders")
-                }
-                disabled={loading}
-                aria-label="Toggle school class reminders"
-              />
-              <span className={styles.slider} />
-            </label>
+            <Toggle
+              checked={preferences.schoolClassReminders}
+              onChange={() => handleToggle("schoolClassReminders", "school_class_reminders")}
+              disabled={loading}
+              aria-label="Toggle school class reminders"
+            />
           </div>
 
           <div className={styles.toggleRow}>
             <div className={styles.toggleInfo}>
               <span className={styles.toggleIcon} aria-hidden="true">
-                <ShieldCheck size={17} />
+                <ShieldCheck size={16} />
               </span>
               <div>
                 <h4 className={styles.toggleLabel}>Blackboard: New Items</h4>
                 <p className={styles.toggleDetail}>
-                  Alerts when newly discovered assignments or calendar entries
-                  are ready for review.
+                  Alerts when newly discovered assignments or calendar entries are ready for review.
                 </p>
               </div>
             </div>
-            <label className={styles.switch}>
-              <input
-                type="checkbox"
-                checked={preferences.blackboardNewItems}
-                onChange={() =>
-                  handleToggle("blackboardNewItems", "blackboard_new_items")
-                }
-                disabled={loading}
-                aria-label="Toggle new Blackboard item notifications"
-              />
-              <span className={styles.slider} />
-            </label>
+            <Toggle
+              checked={preferences.blackboardNewItems}
+              onChange={() => handleToggle("blackboardNewItems", "blackboard_new_items")}
+              disabled={loading}
+              aria-label="Toggle new Blackboard item notifications"
+            />
           </div>
 
           <div className={styles.toggleRow}>
             <div className={styles.toggleInfo}>
               <span className={styles.toggleIcon} aria-hidden="true">
-                <ShieldCheck size={17} />
+                <ShieldCheck size={16} />
               </span>
               <div>
                 <h4 className={styles.toggleLabel}>Blackboard: Deadline Changes</h4>
                 <p className={styles.toggleDetail}>
-                  Alerts when an existing syllabus or assignment deadline
-                  materially shifts.
+                  Alerts when an existing syllabus or assignment deadline materially shifts.
                 </p>
               </div>
             </div>
-            <label className={styles.switch}>
-              <input
-                type="checkbox"
-                checked={preferences.blackboardDeadlineChanges}
-                onChange={() =>
-                  handleToggle(
-                    "blackboardDeadlineChanges",
-                    "blackboard_deadline_changes",
-                  )
-                }
-                disabled={loading}
-                aria-label="Toggle Blackboard deadline change notifications"
-              />
-              <span className={styles.slider} />
-            </label>
+            <Toggle
+              checked={preferences.blackboardDeadlineChanges}
+              onChange={() =>
+                handleToggle("blackboardDeadlineChanges", "blackboard_deadline_changes")
+              }
+              disabled={loading}
+              aria-label="Toggle Blackboard deadline change notifications"
+            />
           </div>
         </div>
-      </div>
+      </Surface>
 
       {/* Quiet Hours */}
-      <div className={styles.card}>
+      <Surface variant="base" className={styles.card}>
         <div className={styles.cardHeader}>
           <h3 className={styles.cardTitle}>Quiet Hours</h3>
           <p className={styles.cardDescription}>
-            During quiet hours, push notifications are deferred to prevent
-            distractions. In-app notifications remain quietly accessible in your
-            Notification Center.
+            During quiet hours, push notifications are deferred to prevent distractions. In-app
+            notifications remain quietly accessible in your Notification Center.
           </p>
         </div>
 
         <div className={styles.quietGrid}>
-          <div className={styles.field}>
-            <label htmlFor="quiet-start">Start Time</label>
+          <div className={styles.quietField}>
+            <label className={styles.quietLabel} htmlFor="quiet-start">
+              Start Time
+            </label>
             <input
               id="quiet-start"
               type="time"
-              className={styles.input}
+              className={styles.quietInput}
               value={quietStart}
               onChange={(e) => setQuietStart(e.target.value)}
               disabled={loading}
             />
           </div>
 
-          <div className={styles.field}>
-            <label htmlFor="quiet-end">End Time</label>
+          <div className={styles.quietField}>
+            <label className={styles.quietLabel} htmlFor="quiet-end">
+              End Time
+            </label>
             <input
               id="quiet-end"
               type="time"
-              className={styles.input}
+              className={styles.quietInput}
               value={quietEnd}
               onChange={(e) => setQuietEnd(e.target.value)}
               disabled={loading}
             />
           </div>
 
-          <div className={styles.field}>
-            <label htmlFor="quiet-tz">Timezone</label>
+          <div className={styles.quietField}>
+            <label className={styles.quietLabel} htmlFor="quiet-tz">
+              Timezone
+            </label>
             <input
               id="quiet-tz"
               type="text"
-              className={styles.input}
+              className={styles.quietInput}
               value={timeZone}
               onChange={(e) => setTimeZone(e.target.value)}
               disabled={loading}
@@ -401,113 +377,120 @@ export function NotificationPreferences() {
           </div>
         </div>
 
-        <button
-          type="button"
-          className={styles.saveBtn}
-          onClick={handleSaveQuietHours}
-          disabled={savingQuiet || loading}
-        >
-          {savingQuiet ? "Saving…" : "Save Quiet Hours"}
-        </button>
+        <div className={styles.quietActions}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleSaveQuietHours}
+            disabled={savingQuiet || loading}
+            loading={savingQuiet}
+          >
+            {savingQuiet ? "Saving…" : "Save Quiet Hours"}
+          </Button>
 
-        {quietSaved ? (
-          <p className={styles.savedToast} role="status">
-            <Check size={14} style={{ display: "inline", marginRight: 4 }} />
-            Quiet hours updated successfully.
-          </p>
-        ) : null}
-      </div>
+          {quietSaved ? (
+            <Callout variant="success">Quiet hours updated successfully.</Callout>
+          ) : null}
+        </div>
+      </Surface>
 
       {/* Web / Mobile Push Notifications */}
-      <div className={styles.card}>
+      <Surface variant="base" className={styles.card}>
         <div className={styles.cardHeader}>
           <h3 className={styles.cardTitle}>Web & Mobile Push Notifications</h3>
           <p className={styles.cardDescription}>
-            Receive subtle, privacy-conscious notifications on this device even
-            when the application is closed.
+            Receive subtle, privacy-conscious notifications on this device even when the
+            application is closed.
           </p>
         </div>
 
         <div className={styles.pushStatusRow}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             <span className={styles.toggleIcon} aria-hidden="true">
-              <Smartphone size={17} />
+              <Smartphone size={16} />
             </span>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <strong style={{ fontSize: "0.9rem" }}>Push Notifications</strong>
-                <span
-                  className={styles.pushBadge}
-                  data-status={pushStatus}
+                <Badge
+                  tone={
+                    pushStatus === "active"
+                      ? "success"
+                      : pushStatus === "blocked"
+                      ? "destructive"
+                      : "neutral"
+                  }
+                  size="sm"
                 >
                   {pushStatus === "active"
                     ? "Active"
                     : pushStatus === "blocked"
-                      ? "Blocked"
-                      : pushStatus === "unsupported"
-                        ? "Unsupported"
-                        : "Off"}
-                </span>
+                    ? "Blocked"
+                    : pushStatus === "unsupported"
+                    ? "Unsupported"
+                    : "Off"}
+                </Badge>
               </div>
               <p className={styles.toggleDetail}>
                 {pushStatus === "active"
                   ? "This device is registered to receive Web Push notifications."
                   : pushStatus === "blocked"
-                    ? "Notifications are blocked by your browser settings."
-                    : pushStatus === "unsupported"
-                      ? "Web Push is not supported in this browser."
-                      : "Push notifications are currently disabled."}
+                  ? "Notifications are blocked by your browser settings."
+                  : pushStatus === "unsupported"
+                  ? "Web Push is not supported in this browser."
+                  : "Push notifications are currently disabled."}
               </p>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <div className={styles.pushActions}>
             {pushStatus === "active" ? (
               <>
-                <button
-                  type="button"
-                  className={styles.pushActionBtn}
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={handleSendTestPush}
                   disabled={testPushLoading || pushLoading}
+                  loading={testPushLoading}
                 >
-                  {testPushLoading ? "Sending…" : "Send Test Notification"}
-                </button>
-                <button
-                  type="button"
-                  className={styles.pushActionBtn}
+                  {testPushLoading ? "Sending…" : "Send Test"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={handleDisablePush}
                   disabled={pushLoading || testPushLoading}
                 >
-                  {pushLoading ? "Updating…" : "Disable Push"}
-                </button>
+                  {pushLoading ? "Updating…" : "Disable"}
+                </Button>
               </>
             ) : pushStatus === "disabled" ? (
-              <button
-                type="button"
-                className={styles.pushActionBtn}
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleEnablePush}
                 disabled={pushLoading}
+                loading={pushLoading}
               >
-                {pushLoading ? "Requesting…" : "Enable Push Notifications"}
-              </button>
+                {pushLoading ? "Requesting…" : "Enable Push"}
+              </Button>
             ) : null}
           </div>
         </div>
 
         {testPushMessage ? (
-          <p className={styles.savedToast} role="status">
+          <Callout variant="info" role="status">
             {testPushMessage}
-          </p>
+          </Callout>
         ) : null}
 
         {pushStatus === "blocked" ? (
-          <p className={styles.pushNotice}>
-            To enable push notifications, open your browser site settings and
-            allow notifications for this site.
-          </p>
+          <Callout variant="warning">
+            To enable push notifications, open your browser site settings and allow
+            notifications for this site.
+          </Callout>
         ) : null}
-      </div>
+      </Surface>
     </div>
   );
 }
-

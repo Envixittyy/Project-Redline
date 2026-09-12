@@ -1,4 +1,5 @@
 .container {
+  position: relative;
   display: inline-flex;
   align-items: center;
   padding: 0;
@@ -17,6 +18,30 @@
 
 .container::-webkit-scrollbar {
   display: none;
+}
+
+.indicator {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: var(--glow-blue);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.indicator[data-ready] {
+  opacity: 1;
+}
+
+.indicator[data-animated] {
+  transition:
+    transform var(--motion-control, 180ms) var(--ease-standard),
+    width var(--motion-control, 180ms) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
 }
 
 .fullWidth {
@@ -43,10 +68,8 @@
   white-space: nowrap;
   text-decoration: none;
   transition:
-    background-color var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-spring);
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
 }
 
 .fullWidth .segment {
@@ -60,7 +83,8 @@
 }
 
 .segment:active:not(:disabled) {
-  transform: scale(0.985);
+  transform: scale(0.98);
+  transition-duration: var(--motion-fast);
 }
 
 .segment:focus-visible {
@@ -74,24 +98,21 @@
   box-shadow: none;
 }
 
-.segmentActive::after {
-  position: absolute;
-  right: 0.75rem;
-  bottom: -1px;
-  left: 0.75rem;
-  height: 2px;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  content: "";
-}
-
 .segment:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .segment:active:not(:disabled) {
-    transform: none;
+  .indicator {
+    transition: none !important;
   }
+  .segment:active:not(:disabled) {
+    transform: none !important;
+  }
+}
+
+:global(:root[data-motion="reduced"]) .indicator,
+:global(:root[data-motion="off"]) .indicator {
+  transition: none !important;
 }

@@ -21,6 +21,7 @@
   -webkit-backdrop-filter: blur(var(--blur-surface, 20px));
   border: 1px solid var(--border-subtle);
   box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.25);
+  animation: focus-topbar-enter var(--motion-surface) var(--ease-standard) both;
 }
 
 .topbarLeft {
@@ -62,6 +63,10 @@
   background: var(--surface-embedded);
   box-shadow: 0 0 0 1px var(--border-subtle), 0 12px 40px -12px rgba(0, 0, 0, 0.4);
   overflow: hidden;
+  animation: focus-focal-enter var(--motion-page) var(--ease-emphasized) 40ms both;
+  transition:
+    border-color var(--motion-surface) var(--ease-standard),
+    box-shadow var(--motion-surface) var(--ease-standard);
 }
 
 .focalCard::before {
@@ -98,6 +103,7 @@
 
 .focalCountdown {
   display: inline-flex;
+  font-variant-numeric: tabular-nums;
 }
 
 .focalCountdown :global([class*="badge"]) {
@@ -113,6 +119,12 @@
   color: var(--text-primary);
   overflow-wrap: anywhere;
   word-break: break-word;
+  transition: color var(--motion-surface) var(--ease-standard);
+}
+
+.focalCard[data-completed] .focalTitle {
+  color: var(--text-tertiary);
+  text-decoration: line-through;
 }
 
 .focalMeta {
@@ -150,6 +162,10 @@
   flex-wrap: wrap;
 }
 
+.completedButton {
+  animation: focus-complete-pulse var(--motion-surface) var(--ease-emphasized) both;
+}
+
 /* Secondary Surface: NEXT UP (Horizon indicator) */
 .nextCard {
   display: flex;
@@ -160,7 +176,8 @@
   border: 1px solid var(--border-subtle);
   background: var(--surface-embedded);
   opacity: 0.88;
-  transition: opacity var(--motion-fast) var(--motion-ease);
+  animation: focus-card-enter var(--motion-page) var(--ease-emphasized) 80ms both;
+  transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
 .nextCard:hover {
@@ -206,6 +223,7 @@
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.75rem;
+  animation: focus-card-enter var(--motion-page) var(--ease-emphasized) 120ms both;
 }
 
 .todayHeader {
@@ -250,7 +268,13 @@
   border-bottom: 1px solid var(--border-subtle);
   background: transparent;
   border-radius: var(--radius-sm);
-  transition: background-color var(--motion-fast) var(--motion-ease);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-surface) var(--ease-standard);
+}
+
+.todayItem[data-completed] {
+  opacity: 0.6;
 }
 
 .todayItem:last-child {
@@ -300,6 +324,9 @@
   color: var(--text-primary);
   overflow-wrap: anywhere;
   word-break: break-word;
+  transition:
+    color var(--motion-control) var(--ease-standard),
+    opacity var(--motion-control) var(--ease-standard);
 }
 
 .itemTitle[data-completed="true"] {
@@ -381,4 +408,77 @@
   .clockTime {
     font-size: 0.875rem;
   }
+}
+
+@keyframes focus-topbar-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes focus-focal-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes focus-card-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes focus-complete-pulse {
+  0% {
+    transform: scale(0.97);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar,
+  .focalCard,
+  .nextCard,
+  .todaySection,
+  .todayItem,
+  .completedButton,
+  .focalTitle,
+  .itemTitle {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+:global([data-motion="reduced"]) .topbar,
+:global([data-motion="reduced"]) .focalCard,
+:global([data-motion="reduced"]) .nextCard,
+:global([data-motion="reduced"]) .todaySection,
+:global([data-motion="reduced"]) .todayItem,
+:global([data-motion="reduced"]) .completedButton,
+:global([data-motion="reduced"]) .focalTitle,
+:global([data-motion="reduced"]) .itemTitle {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
 }

@@ -12,12 +12,11 @@
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
   transition:
-    transform var(--motion-fast) var(--motion-spring),
-    background-color var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease),
-    opacity var(--motion-fast) var(--motion-ease);
+    transform var(--motion-control) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
 }
 
 .button:focus-visible {
@@ -26,7 +25,8 @@
 }
 
 .button:active:not(:disabled) {
-  transform: scale(0.985);
+  transform: scale(0.98);
+  transition-duration: var(--motion-fast);
 }
 
 .button:disabled {
@@ -162,9 +162,21 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .button:active:not(:disabled) {
-    transform: none;
+  .button,
+  .button:active:not(:disabled),
+  .spinner {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
   }
+}
+
+:global([data-motion="reduced"]) .button,
+:global([data-motion="reduced"]) .button:active:not(:disabled),
+:global([data-motion="reduced"]) .spinner {
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
 }
 
 @media (pointer: coarse) {

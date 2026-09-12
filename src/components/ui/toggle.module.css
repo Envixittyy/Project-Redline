@@ -39,6 +39,11 @@
   width: 2.75rem;
   height: 1.6rem;
   flex-shrink: 0;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.container:active:not(.containerDisabled) .switch {
+  transform: scale(0.96);
 }
 
 .input {
@@ -60,8 +65,8 @@
   border-radius: var(--radius-pill, 9999px);
   background: var(--surface-subtle);
   transition:
-    background-color var(--motion-fast) ease,
-    border-color var(--motion-fast) ease;
+    background-color 160ms var(--ease-standard),
+    border-color 160ms var(--ease-standard);
 }
 
 .thumb {
@@ -74,8 +79,8 @@
   background: var(--text-secondary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   transition:
-    transform var(--motion-fast) var(--motion-spring),
-    background-color var(--motion-fast) ease;
+    transform 130ms var(--ease-standard),
+    background-color 160ms var(--ease-standard);
 }
 
 .input:checked + .track {
@@ -84,7 +89,7 @@
 }
 
 .input:checked + .track .thumb {
-  transform: translateX(1.15rem);
+  transform: translate3d(1.15rem, 0, 0);
   background: #ffffff;
 }
 
@@ -94,7 +99,17 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .switch,
+  .track,
   .thumb {
-    transition: none;
+    transition: none !important;
+    animation: none !important;
   }
+}
+
+:global([data-motion="reduced"]) .switch,
+:global([data-motion="reduced"]) .track,
+:global([data-motion="reduced"]) .thumb {
+  transition: none !important;
+  animation: none !important;
 }

@@ -230,6 +230,7 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
       {/* Main Focal Surface: NOW */}
       <section
         className={`${styles.focalCard} motion-enter`}
+        data-completed={isNowTaskCompleted || undefined}
         aria-labelledby="focus-now-title"
       >
         <div className={styles.focalHeader}>
@@ -271,6 +272,7 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
               variant={isNowTaskCompleted ? "secondary" : "primary"}
               size="md"
               icon={<Check size={16} aria-hidden="true" />}
+              className={isNowTaskCompleted ? styles.completedButton : undefined}
               onClick={() => handleToggleTaskCompletion(nowTaskId, isNowTaskCompleted)}
             >
               {isNowTaskCompleted ? "Completed" : "Complete task"}
@@ -334,7 +336,11 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
               const isCompleted = item.task ? completedTaskIds.has(item.task.id) : false;
 
               return (
-                <li key={item.key} className={styles.todayItem}>
+                <li
+                  key={item.key}
+                  className={styles.todayItem}
+                  data-completed={isCompleted || undefined}
+                >
                   <div className={styles.todayItemLeft}>
                     {isTask && item.task ? (
                       <Checkbox

@@ -87,7 +87,7 @@ export function CaptureLauncher() {
 
   return (
     <div className={styles.launcherBackdrop} onMouseDown={(event) => event.target === event.currentTarget && close()}>
-      <div ref={panelRef} className={`${styles.launcherPanel} motion-modal-enter`} role="dialog" aria-modal="true" aria-labelledby="capture-dialog-title" onKeyDown={trapFocus}>
+      <div ref={panelRef} className={styles.launcherPanel} role="dialog" aria-modal="true" aria-labelledby="capture-dialog-title" onKeyDown={trapFocus}>
         <div className={styles.launcherHeading}>
           <span className={styles.launcherIcon} aria-hidden="true"><Inbox size={18} /></span>
           <div>

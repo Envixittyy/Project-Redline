@@ -28,6 +28,7 @@
 }
 
 .box {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -39,10 +40,14 @@
   background: var(--input);
   color: #ffffff;
   transition:
-    background-color var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-spring);
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-control) var(--ease-standard);
+}
+
+.container:active:not(.containerDisabled) .box {
+  transform: scale(0.92);
+  transition-duration: var(--motion-fast);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -69,25 +74,31 @@
   border-color: var(--accent) !important;
 }
 
-.checkIcon {
-  display: none;
+.checkIcon,
+.minusIcon {
+  position: absolute;
+  opacity: 0;
+  transform: scale(0.65);
+  pointer-events: none;
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
 }
 
 .boxChecked .checkIcon,
 .input:checked + .box .checkIcon {
-  display: inline-flex;
+  opacity: 1;
+  transform: scale(1);
 }
 
 .boxIndeterminate .checkIcon {
-  display: none !important;
-}
-
-.minusIcon {
-  display: none;
+  opacity: 0 !important;
+  transform: scale(0.65) !important;
 }
 
 .boxIndeterminate .minusIcon {
-  display: inline-flex;
+  opacity: 1;
+  transform: scale(1);
 }
 
 .label {
@@ -101,3 +112,22 @@
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .box,
+  .checkIcon,
+  .minusIcon {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+:global([data-motion="reduced"]) .box,
+:global([data-motion="reduced"]) .checkIcon,
+:global([data-motion="reduced"]) .minusIcon {
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+

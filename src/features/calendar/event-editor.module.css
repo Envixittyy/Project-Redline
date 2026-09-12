@@ -13,9 +13,15 @@
   color: var(--text-primary);
 }
 
-.dialog::backdrop { background: var(--scrim); }
-.dialog[open] { animation: sheet-in var(--motion-standard) var(--motion-ease); }
-@keyframes sheet-in { from { translate: 0 1.5rem; opacity: 0; } }
+.dialog::backdrop {
+  background: var(--scrim);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: forward-backdrop-enter var(--motion-control, 150ms) var(--ease-standard) both;
+}
+.dialog[open] {
+  animation: forward-sheet-enter var(--motion-surface, 210ms) var(--ease-standard) both;
+}
 
 .form { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1rem 0.75rem; border-bottom: 1px solid var(--border-subtle); }
@@ -37,11 +43,45 @@
 .error { color: var(--accent-text); font-weight: 650; }
 .footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.85rem 1rem max(0.85rem, env(safe-area-inset-bottom)); border-top: 1px solid var(--border-subtle); }
 .confirmGroup { display: flex; gap: 0.45rem; }
+.primaryButton, .secondaryButton, .dangerButton, .iconButton {
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-control) var(--ease-standard);
+}
+.primaryButton:not(:disabled):active, .secondaryButton:not(:disabled):active, .dangerButton:not(:disabled):active, .iconButton:not(:disabled):active {
+  transform: scale(0.98);
+  transition-duration: var(--motion-fast);
+}
 .primaryButton, .secondaryButton, .dangerButton { display: inline-flex; min-height: 2.75rem; align-items: center; gap: 0.4rem; padding: 0 0.9rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-interactive); color: var(--text-secondary); cursor: pointer; font-size: 0.82rem; font-weight: 700; }
 .primaryButton { border-color: var(--accent-border); background: var(--accent-muted); color: var(--accent-text); }
 .dangerButton { border-color: var(--accent-border); color: var(--accent-text); }
 .primaryButton:disabled, .secondaryButton:disabled, .dangerButton:disabled { cursor: progress; opacity: 0.7; }
 
 @media (min-width: 34rem) { .pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 40rem) { .dialog { width: min(100%, 42rem); max-height: 86dvh; margin: auto; border-radius: var(--radius-xl); } }
-@media (hover: hover) and (pointer: fine) { .iconButton:hover, .secondaryButton:hover { background: var(--surface-hover); color: var(--text-primary); } }
+@media (min-width: 40rem) {
+  .dialog { width: min(100%, 42rem); max-height: 86dvh; margin: auto; border-radius: var(--radius-xl); }
+  .dialog[open] { animation: forward-modal-enter var(--motion-surface, 210ms) var(--ease-standard) both; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .iconButton:hover, .secondaryButton:hover { background: var(--surface-hover); color: var(--text-primary); }
+  .iconButton:hover { transform: translateY(-1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open] { animation-name: forward-fade; transform: none !important; }
+  .dialog::backdrop { animation-duration: var(--motion-fast); }
+  .primaryButton:not(:disabled):active, .secondaryButton:not(:disabled):active, .dangerButton:not(:disabled):active, .iconButton:not(:disabled):active, .iconButton:hover { transform: none !important; }
+}
+
+:global(:root[data-motion="reduced"]) .dialog[open],
+:global(:root[data-motion="off"]) .dialog[open] {
+  animation-name: forward-fade;
+  transform: none !important;
+}
+
+:global(:root[data-motion="reduced"]) .dialog::backdrop,
+:global(:root[data-motion="off"]) .dialog::backdrop {
+  animation-duration: var(--motion-fast);
+}

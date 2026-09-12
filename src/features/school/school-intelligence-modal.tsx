@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
 import { getCompanionSession } from "@/services/integrations/ai/companion-session";
 import type { CourseWithMeetings } from "@/types/course";
@@ -610,8 +611,7 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
 
               {calendarEvents.map((ev, idx) => (
                 <div key={idx} className={styles.eventRow}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     className={styles.eventCheckbox}
                     checked={ev.selected}
                     onChange={(e) => {

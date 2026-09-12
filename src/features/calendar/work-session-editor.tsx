@@ -3,6 +3,7 @@
 import { Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { DateTimePicker, Select } from "@/components/ui";
 import { fromZonedInputValue, toZonedInputValue } from "@/lib/date/day";
 import type { WorkSession } from "@/types/work-session";
 
@@ -94,43 +95,41 @@ export function WorkSessionEditor({
         </header>
 
         <div className={styles.body}>
-          <label className={styles.field}>
+          <div className={styles.field}>
             <span>Task</span>
-            <select
-              className={styles.control}
+            <Select
               value={fields.taskId}
-              required
-              autoFocus
               disabled={taskOptions.length === 0}
-              onChange={(event) => setFields((current) => ({ ...current, taskId: event.target.value }))}
-            >
-              {taskOptions.length === 0 ? <option value="">Create a task first</option> : null}
-              {taskOptions.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
-            </select>
-          </label>
+              onChange={(value) => setFields((current) => ({ ...current, taskId: value }))}
+              placeholder={taskOptions.length === 0 ? "Create a task first" : "Select task…"}
+              ariaLabel="Task"
+              options={taskOptions.map((task) => ({
+                value: task.id,
+                label: task.title,
+              }))}
+            />
+          </div>
 
           <div className={styles.pair}>
-            <label className={styles.field}>
+            <div className={styles.field}>
               <span>Starts</span>
-              <input
-                className={styles.control}
-                type="datetime-local"
+              <DateTimePicker
                 required
                 value={fields.startsAt}
-                onChange={(event) => setFields((current) => ({ ...current, startsAt: event.target.value }))}
+                onChange={(value) => setFields((current) => ({ ...current, startsAt: value }))}
+                ariaLabel="Starts"
               />
-            </label>
-            <label className={styles.field}>
+            </div>
+            <div className={styles.field}>
               <span>Ends</span>
-              <input
-                className={styles.control}
-                type="datetime-local"
+              <DateTimePicker
                 required
                 min={fields.startsAt}
                 value={fields.endsAt}
-                onChange={(event) => setFields((current) => ({ ...current, endsAt: event.target.value }))}
+                onChange={(value) => setFields((current) => ({ ...current, endsAt: value }))}
+                ariaLabel="Ends"
               />
-            </label>
+            </div>
           </div>
 
           <p className={styles.hint}>This creates a task-owned work block. It does not change the task deadline or create an event.</p>

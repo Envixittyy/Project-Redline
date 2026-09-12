@@ -167,6 +167,21 @@
   color: var(--text-primary);
 }
 
+.prioritySelect {
+  width: auto;
+  min-width: 6.5rem;
+}
+
+.prioritySelect button {
+  min-height: 2rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--radius-pill, 9999px);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
 .error {
   margin: 0;
   color: var(--destructive);

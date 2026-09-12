@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { Checkbox, DatePicker, DateTimePicker, Select } from "@/components/ui";
 import { fromZonedInputValue, toZonedInputValue } from "@/lib/date/day";
 import type { CourseMaterial, TaskCourseMaterialLink } from "@/types/course-material";
 import { taskPriorities, taskStatuses, type Task } from "@/types/task";
@@ -229,61 +230,53 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
           </label>
 
           <div className={styles.pair}>
-            <label className={styles.field}>
+            <div className={styles.field}>
               <span>Status</span>
-              <select
-                className={styles.control}
+              <Select
                 value={fields.status}
                 disabled={completed}
-                onChange={(event) => update("status", event.target.value as typeof fields.status)}
-              >
-                {(completed ? taskStatuses : editableStatuses).map((status) => (
-                  <option key={status.id} value={status.id}>
-                    {status.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(value) => update("status", value as typeof fields.status)}
+                ariaLabel="Task status"
+                options={(completed ? taskStatuses : editableStatuses).map((status) => ({
+                  value: status.id,
+                  label: status.label,
+                }))}
+              />
+            </div>
 
-            <label className={styles.field}>
+            <div className={styles.field}>
               <span>Priority</span>
-              <select
-                className={styles.control}
+              <Select
                 value={fields.priority}
-                onChange={(event) =>
-                  update("priority", event.target.value as typeof fields.priority)
-                }
-              >
-                {taskPriorities.map((priority) => (
-                  <option key={priority.id} value={priority.id}>
-                    {priority.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(value) => update("priority", value as typeof fields.priority)}
+                ariaLabel="Task priority"
+                options={taskPriorities.map((priority) => ({
+                  value: priority.id,
+                  label: priority.label,
+                }))}
+              />
+            </div>
           </div>
 
-          <label className={styles.field}>
+          <div className={styles.field}>
             <span>Due date</span>
-            <input
-              className={styles.control}
-              type="date"
+            <DatePicker
               value={fields.dueDate}
-              onChange={(event) => update("dueDate", event.target.value)}
+              onChange={(value) => update("dueDate", value)}
+              ariaLabel="Task due date"
             />
-          </label>
+          </div>
 
-          <label className={styles.field}>
+          <div className={styles.field}>
             <span>Exact deadline</span>
-            <input
-              className={styles.control}
-              type="datetime-local"
+            <DateTimePicker
               value={fields.dueAt}
-              onChange={(event) => update("dueAt", event.target.value)}
+              onChange={(value) => update("dueAt", value)}
               disabled={!fields.dueDate}
+              ariaLabel="Exact task deadline"
             />
             <small className={styles.hint}>Optional. The deadline must fall on the selected due date.</small>
-          </label>
+          </div>
 
           <fieldset className={styles.schedule}>
             <legend>Scheduled time</legend>
@@ -293,27 +286,25 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
             </p>
 
             <div className={styles.pair}>
-              <label className={styles.field}>
+              <div className={styles.field}>
                 <span>Starts</span>
-                <input
-                  className={styles.control}
-                  type="datetime-local"
+                <DateTimePicker
                   value={fields.scheduledStart}
-                  onChange={(event) => update("scheduledStart", event.target.value)}
+                  onChange={(value) => update("scheduledStart", value)}
+                  ariaLabel="Scheduled start time"
                 />
-              </label>
+              </div>
 
-              <label className={styles.field}>
+              <div className={styles.field}>
                 <span>Ends</span>
-                <input
-                  className={styles.control}
-                  type="datetime-local"
+                <DateTimePicker
                   value={fields.scheduledEnd}
                   min={fields.scheduledStart || undefined}
                   disabled={fields.scheduledStart === ""}
-                  onChange={(event) => update("scheduledEnd", event.target.value)}
+                  onChange={(value) => update("scheduledEnd", value)}
+                  ariaLabel="Scheduled end time"
                 />
-              </label>
+              </div>
             </div>
 
             {fields.scheduledStart ? (
@@ -427,9 +418,8 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
                       {availableMaterials.map((mat) => {
                         const checked = selectedMaterialIds.includes(mat.id);
                         return (
-                          <label key={mat.id} className={styles.pickerOption}>
-                            <input
-                              type="checkbox"
+                          <div key={mat.id} className={styles.pickerOption}>
+                            <Checkbox
                               checked={checked}
                               onChange={(e) => {
                                 if (e.target.checked) {
@@ -440,10 +430,14 @@ export function TaskEditor({ task, timeZone, onClose }: TaskEditorProps) {
                                   );
                                 }
                               }}
+                              label={
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                                  <span className={styles.materialBadge}>{mat.type}</span>
+                                  <span style={{ fontWeight: 600 }}>{mat.title}</span>
+                                </span>
+                              }
                             />
-                            <span className={styles.materialBadge}>{mat.type}</span>
-                            <span style={{ fontWeight: 600 }}>{mat.title}</span>
-                          </label>
+                          </div>
                         );
                       })}
                     </div>

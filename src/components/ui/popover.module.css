@@ -109,12 +109,29 @@
   border: 0;
 }
 
+.bottomStart.exiting,
+.bottomEnd.exiting {
+  animation: forward-popover-down-exit var(--motion-fast, 110ms) var(--ease-exit) both;
+}
+
+.topStart.exiting,
+.topEnd.exiting {
+  animation: forward-popover-up-exit var(--motion-fast, 110ms) var(--ease-exit) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bottomStart,
   .bottomEnd,
   .topStart,
   .topEnd {
     animation-name: forward-fade;
+    transform: none !important;
+  }
+  .bottomStart.exiting,
+  .bottomEnd.exiting,
+  .topStart.exiting,
+  .topEnd.exiting {
+    animation-name: forward-fade-out;
     transform: none !important;
   }
 }
@@ -128,6 +145,18 @@
 :global(:root[data-motion="off"]) .topStart,
 :global(:root[data-motion="off"]) .topEnd {
   animation-name: forward-fade;
+  transform: none !important;
+}
+
+:global(:root[data-motion="reduced"]) .bottomStart.exiting,
+:global(:root[data-motion="reduced"]) .bottomEnd.exiting,
+:global(:root[data-motion="reduced"]) .topStart.exiting,
+:global(:root[data-motion="reduced"]) .topEnd.exiting,
+:global(:root[data-motion="off"]) .bottomStart.exiting,
+:global(:root[data-motion="off"]) .bottomEnd.exiting,
+:global(:root[data-motion="off"]) .topStart.exiting,
+:global(:root[data-motion="off"]) .topEnd.exiting {
+  animation-name: forward-fade-out;
   transform: none !important;
 }
 

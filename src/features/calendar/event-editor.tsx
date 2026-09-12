@@ -3,6 +3,7 @@
 import { Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { Checkbox, DatePicker, DateTimePicker, Select } from "@/components/ui";
 import { addDays, fromZonedInputValue, startOfDayIn, toZonedInputValue } from "@/lib/date/day";
 import { nativeCalendarEventTypes, type CalendarEvent } from "@/types/calendar-event";
 
@@ -126,78 +127,73 @@ export function EventEditor({ event, initialDate, timeZone, onClose }: EventEdit
             />
           </label>
 
-          <label className={styles.checkboxField}>
-            <input
-              type="checkbox"
+          <div className={styles.checkboxField}>
+            <Checkbox
               checked={fields.allDay}
               onChange={(changeEvent) => update("allDay", changeEvent.target.checked)}
+              label="All-day event"
             />
-            <span>All-day event</span>
-          </label>
+          </div>
 
           {fields.allDay ? (
             <div className={styles.pair}>
-              <label className={styles.field}>
+              <div className={styles.field}>
                 <span>Start date</span>
-                <input
-                  className={styles.control}
-                  type="date"
+                <DatePicker
                   required
                   value={fields.startDate}
-                  onChange={(changeEvent) => update("startDate", changeEvent.target.value)}
+                  onChange={(val) => update("startDate", val)}
+                  ariaLabel="Start date"
                 />
-              </label>
-              <label className={styles.field}>
+              </div>
+              <div className={styles.field}>
                 <span>End date</span>
-                <input
-                  className={styles.control}
-                  type="date"
+                <DatePicker
                   required
                   min={fields.startDate}
                   value={fields.endDate}
-                  onChange={(changeEvent) => update("endDate", changeEvent.target.value)}
+                  onChange={(val) => update("endDate", val)}
+                  ariaLabel="End date"
                 />
-              </label>
+              </div>
             </div>
           ) : (
             <div className={styles.pair}>
-              <label className={styles.field}>
+              <div className={styles.field}>
                 <span>Starts</span>
-                <input
-                  className={styles.control}
-                  type="datetime-local"
+                <DateTimePicker
                   required
                   value={fields.startTime}
-                  onChange={(changeEvent) => update("startTime", changeEvent.target.value)}
+                  onChange={(val) => update("startTime", val)}
+                  ariaLabel="Starts"
                 />
-              </label>
-              <label className={styles.field}>
+              </div>
+              <div className={styles.field}>
                 <span>Ends</span>
-                <input
-                  className={styles.control}
-                  type="datetime-local"
+                <DateTimePicker
                   required
                   min={fields.startTime}
                   value={fields.endTime}
-                  onChange={(changeEvent) => update("endTime", changeEvent.target.value)}
+                  onChange={(val) => update("endTime", val)}
+                  ariaLabel="Ends"
                 />
-              </label>
+              </div>
             </div>
           )}
 
           <div className={styles.pair}>
-            <label className={styles.field}>
+            <div className={styles.field}>
               <span>Type</span>
-              <select
-                className={styles.control}
+              <Select
                 value={fields.eventType}
-                onChange={(changeEvent) => update("eventType", changeEvent.target.value)}
-              >
-                {nativeCalendarEventTypes.map((type) => (
-                  <option key={type.id} value={type.id}>{type.label}</option>
-                ))}
-              </select>
-            </label>
+                onChange={(val) => update("eventType", val)}
+                ariaLabel="Event type"
+                options={nativeCalendarEventTypes.map((type) => ({
+                  value: type.id,
+                  label: type.label,
+                }))}
+              />
+            </div>
             <label className={styles.field}>
               <span>Course</span>
               <input

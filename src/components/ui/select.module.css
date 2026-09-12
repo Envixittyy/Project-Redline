@@ -20,9 +20,14 @@
   text-align: left;
   cursor: pointer;
   transition:
-    border-color var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease);
+    border-color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.trigger:active:not(:disabled) {
+  transform: scale(0.985);
 }
 
 @media (min-width: 48rem) {
@@ -62,7 +67,7 @@
 .chevron {
   color: var(--text-secondary);
   flex-shrink: 0;
-  transition: transform var(--motion-fast) var(--motion-ease);
+  transition: transform var(--motion-fast) var(--ease-standard);
 }
 
 .chevronOpen {
@@ -72,7 +77,6 @@
 
 .listbox {
   position: absolute;
-  top: calc(100% + 4px);
   left: 0;
   right: 0;
   z-index: 60;
@@ -88,6 +92,33 @@
   backdrop-filter: blur(var(--blur-surface, 16px));
   -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
   box-shadow: var(--shadow-dropdown);
+  outline: none;
+}
+
+.listboxBottom {
+  top: calc(100% + 4px);
+  transform-origin: top center;
+}
+
+.listboxTop {
+  bottom: calc(100% + 4px);
+  transform-origin: bottom center;
+}
+
+.listboxEntering.listboxBottom {
+  animation: forward-popover-down-enter var(--motion-control, 150ms) var(--ease-standard) both;
+}
+
+.listboxEntering.listboxTop {
+  animation: forward-popover-up-enter var(--motion-control, 150ms) var(--ease-standard) both;
+}
+
+.listboxExiting.listboxBottom {
+  animation: forward-popover-down-exit var(--motion-fast, 110ms) var(--ease-exit) both;
+}
+
+.listboxExiting.listboxTop {
+  animation: forward-popover-up-exit var(--motion-fast, 110ms) var(--ease-exit) both;
 }
 
 .option {
@@ -148,5 +179,40 @@
 .checkIcon {
   color: var(--accent-text);
   flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listboxEntering,
+  .listboxExiting,
+  .trigger {
+    transition: none !important;
+    transform: none !important;
+  }
+  .listboxEntering {
+    animation: forward-fade var(--motion-fast) ease both;
+  }
+  .listboxExiting {
+    animation: forward-fade-out var(--motion-fast) ease both;
+  }
+}
+
+:global(:root[data-motion="reduced"]) .listboxEntering,
+:global(:root[data-motion="reduced"]) .listboxExiting,
+:global(:root[data-motion="reduced"]) .trigger,
+:global(:root[data-motion="off"]) .listboxEntering,
+:global(:root[data-motion="off"]) .listboxExiting,
+:global(:root[data-motion="off"]) .trigger {
+  transition: none !important;
+  transform: none !important;
+}
+
+:global(:root[data-motion="reduced"]) .listboxEntering,
+:global(:root[data-motion="off"]) .listboxEntering {
+  animation: forward-fade var(--motion-fast) ease both;
+}
+
+:global(:root[data-motion="reduced"]) .listboxExiting,
+:global(:root[data-motion="off"]) .listboxExiting {
+  animation: forward-fade-out var(--motion-fast) ease both;
 }
 

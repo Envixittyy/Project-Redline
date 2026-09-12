@@ -1,8 +1,9 @@
 "use client";
 
-import { Plus, Loader2, Calendar, Flag } from "lucide-react";
+import { Plus, Loader2, Flag } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
 
+import { DatePicker, Select } from "@/components/ui";
 import { enqueueOfflineMutation } from "@/lib/offline/queue";
 import { taskPriorities } from "@/types/task";
 
@@ -18,6 +19,8 @@ export function QuickAdd({ defaultDueDate }: { defaultDueDate?: string }) {
   const titleRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [dueDate, setDueDate] = useState(defaultDueDate || "");
+  const [priority, setPriority] = useState("none");
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,13 +37,15 @@ export function QuickAdd({ defaultDueDate }: { defaultDueDate?: string }) {
     startTransition(async () => {
       const payload = {
         title,
-        dueDate: String(data.get("dueDate") ?? ""),
-        priority: String(data.get("priority") ?? "none"),
+        dueDate: String(data.get("dueDate") ?? dueDate),
+        priority: String(data.get("priority") ?? priority),
       };
       if (!navigator.onLine) {
         await enqueueOfflineMutation({ id: crypto.randomUUID(), kind: "task_create", payload });
         setError("Saved offline. This task is pending synchronization.");
         formRef.current?.reset();
+        setDueDate(defaultDueDate || "");
+        setPriority("none");
         titleRef.current?.focus();
         return;
       }
@@ -51,12 +56,16 @@ export function QuickAdd({ defaultDueDate }: { defaultDueDate?: string }) {
         await enqueueOfflineMutation({ id: crypto.randomUUID(), kind: "task_create", payload });
         setError("Connection lost. This task is pending synchronization.");
         formRef.current?.reset();
+        setDueDate(defaultDueDate || "");
+        setPriority("none");
         return;
       }
 
       if (result.ok) {
         setError(null);
         formRef.current?.reset();
+        setDueDate(defaultDueDate || "");
+        setPriority("none");
         titleRef.current?.focus();
       } else {
         setError(result.message);
@@ -107,36 +116,34 @@ export function QuickAdd({ defaultDueDate }: { defaultDueDate?: string }) {
         </div>
 
         <div className={styles.optionsStrip}>
-          <label className={styles.optionPill}>
-            <Calendar size={13} className={styles.optionIcon} aria-hidden="true" />
+          <div className={styles.optionPill}>
             <span className={styles.optionLabel}>Due:</span>
-            <input
-              className={styles.dateControl}
+            <DatePicker
               name="dueDate"
-              type="date"
-              defaultValue={defaultDueDate}
+              value={dueDate}
+              onChange={setDueDate}
+              compact
               disabled={pending}
-              aria-label="Task due date"
+              ariaLabel="Task due date"
             />
-          </label>
+          </div>
 
-          <label className={styles.optionPill}>
+          <div className={styles.optionPill}>
             <Flag size={13} className={styles.optionIcon} aria-hidden="true" />
             <span className={styles.optionLabel}>Priority:</span>
-            <select
-              className={styles.selectControl}
+            <Select
               name="priority"
-              defaultValue="none"
+              value={priority}
+              onChange={setPriority}
               disabled={pending}
-              aria-label="Task priority"
-            >
-              {taskPriorities.map((priority) => (
-                <option key={priority.id} value={priority.id}>
-                  {priority.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              className={styles.prioritySelect}
+              ariaLabel="Task priority"
+              options={taskPriorities.map((p) => ({
+                value: p.id,
+                label: p.label,
+              }))}
+            />
+          </div>
         </div>
 
         {error ? (

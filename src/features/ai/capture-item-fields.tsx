@@ -1,10 +1,14 @@
 "use client";
+
+import { Checkbox, DatePicker, Select, TimePicker } from "@/components/ui";
 import type {
   ProposedTaskCapture,
   ProposedEventCapture,
 } from "@/services/integrations/ai/quick-capture-contract";
 import styles from "./capture-item-fields.module.css";
+
 type Item = ProposedTaskCapture | ProposedEventCapture;
+
 export function CaptureItemFields({
   item,
   onChange,
@@ -27,76 +31,85 @@ export function CaptureItemFields({
           onChange={(e) => onChange({ ...item, title: e.target.value })}
         />
       </label>
-      <label>
-        Time zone
-        <select
+      <div>
+        <span>Time zone</span>
+        <Select
           value={item.timeZone}
-          onChange={(e) =>
-            onChange({ ...item, timeZone: e.target.value as "local" | "UTC" })
+          disabled={disabled}
+          onChange={(value) =>
+            onChange({ ...item, timeZone: value as "local" | "UTC" })
           }
-        >
-          <option value="local">Workspace local time</option>
-          <option value="UTC">UTC</option>
-        </select>
-      </label>
+          options={[
+            { value: "local", label: "Workspace local time" },
+            { value: "UTC", label: "UTC" },
+          ]}
+          ariaLabel="Time zone"
+        />
+      </div>
       {item.entityType === "task" ? (
         <>
-          <label>
-            Due date
-            <input
-              type="date"
+          <div>
+            <span>Due date</span>
+            <DatePicker
               value={item.dueDate ?? ""}
-              onChange={(e) => {
+              disabled={disabled}
+              onChange={(value) => {
                 const next = { ...item };
-                if (e.target.value) next.dueDate = e.target.value;
+                if (value) next.dueDate = value;
                 else {
                   delete next.dueDate;
                   delete next.dueTime;
                 }
                 onChange(next);
               }}
+              ariaLabel="Due date"
             />
-          </label>
-          <label>
-            Due time
-            <input
-              type="time"
-              disabled={!item.dueDate}
+          </div>
+          <div>
+            <span>Due time</span>
+            <TimePicker
+              disabled={disabled || !item.dueDate}
               value={item.dueTime ?? ""}
-              onChange={(e) => {
+              onChange={(value) => {
                 const next = { ...item };
-                if (e.target.value) next.dueTime = e.target.value;
+                if (value) next.dueTime = value;
                 else delete next.dueTime;
                 onChange(next);
               }}
+              ariaLabel="Due time"
             />
-          </label>
-          <label>
-            Priority
-            <select
+          </div>
+          <div>
+            <span>Priority</span>
+            <Select
               value={item.priority ?? ""}
-              onChange={(e) => {
+              disabled={disabled}
+              placeholder="None"
+              onChange={(value) => {
                 const next = { ...item };
-                if (e.target.value)
-                  next.priority = e.target
-                    .value as ProposedTaskCapture["priority"];
+                if (value)
+                  next.priority = value as ProposedTaskCapture["priority"];
                 else delete next.priority;
                 onChange(next);
               }}
-            >
-              <option value="">None</option>
-              {["low", "medium", "high", "urgent"].map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>
-          </label>
+              options={[
+                { value: "", label: "None" },
+                { value: "low", label: "Low" },
+                { value: "medium", label: "Medium" },
+                { value: "high", label: "High" },
+                { value: "urgent", label: "Urgent" },
+              ]}
+              ariaLabel="Priority"
+            />
+          </div>
         </>
       ) : (
         <>
-          <label>
-            <input
-              type="checkbox"
+          <div>
+            <Checkbox
               checked={item.allDay}
+              disabled={disabled}
+              label="All day"
               onChange={(e) => {
                 const next = { ...item, allDay: e.target.checked };
                 if (next.allDay) {
@@ -109,46 +122,49 @@ export function CaptureItemFields({
                 onChange(next);
               }}
             />
-            All day
-          </label>
-          <label>
-            Start date
-            <input
-              type="date"
+          </div>
+          <div>
+            <span>Start date</span>
+            <DatePicker
               value={item.startDate}
-              onChange={(e) => onChange({ ...item, startDate: e.target.value })}
+              disabled={disabled}
+              onChange={(value) => onChange({ ...item, startDate: value })}
+              ariaLabel="Start date"
             />
-          </label>
-          <label>
-            End date {item.allDay ? "(exclusive)" : ""}
-            <input
-              type="date"
+          </div>
+          <div>
+            <span>End date {item.allDay ? "(exclusive)" : ""}</span>
+            <DatePicker
               value={item.endDate}
-              onChange={(e) => onChange({ ...item, endDate: e.target.value })}
+              disabled={disabled}
+              onChange={(value) => onChange({ ...item, endDate: value })}
+              ariaLabel="End date"
             />
-          </label>
+          </div>
           {!item.allDay && (
             <>
-              <label>
-                Start time
-                <input
-                  type="time"
+              <div>
+                <span>Start time</span>
+                <TimePicker
                   value={item.startTime ?? ""}
-                  onChange={(e) =>
-                    onChange({ ...item, startTime: e.target.value })
+                  disabled={disabled}
+                  onChange={(value) =>
+                    onChange({ ...item, startTime: value })
                   }
+                  ariaLabel="Start time"
                 />
-              </label>
-              <label>
-                End time
-                <input
-                  type="time"
+              </div>
+              <div>
+                <span>End time</span>
+                <TimePicker
                   value={item.endTime ?? ""}
-                  onChange={(e) =>
-                    onChange({ ...item, endTime: e.target.value })
+                  disabled={disabled}
+                  onChange={(value) =>
+                    onChange({ ...item, endTime: value })
                   }
+                  ariaLabel="End time"
                 />
-              </label>
+              </div>
             </>
           )}
           <label>

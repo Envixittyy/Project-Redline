@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarItem } from "@/features/calendar/calendar-items";
 import type { Task } from "@/types/task";
 
+import { Checkbox } from "@/components/ui";
 import { applyPlanAction } from "./planning-actions";
 import {
   generateDayPlan,
@@ -192,8 +193,7 @@ export function PlanMyDayDialog({
                       className={styles.sessionCard}
                       data-selected={isSelected}
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         className={styles.sessionCheckbox}
                         checked={isSelected}
                         onChange={() => toggleSession(session.id)}

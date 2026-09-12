@@ -9,6 +9,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { useFloatingPresence } from "./use-floating-presence";
 import styles from "./select.module.css";
 
 export type SelectOption = {
@@ -25,6 +26,8 @@ export type SelectProps = {
   disabled?: boolean;
   placeholder?: string;
   id?: string;
+  name?: string;
+  placement?: "bottom" | "top";
   ariaLabel?: string;
   className?: string;
 };
@@ -36,6 +39,8 @@ export function Select({
   disabled = false,
   placeholder = "Select an option…",
   id: customId,
+  name,
+  placement = "bottom",
   ariaLabel,
   className,
 }: SelectProps) {
@@ -209,12 +214,18 @@ export function Select({
   const focusedOptionId =
     focusedIndex >= 0 ? `${baseId}-opt-${focusedIndex}` : undefined;
 
+  const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
+
+  const placementClass =
+    placement === "top" ? styles.listboxTop : styles.listboxBottom;
+
   return (
     <div
       ref={containerRef}
       className={`${styles.container} ${className || ""}`}
       onKeyDown={handleKeyDown}
     >
+      {name ? <input type="hidden" name={name} value={value} /> : null}
       <button
         ref={triggerRef}
         type="button"
@@ -241,11 +252,13 @@ export function Select({
         />
       </button>
 
-      {isOpen ? (
+      {isMounted ? (
         <ul
           ref={listboxRef}
           id={listboxId}
-          className={`${styles.listbox} motion-dropdown-enter`}
+          className={`${styles.listbox} ${placementClass} ${
+            isExiting ? styles.listboxExiting : styles.listboxEntering
+          }`}
           role="listbox"
           tabIndex={-1}
           aria-activedescendant={focusedOptionId}

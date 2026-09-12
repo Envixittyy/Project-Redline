@@ -11,6 +11,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Modal } from "@/components/ui/modal-frame";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
@@ -458,15 +459,13 @@ export function NoteAiDialog({
 
             {actionItemsResult.map((item, idx) => (
               <div key={idx} className={styles.actionItemRow}>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={item.selected}
                   onChange={(e) => {
                     const updated = [...actionItemsResult];
                     updated[idx] = { ...updated[idx], selected: e.target.checked };
                     setActionItemsResult(updated);
                   }}
-                  style={{ width: "1.1rem", height: "1.1rem", accentColor: "var(--accent)" }}
                 />
                 <input
                   value={item.title}

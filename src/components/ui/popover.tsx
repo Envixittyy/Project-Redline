@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { useFloatingPresence } from "./use-floating-presence";
 import styles from "./popover.module.css";
 
 export type PopoverPlacement =
@@ -114,17 +115,21 @@ export function Popover({
     });
   }
 
+  const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
+
   return (
     <PopoverContext.Provider value={{ role, onClose }}>
       <div ref={containerRef} className={`${styles.wrapper} ${className}`}>
         {renderedTrigger}
-        {isOpen ? (
+        {isMounted ? (
           <div
             id={panelId}
             role={role}
             aria-modal={role === "dialog" ? "false" : undefined}
             aria-label={ariaLabel}
-            className={`${styles.panel} ${placementClass}`}
+            className={`${styles.panel} ${placementClass} ${
+              isExiting ? styles.exiting : ""
+            }`}
           >
             {children}
           </div>

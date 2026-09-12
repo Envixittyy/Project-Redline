@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { TimePicker } from "@/components/ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
@@ -349,13 +350,12 @@ export function NotificationPreferences() {
             <label className={styles.quietLabel} htmlFor="quiet-start">
               Start Time
             </label>
-            <input
+            <TimePicker
               id="quiet-start"
-              type="time"
-              className={styles.quietInput}
               value={quietStart}
-              onChange={(e) => setQuietStart(e.target.value)}
+              onChange={(time) => setQuietStart(time)}
               disabled={loading}
+              ariaLabel="Quiet hours start time"
             />
           </div>
 
@@ -363,13 +363,12 @@ export function NotificationPreferences() {
             <label className={styles.quietLabel} htmlFor="quiet-end">
               End Time
             </label>
-            <input
+            <TimePicker
               id="quiet-end"
-              type="time"
-              className={styles.quietInput}
               value={quietEnd}
-              onChange={(e) => setQuietEnd(e.target.value)}
+              onChange={(time) => setQuietEnd(time)}
               disabled={loading}
+              ariaLabel="Quiet hours end time"
             />
           </div>
 

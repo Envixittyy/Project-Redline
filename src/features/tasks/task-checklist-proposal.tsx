@@ -7,6 +7,7 @@ import {
   applyAiProposalAction,
   rejectAiProposalAction,
 } from "@/features/ai/ai-actions";
+import { Checkbox } from "@/components/ui";
 import type { ChecklistReview } from "@/services/integrations/ai/trust-contract";
 import type { Task } from "@/types/task";
 import styles from "./task-checklist-proposal.module.css";
@@ -168,9 +169,7 @@ export function TaskChecklistProposal({
             <div className={styles.itemList}>
               {items.map((item, index) => (
                 <div key={item.id} className={styles.itemRow}>
-                  <input
-                    type="checkbox"
-                    className={styles.checkbox}
+                  <Checkbox
                     checked={item.selected}
                     onChange={() => edit(item.id, { selected: !item.selected })}
                     aria-label={`Include item ${index + 1}`}

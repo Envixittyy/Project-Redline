@@ -15,6 +15,10 @@ import { EmptyState } from "./empty-state";
 import { Tooltip } from "./tooltip";
 import { Modal, ModalFrame } from "./modal-frame";
 import { Popover, PopoverItem, PopoverSeparator } from "./popover";
+import { Select } from "./select";
+import { DatePicker } from "./date-picker";
+import { TimePicker } from "./time-picker";
+import { DateTimePicker } from "./date-time-picker";
 
 describe("S7 Shared UI Primitives", () => {
   describe("Button", () => {
@@ -451,6 +455,156 @@ describe("S7 Shared UI Primitives", () => {
       expect(html).toContain("Sign out");
       expect(html).toContain("itemDestructive");
       expect(html).toContain("<hr");
+    });
+  });
+
+  describe("Select Primitive", () => {
+    const testOptions = [
+      { value: "opt1", label: "Option One", description: "First choice" },
+      { value: "opt2", label: "Option Two" },
+      { value: "opt3", label: "Option Three", disabled: true },
+    ];
+
+    it("renders trigger with selected value and aria attributes", () => {
+      const html = renderToStaticMarkup(
+        <Select
+          options={testOptions}
+          value="opt1"
+          onChange={() => {}}
+          ariaLabel="Choose an option"
+        />,
+      );
+      expect(html).toContain("Option One");
+      expect(html).toContain("aria-haspopup=\"listbox\"");
+      expect(html).toContain("aria-expanded=\"false\"");
+      expect(html).toContain("aria-label=\"Choose an option\"");
+    });
+
+    it("renders placeholder when value is empty", () => {
+      const html = renderToStaticMarkup(
+        <Select
+          options={testOptions}
+          value=""
+          placeholder="Pick a flavor…"
+          onChange={() => {}}
+        />,
+      );
+      expect(html).toContain("Pick a flavor…");
+      expect(html).toContain("placeholder");
+    });
+
+    it("renders hidden input when name is provided for form submission", () => {
+      const html = renderToStaticMarkup(
+        <Select
+          name="category"
+          options={testOptions}
+          value="opt2"
+          onChange={() => {}}
+        />,
+      );
+      expect(html).toContain("type=\"hidden\"");
+      expect(html).toContain("name=\"category\"");
+      expect(html).toContain("value=\"opt2\"");
+    });
+  });
+
+  describe("DatePicker Primitive", () => {
+    it("renders trigger with formatted date display", () => {
+      const html = renderToStaticMarkup(
+        <DatePicker
+          value="2026-09-14"
+          onChange={() => {}}
+          ariaLabel="Due date"
+        />,
+      );
+      expect(html).toContain("Sep 14, 2026");
+      expect(html).toContain("aria-haspopup=\"dialog\"");
+      expect(html).toContain("aria-expanded=\"false\"");
+    });
+
+    it("renders placeholder when no date is selected", () => {
+      const html = renderToStaticMarkup(
+        <DatePicker
+          value=""
+          placeholder="Pick a due date…"
+          onChange={() => {}}
+        />,
+      );
+      expect(html).toContain("Pick a due date…");
+      expect(html).toContain("placeholder");
+    });
+
+    it("renders compact pill variant and hidden form input", () => {
+      const html = renderToStaticMarkup(
+        <DatePicker
+          name="dueDate"
+          value="2026-09-20"
+          compact
+          onChange={() => {}}
+        />,
+      );
+      expect(html).toContain("compactTrigger");
+      expect(html).toContain("type=\"hidden\"");
+      expect(html).toContain("name=\"dueDate\"");
+      expect(html).toContain("value=\"2026-09-20\"");
+    });
+  });
+
+  describe("TimePicker Primitive", () => {
+    it("renders trigger with 12-hour formatted display", () => {
+      const html = renderToStaticMarkup(
+        <TimePicker
+          value="14:30"
+          onChange={() => {}}
+          ariaLabel="Event start time"
+        />,
+      );
+      expect(html).toContain("2:30 PM");
+      expect(html).toContain("aria-haspopup=\"dialog\"");
+      expect(html).toContain("aria-expanded=\"false\"");
+    });
+
+    it("renders placeholder when no time is selected", () => {
+      const html = renderToStaticMarkup(
+        <TimePicker
+          value=""
+          placeholder="Pick a time…"
+          onChange={() => {}}
+        />,
+      );
+      expect(html).toContain("Pick a time…");
+      expect(html).toContain("placeholder");
+    });
+
+    it("renders hidden form input when name is provided", () => {
+      const html = renderToStaticMarkup(
+        <TimePicker
+          name="eventTime"
+          value="09:15"
+          onChange={() => {}}
+        />,
+      );
+      expect(html).toContain("type=\"hidden\"");
+      expect(html).toContain("name=\"eventTime\"");
+      expect(html).toContain("value=\"09:15\"");
+    });
+  });
+
+  describe("DateTimePicker Primitive", () => {
+    it("renders coordinated date and time triggers with ISO output", () => {
+      const html = renderToStaticMarkup(
+        <DateTimePicker
+          name="start"
+          value="2026-09-14T15:45"
+          onChange={() => {}}
+          ariaLabel="Meeting start"
+        />,
+      );
+      expect(html).toContain("Sep 14, 2026");
+      expect(html).toContain("3:45 PM");
+      expect(html).toContain("type=\"hidden\"");
+      expect(html).toContain("name=\"start\"");
+      expect(html).toContain("value=\"2026-09-14T15:45\"");
     });
   });
 });

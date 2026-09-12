@@ -49,6 +49,7 @@ export function Select({
   const listboxId = `${baseId}-listbox`;
 
   const [isOpen, setIsOpen] = useState(false);
+  const [effectivePlacement, setEffectivePlacement] = useState<"bottom" | "top">(placement);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -56,6 +57,27 @@ export function Select({
 
   const selectedIndex = options.findIndex((opt) => opt.value === value);
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : null;
+
+  const updateGeometry = useCallback(() => {
+    if (placement === "top") {
+      setEffectivePlacement("top");
+      return;
+    }
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const scrollParent = triggerRef.current.closest("dialog, [class*='body'], [class*='dialog']");
+      const parentBottom = scrollParent ? scrollParent.getBoundingClientRect().bottom : window.innerHeight;
+      const parentTop = scrollParent ? scrollParent.getBoundingClientRect().top : 0;
+      const spaceBelow = Math.min(window.innerHeight - rect.bottom, parentBottom - rect.bottom);
+      const spaceAbove = Math.min(rect.top, rect.top - parentTop);
+
+      if (spaceBelow < 220 && spaceAbove > spaceBelow) {
+        setEffectivePlacement("top");
+      } else {
+        setEffectivePlacement("bottom");
+      }
+    }
+  }, [placement]);
 
   // Close dropdown if clicking outside
   useEffect(() => {
@@ -89,9 +111,10 @@ export function Select({
 
   const openDropdown = useCallback(() => {
     if (disabled) return;
+    updateGeometry();
     setIsOpen(true);
     setFocusedIndex(selectedIndex >= 0 ? selectedIndex : 0);
-  }, [disabled, selectedIndex]);
+  }, [disabled, selectedIndex, updateGeometry]);
 
   const closeDropdown = useCallback(() => {
     setIsOpen(false);
@@ -217,7 +240,7 @@ export function Select({
   const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
 
   const placementClass =
-    placement === "top" ? styles.listboxTop : styles.listboxBottom;
+    effectivePlacement === "top" ? styles.listboxTop : styles.listboxBottom;
 
   return (
     <div

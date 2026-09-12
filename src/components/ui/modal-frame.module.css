@@ -17,13 +17,25 @@
   -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
   padding: 0;
   outline: none;
-  animation: forward-modal-enter var(--motion-modal, 190ms) var(--motion-spring) both;
+  animation: forward-modal-enter var(--motion-surface, 210ms) var(--ease-standard) both;
 }
 
 .dialog::backdrop {
   background: var(--scrim);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  animation: forward-backdrop-enter var(--motion-control, 150ms) var(--ease-standard) both;
+}
+
+@media (max-width: 36rem) {
+  .dialog {
+    width: 100%;
+    max-width: 100%;
+    margin: auto auto 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-height: calc(90dvh - env(safe-area-inset-top));
+    animation: forward-sheet-enter var(--motion-surface, 210ms) var(--ease-standard) both;
+  }
 }
 
 /* Modal sizes */
@@ -132,4 +144,25 @@
     flex-direction: column-reverse;
     align-items: stretch;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog {
+    animation-name: forward-fade;
+    transform: none !important;
+  }
+  .dialog::backdrop {
+    animation-duration: var(--motion-fast);
+  }
+}
+
+:global(:root[data-motion="reduced"]) .dialog,
+:global(:root[data-motion="off"]) .dialog {
+  animation-name: forward-fade;
+  transform: none !important;
+}
+
+:global(:root[data-motion="reduced"]) .dialog::backdrop,
+:global(:root[data-motion="off"]) .dialog::backdrop {
+  animation-duration: var(--motion-fast);
 }

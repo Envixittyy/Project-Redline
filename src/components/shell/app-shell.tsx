@@ -10,6 +10,7 @@ import { CaptureLauncher, CaptureTrigger } from "@/features/capture/capture-laun
 import { NotificationCenter } from "@/features/notifications/notification-center";
 import { NotificationTrigger } from "@/features/notifications/notification-trigger";
 import { PwaClient } from "@/features/offline/pwa-client";
+import { WorkspaceTransition } from "./workspace-transition";
 import styles from "./app-shell.module.css";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -68,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
           <main id="main-content" className={styles.main} tabIndex={-1}>
-            {children}
+            <WorkspaceTransition>{children}</WorkspaceTransition>
           </main>
         </div>
 

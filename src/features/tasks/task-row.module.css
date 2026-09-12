@@ -5,7 +5,10 @@
   gap: 0.5rem;
   padding: 0.55rem 0;
   border-bottom: 1px solid var(--border-subtle);
-  transition: background-color var(--motion-fast) var(--motion-ease);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-surface) var(--ease-standard),
+    transform var(--motion-surface) var(--ease-standard);
 }
 
 .row:last-child {
@@ -20,7 +23,7 @@
   width: 2px;
   background: transparent;
   content: "";
-  transition: background-color var(--motion-fast) var(--motion-ease);
+  transition: background-color var(--motion-fast) var(--ease-standard);
 }
 
 .row:hover::before,
@@ -37,6 +40,11 @@
   pointer-events: none;
 }
 
+.row[data-completed] {
+  opacity: 0.55;
+  transform: translate3d(4px, 0, 0);
+}
+
 /* 44px (2.75rem) accessible touch target with visual checkbox ring */
 .check {
   position: relative;
@@ -51,6 +59,12 @@
   color: transparent;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: transform var(--motion-control) var(--ease-standard);
+}
+
+.check:active:not(:disabled) {
+  transform: scale(0.92);
+  transition-duration: var(--motion-fast);
 }
 
 .check::before {
@@ -60,9 +74,9 @@
   border: 1.5px solid var(--border-strong);
   border-radius: 999px;
   transition:
-    background-color var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-spring);
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-control) var(--ease-standard);
 }
 
 .check:focus-visible {
@@ -70,13 +84,19 @@
   outline-offset: 1px;
 }
 
-.checkMark,
-.spinner {
+.checkMark {
   position: relative;
   z-index: 1;
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
 }
 
 .spinner {
+  position: relative;
+  z-index: 1;
   color: var(--accent-text);
   animation: spin 900ms linear infinite;
 }
@@ -89,6 +109,11 @@
 
 .row[data-completed] .check {
   color: var(--accent-foreground);
+}
+
+.row[data-completed] .checkMark {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .row[data-completed] .check::before {
@@ -112,6 +137,12 @@
   cursor: pointer;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
+  transition: transform var(--motion-control) var(--ease-standard);
+}
+
+.body:active {
+  transform: scale(0.99);
+  transition-duration: var(--motion-fast);
 }
 
 .body:focus-visible {
@@ -132,7 +163,7 @@
   line-height: 1.35;
   color: var(--text-primary);
   overflow-wrap: anywhere;
-  transition: color var(--motion-fast) var(--motion-ease);
+  transition: color var(--motion-control) var(--ease-standard);
 }
 
 .row[data-completed] .title {
@@ -230,10 +261,27 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .row,
+  .check,
   .check::before,
-  .spinner {
-    transition: none;
-    animation: none;
+  .checkMark,
+  .spinner,
+  .body,
+  .title {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
   }
 }
 
+:global([data-motion="reduced"]) .row,
+:global([data-motion="reduced"]) .check,
+:global([data-motion="reduced"]) .check::before,
+:global([data-motion="reduced"]) .checkMark,
+:global([data-motion="reduced"]) .spinner,
+:global([data-motion="reduced"]) .body,
+:global([data-motion="reduced"]) .title {
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
+}

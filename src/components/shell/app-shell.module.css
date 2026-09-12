@@ -74,8 +74,9 @@
     max(var(--page-gutter), env(safe-area-inset-left));
 }
 
-.main > * {
-  animation: forward-enter var(--motion-shell) var(--motion-ease) both;
+.workspaceTransition {
+  width: 100%;
+  animation: forward-page-enter var(--motion-page) var(--ease-standard) both;
 }
 
 .mobileNav {
@@ -127,9 +128,11 @@
     color-mix(in oklch, var(--accent-muted) 26%, transparent)
   );
   box-shadow: 0 1px 0 color-mix(in oklch, var(--accent) 26%, transparent) inset;
-  opacity: 0.72;
+  opacity: 0.76;
   transform: translate3d(calc(var(--active-index) * 100%), 0, 0);
-  transition: transform var(--motion-shell) var(--motion-spring);
+  transition:
+    transform var(--motion-control) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
   pointer-events: none;
 }
 
@@ -144,6 +147,7 @@
   box-shadow: var(--glow-blue);
   content: "";
   translate: -50% 0;
+  transition: width var(--motion-control) var(--ease-standard);
 }
 
 .mobileLink,
@@ -169,14 +173,26 @@
   line-height: 1;
   z-index: 1;
   transition:
-    color var(--motion-fast) ease,
-    background-color var(--motion-fast) ease,
-    transform var(--motion-fast) var(--motion-ease);
+    color var(--motion-control) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.mobileLink .iconFrame {
+  transition: transform var(--motion-control) var(--ease-standard);
+}
+
+.mobileLink .linkLabel {
+  transition:
+    color var(--motion-control) var(--ease-standard),
+    opacity var(--motion-control) var(--ease-standard);
 }
 
 .mobileLink[data-active] {
   color: var(--accent-text);
-  transform: translate3d(0, -1px, 0);
+}
+
+.mobileLink[data-active] .iconFrame {
+  transform: translate3d(0, -1px, 0) scale(1.05);
 }
 
 .mobileLink[data-active]::before {
@@ -186,7 +202,8 @@
 .mobileLink:active,
 .desktopLink:active,
 .appearanceLink:active {
-  transform: scale(0.975);
+  transform: scale(0.98);
+  transition-duration: var(--motion-fast);
 }
 
 .iconFrame {
@@ -281,9 +298,6 @@
   box-shadow: 1px 0 0 color-mix(in oklch, var(--accent) 12%, transparent) inset;
   opacity: 0;
   transform: translate3d(0, var(--active-indicator-y), 0);
-  transition:
-    transform var(--motion-shell) var(--motion-spring),
-    opacity var(--motion-fast) var(--motion-ease);
   pointer-events: none;
 }
 
@@ -301,6 +315,13 @@
 
 .desktopNav[data-indicator-ready] .desktopActiveIndicator {
   opacity: 1;
+}
+
+.desktopNav[data-indicator-animated] .desktopActiveIndicator {
+  transition:
+    transform var(--motion-control) var(--ease-standard),
+    height var(--motion-control) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
 }
 
 .navGroup {
@@ -340,14 +361,23 @@
   font-weight: 600;
   text-decoration: none;
   transition:
-    color var(--motion-fast) ease,
-    border-color var(--motion-fast) ease,
-    background-color var(--motion-fast) ease,
-    transform var(--motion-fast) var(--motion-ease);
+    color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-control) var(--ease-standard);
 }
 
 .desktopLink {
   z-index: 1;
+}
+
+.desktopLink .iconFrame,
+.appearanceLink .iconFrame {
+  display: grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  place-items: center;
+  transition: transform var(--motion-control) var(--ease-standard);
 }
 
 .linkLabel {
@@ -394,19 +424,34 @@
     background: var(--surface-hover);
     color: var(--text-primary);
   }
+
+  .desktopLink:hover .iconFrame,
+  .desktopLink[data-active] .iconFrame,
+  .appearanceLink:hover .iconFrame {
+    transform: translate3d(1.5px, 0, 0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .mobileActiveMarker,
   .desktopActiveIndicator {
-    transition: none;
+    transition: none !important;
   }
 
   .mobileLink:active,
   .desktopLink:active,
   .appearanceLink:active,
-  .identityLink:hover .brandMark {
-    transform: none;
+  .identityLink:hover .brandMark,
+  .desktopLink:hover .iconFrame,
+  .desktopLink[data-active] .iconFrame,
+  .appearanceLink:hover .iconFrame {
+    transform: none !important;
+  }
+
+  .workspaceTransition {
+    animation-name: forward-fade;
+    animation-duration: var(--motion-fast);
+    transform: none !important;
   }
 }
 
@@ -414,12 +459,14 @@
 :global(:root[data-motion="reduced"]) .desktopActiveIndicator,
 :global(:root[data-motion="off"]) .mobileActiveMarker,
 :global(:root[data-motion="off"]) .desktopActiveIndicator {
-  transition: none;
+  transition: none !important;
 }
 
-:global(:root[data-motion="reduced"]) .main > *,
-:global(:root[data-motion="off"]) .main > * {
+:global(:root[data-motion="reduced"]) .workspaceTransition,
+:global(:root[data-motion="off"]) .workspaceTransition {
   animation-name: forward-fade;
+  animation-duration: var(--motion-fast);
+  transform: none !important;
 }
 
 @media (min-width: 60rem) {

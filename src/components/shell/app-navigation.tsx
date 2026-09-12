@@ -45,12 +45,15 @@ export function DesktopNavigation() {
   const pathname = usePathname();
   const navRef = useRef<HTMLElement>(null);
   const [indicator, setIndicator] = useState({ top: 0, height: 0 });
+  const [animated, setAnimated] = useState(false);
 
   useLayoutEffect(() => {
     const activeLink = navRef.current?.querySelector<HTMLElement>("[data-active='true']");
     if (!activeLink) return;
 
     setIndicator({ top: activeLink.offsetTop, height: activeLink.offsetHeight });
+    const timer = setTimeout(() => setAnimated(true), 50);
+    return () => clearTimeout(timer);
   }, [pathname]);
 
   const indicatorStyle = {
@@ -65,6 +68,7 @@ export function DesktopNavigation() {
       aria-label="Primary navigation"
       style={indicatorStyle}
       data-indicator-ready={indicator.height > 0 || undefined}
+      data-indicator-animated={animated || undefined}
     >
       <span className={styles.desktopActiveIndicator} aria-hidden="true" />
       <div className={styles.navGroup}>

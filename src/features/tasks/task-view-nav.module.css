@@ -17,6 +17,7 @@
 }
 
 .segmentsTrack {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -29,6 +30,30 @@
 
 .segmentsTrack::-webkit-scrollbar {
   display: none;
+}
+
+.trackIndicator {
+  position: absolute;
+  bottom: -0.58rem;
+  left: 0;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: var(--glow-blue);
+  border-radius: var(--radius-pill);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.trackIndicator[data-ready] {
+  opacity: 1;
+}
+
+.trackIndicator[data-animated] {
+  transition:
+    transform var(--motion-control, 180ms) var(--ease-standard),
+    width var(--motion-control, 180ms) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
 }
 
 .popoverWrap {
@@ -53,9 +78,15 @@
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
   transition:
-    color var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease);
+    color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.segment:active:not(:disabled) {
+  transform: scale(0.98);
+  transition-duration: var(--motion-fast);
 }
 
 .segment:focus-visible {
@@ -69,16 +100,6 @@
   border-color: transparent;
   box-shadow: none;
   font-weight: 650;
-}
-
-.segment[data-active]::after {
-  position: absolute;
-  right: 0.85rem;
-  bottom: -0.58rem;
-  left: 0.85rem;
-  height: 2px;
-  background: var(--accent);
-  content: "";
 }
 
 .overdueBadge {
@@ -112,8 +133,14 @@
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
   transition:
-    color var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease);
+    color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.moreButton:active {
+  transform: scale(0.98);
+  transition-duration: var(--motion-fast);
 }
 
 .moreButton:focus-visible {
@@ -131,7 +158,7 @@
 
 .chevron {
   color: var(--text-tertiary);
-  transition: transform var(--motion-fast) var(--motion-ease);
+  transition: transform var(--motion-control) var(--ease-standard);
 }
 
 .chevron[data-open] {
@@ -158,8 +185,8 @@
   font-weight: 550;
   text-decoration: none;
   transition:
-    background-color var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease);
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
 }
 
 .menuItem:hover {
@@ -205,10 +232,19 @@
     padding: 0 0.45rem;
     font-size: 0.74rem;
   }
+}
 
-  .segment[data-active]::after {
-    right: 0.45rem;
-    left: 0.45rem;
+@media (prefers-reduced-motion: reduce) {
+  .trackIndicator {
+    transition: none !important;
+  }
+  .segment:active:not(:disabled),
+  .moreButton:active {
+    transform: none !important;
   }
 }
 
+:global(:root[data-motion="reduced"]) .trackIndicator,
+:global(:root[data-motion="off"]) .trackIndicator {
+  transition: none !important;
+}

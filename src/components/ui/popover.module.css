@@ -17,31 +17,34 @@
   backdrop-filter: blur(var(--blur-surface, 16px));
   -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
   outline: none;
-  animation: forward-dropdown-enter var(--motion-popover, 160ms) var(--motion-ease) both;
 }
 
 .bottomStart {
   top: calc(100% + 6px);
   left: 0;
   transform-origin: top left;
+  animation: forward-popover-down-enter var(--motion-control, 150ms) var(--ease-standard) both;
 }
 
 .bottomEnd {
   top: calc(100% + 6px);
   right: 0;
   transform-origin: top right;
+  animation: forward-popover-down-enter var(--motion-control, 150ms) var(--ease-standard) both;
 }
 
 .topStart {
   bottom: calc(100% + 6px);
   left: 0;
   transform-origin: bottom left;
+  animation: forward-popover-up-enter var(--motion-control, 150ms) var(--ease-standard) both;
 }
 
 .topEnd {
   bottom: calc(100% + 6px);
   right: 0;
   transform-origin: bottom right;
+  animation: forward-popover-up-enter var(--motion-control, 150ms) var(--ease-standard) both;
 }
 
 .item {
@@ -105,3 +108,26 @@
   background: var(--border-subtle);
   border: 0;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .bottomStart,
+  .bottomEnd,
+  .topStart,
+  .topEnd {
+    animation-name: forward-fade;
+    transform: none !important;
+  }
+}
+
+:global(:root[data-motion="reduced"]) .bottomStart,
+:global(:root[data-motion="reduced"]) .bottomEnd,
+:global(:root[data-motion="reduced"]) .topStart,
+:global(:root[data-motion="reduced"]) .topEnd,
+:global(:root[data-motion="off"]) .bottomStart,
+:global(:root[data-motion="off"]) .bottomEnd,
+:global(:root[data-motion="off"]) .topStart,
+:global(:root[data-motion="off"]) .topEnd {
+  animation-name: forward-fade;
+  transform: none !important;
+}
+

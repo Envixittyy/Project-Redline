@@ -22,21 +22,11 @@
   background: var(--scrim, oklch(8% 0.02 255 / 55%));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  animation: forward-backdrop-enter var(--motion-control, 150ms) var(--ease-standard) both;
 }
 
 .dialog[open] {
-  animation: sheet-in var(--motion-standard) var(--motion-spring);
-}
-
-@keyframes sheet-in {
-  from {
-    transform: translate3d(0, 1.5rem, 0);
-    opacity: 0;
-  }
-  to {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-  }
+  animation: forward-sheet-enter var(--motion-surface, 210ms) var(--ease-standard) both;
 }
 
 .form {
@@ -76,19 +66,20 @@
   color: var(--text-secondary);
   cursor: pointer;
   transition:
-    background-color var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-spring);
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-control) var(--ease-standard);
 }
 
 .iconButton:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
-  transform: scale(1.05) rotate(4deg);
+  transform: translateY(-1px);
 }
 
 .iconButton:active {
-  transform: scale(0.95);
+  transform: scale(0.98);
+  transition-duration: var(--motion-fast);
 }
 
 .iconButton:focus-visible {
@@ -457,13 +448,27 @@
   }
 
   .dialog[open] {
-    animation: dialog-in var(--motion-fast) var(--motion-ease);
+    animation: forward-modal-enter var(--motion-surface, 210ms) var(--ease-standard) both;
   }
+}
 
-  @keyframes dialog-in {
-    from {
-      scale: 0.98;
-      opacity: 0;
-    }
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open] {
+    animation-name: forward-fade;
+    transform: none !important;
   }
+  .dialog::backdrop {
+    animation-duration: var(--motion-fast);
+  }
+}
+
+:global(:root[data-motion="reduced"]) .dialog[open],
+:global(:root[data-motion="off"]) .dialog[open] {
+  animation-name: forward-fade;
+  transform: none !important;
+}
+
+:global(:root[data-motion="reduced"]) .dialog::backdrop,
+:global(:root[data-motion="off"]) .dialog::backdrop {
+  animation-duration: var(--motion-fast);
 }

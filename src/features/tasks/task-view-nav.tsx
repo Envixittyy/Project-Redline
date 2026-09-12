@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { Popover } from "@/components/ui/popover";
 import type { TaskView } from "@/types/task";
@@ -30,6 +30,40 @@ type TaskViewNavProps = {
 
 export function TaskViewNav({ current, overdueCount }: TaskViewNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [indicator, setIndicator] = useState<{
+    left: number;
+    width: number;
+    ready: boolean;
+  }>({
+    left: 0,
+    width: 0,
+    ready: false,
+  });
+  const [animated, setAnimated] = useState(false);
+
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+
+    const activeEl = track.querySelector<HTMLElement>("[data-active='true']");
+    if (!activeEl) {
+      setIndicator((prev) => ({ ...prev, ready: false }));
+      return;
+    }
+
+    const trackRect = track.getBoundingClientRect();
+    const activeRect = activeEl.getBoundingClientRect();
+
+    setIndicator({
+      left: activeRect.left - trackRect.left + track.scrollLeft,
+      width: activeRect.width,
+      ready: true,
+    });
+
+    const timer = setTimeout(() => setAnimated(true), 50);
+    return () => clearTimeout(timer);
+  }, [current]);
 
   const activeSecondary = secondaryViews.find((v) => v.id === current);
   const isSecondaryActive = Boolean(activeSecondary);
@@ -37,7 +71,17 @@ export function TaskViewNav({ current, overdueCount }: TaskViewNavProps) {
   return (
     <nav className={styles.nav} aria-label="Task views">
       <div className={styles.navBar}>
-        <div className={styles.segmentsTrack} role="tablist" aria-label="Primary task views">
+        <div ref={trackRef} className={styles.segmentsTrack} role="tablist" aria-label="Primary task views">
+          <span
+            className={styles.trackIndicator}
+            style={{
+              transform: `translate3d(${indicator.left}px, 0, 0)`,
+              width: `${indicator.width}px`,
+            }}
+            data-ready={indicator.ready || undefined}
+            data-animated={animated || undefined}
+            aria-hidden="true"
+          />
           {primaryViews.map((view) => {
             const active = view.id === current;
             const showOverdueBadge = view.id === "overdue" && overdueCount !== undefined && overdueCount > 0;

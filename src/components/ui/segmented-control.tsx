@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  useLayoutEffect,
   useRef,
+  useState,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -33,6 +35,39 @@ export function SegmentedControl<T extends string = string>({
   className = "",
 }: SegmentedControlProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [indicator, setIndicator] = useState<{
+    left: number;
+    width: number;
+    ready: boolean;
+  }>({
+    left: 0,
+    width: 0,
+    ready: false,
+  });
+  const [animated, setAnimated] = useState(false);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const activeEl = container.querySelector<HTMLElement>("[aria-checked='true']");
+    if (!activeEl) {
+      setIndicator((prev) => ({ ...prev, ready: false }));
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const activeRect = activeEl.getBoundingClientRect();
+
+    setIndicator({
+      left: activeRect.left - containerRect.left + container.scrollLeft,
+      width: activeRect.width,
+      ready: true,
+    });
+
+    const timer = setTimeout(() => setAnimated(true), 50);
+    return () => clearTimeout(timer);
+  }, [value, options]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
@@ -60,6 +95,16 @@ export function SegmentedControl<T extends string = string>({
       onKeyDown={handleKeyDown}
       className={`${styles.container} ${fullWidth ? styles.fullWidth : ""} ${className}`}
     >
+      <span
+        className={styles.indicator}
+        style={{
+          transform: `translate3d(${indicator.left}px, 0, 0)`,
+          width: `${indicator.width}px`,
+        }}
+        data-ready={indicator.ready || undefined}
+        data-animated={animated || undefined}
+        aria-hidden="true"
+      />
       {options.map((option) => {
         const isSelected = option.value === value;
         return (

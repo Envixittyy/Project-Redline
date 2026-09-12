@@ -393,6 +393,7 @@
   background: var(--scrim);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  animation: forward-backdrop-enter var(--motion-control, 150ms) var(--ease-standard) both;
 }
 
 .launcherPanel {
@@ -411,6 +412,7 @@
   box-shadow: var(--shadow-modal);
   backdrop-filter: blur(var(--blur-surface, 16px));
   -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
+  animation: forward-sheet-enter var(--motion-surface, 210ms) var(--ease-standard) both;
 }
 
 .launcherHeading {
@@ -509,5 +511,31 @@
   .launcherBackdrop {
     align-items: center;
   }
+
+  .launcherPanel {
+    animation: forward-modal-enter var(--motion-surface, 210ms) var(--ease-standard) both;
+  }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .launcherBackdrop {
+    animation-duration: var(--motion-fast);
+  }
+  .launcherPanel {
+    animation-name: forward-fade;
+    transform: none !important;
+  }
+}
+
+:global(:root[data-motion="reduced"]) .launcherBackdrop,
+:global(:root[data-motion="off"]) .launcherBackdrop {
+  animation-duration: var(--motion-fast);
+}
+
+:global(:root[data-motion="reduced"]) .launcherPanel,
+:global(:root[data-motion="off"]) .launcherPanel {
+  animation-name: forward-fade;
+  transform: none !important;
+}
+
 

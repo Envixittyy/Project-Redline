@@ -2,11 +2,49 @@
 @keyframes forward-enter {
   from {
     opacity: 0;
-    transform: translate3d(0, var(--motion-distance), 0) scale(0.985);
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
-/* Dropdown/Popover enter primitive */
+/* Page / subtree route enter transition */
+@keyframes forward-page-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Dropdown/Popover enter primitives */
+@keyframes forward-popover-down-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes forward-popover-up-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
 @keyframes forward-dropdown-enter {
   from {
     opacity: 0;
@@ -22,7 +60,7 @@
 @keyframes forward-modal-enter {
   from {
     opacity: 0;
-    transform: translate3d(0, 8px, 0) scale(0.975);
+    transform: translate3d(0, 12px, 0) scale(0.985);
   }
   to {
     opacity: 1;
@@ -30,51 +68,86 @@
   }
 }
 
+/* Mobile bottom sheet enter primitive */
+@keyframes forward-sheet-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Backdrop fade primitive */
+@keyframes forward-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .motion-enter {
-  animation: forward-enter var(--motion-standard) var(--motion-spring) both;
+  animation: forward-enter var(--motion-surface, 210ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+.motion-page-enter {
+  animation: forward-page-enter var(--motion-page, 260ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
 }
 
 .motion-dropdown-enter,
 .motion-popover-enter {
-  animation: forward-dropdown-enter var(--motion-popover, var(--motion-fast)) var(--motion-ease) both;
+  animation: forward-popover-down-enter var(--motion-control, 150ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
   transform-origin: top center;
 }
 
 .motion-modal-enter {
-  animation: forward-modal-enter var(--motion-modal, var(--motion-standard)) var(--motion-spring) both;
+  animation: forward-modal-enter var(--motion-surface, 210ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+.motion-sheet-enter {
+  animation: forward-sheet-enter var(--motion-surface, 210ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+.motion-backdrop-enter {
+  animation: forward-backdrop-enter var(--motion-control, 150ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
 }
 
 .motion-shell-enter {
-  animation: forward-enter var(--motion-shell, var(--motion-standard)) var(--motion-ease) both;
+  animation: forward-enter var(--motion-control, 150ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
 }
 
 .motion-interactive {
   transition:
-    opacity var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease);
+    opacity var(--motion-fast, 110ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)),
+    transform var(--motion-control, 150ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)),
+    background-color var(--motion-fast, 110ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--motion-fast, 110ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow var(--motion-fast, 110ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
-.motion-interactive:active {
-  transform: scale(0.985);
+.motion-interactive:active:not(:disabled) {
+  transform: scale(0.98);
+  transition-duration: var(--motion-fast, 110ms);
 }
 
 .motion-snap {
   transition:
-    transform var(--motion-fast) var(--motion-spring),
-    opacity var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease);
+    transform var(--motion-control, 150ms) var(--ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
+    opacity var(--motion-fast, 110ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)),
+    background-color var(--motion-fast, 110ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--motion-fast, 110ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .motion-tactile {
   transition:
-    transform var(--motion-fast) var(--motion-spring),
-    box-shadow var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease);
+    transform var(--motion-control, 150ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow var(--motion-fast, 110ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)),
+    background-color var(--motion-fast, 110ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--motion-fast, 110ms) var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .motion-tactile:hover:not(:disabled) {
@@ -82,7 +155,8 @@
 }
 
 .motion-tactile:active:not(:disabled) {
-  transform: translateY(1px) scale(0.98);
+  transform: scale(0.98);
+  transition-duration: var(--motion-fast, 110ms);
 }
 
 .motion-focus-ring:focus-visible {
@@ -95,9 +169,12 @@
   --motion-instant: 1ms;
   --motion-press: 1ms;
   --motion-fast: 60ms;
+  --motion-control: 60ms;
   --motion-popover: 60ms;
   --motion-standard: 80ms;
   --motion-modal: 80ms;
+  --motion-surface: 80ms;
+  --motion-page: 80ms;
   --motion-shell: 80ms;
   --motion-slow: 100ms;
   --motion-deliberate: 120ms;
@@ -128,35 +205,62 @@
 
 :root[data-motion="reduced"] .motion-snap,
 :root[data-motion="off"] .motion-snap,
+:root[data-motion="reduced"] .motion-tactile:hover,
 :root[data-motion="reduced"] .motion-tactile:active,
+:root[data-motion="off"] .motion-tactile:hover,
 :root[data-motion="off"] .motion-tactile:active {
-  transform: none;
+  transform: none !important;
 }
+
 @media (prefers-reduced-motion: reduce) {
   .motion-snap,
+  .motion-tactile:hover,
   .motion-tactile:active {
-    transform: none;
+    transform: none !important;
   }
 }
 
 :root[data-motion="reduced"] .motion-enter,
-:root[data-motion="off"] .motion-enter {
+:root[data-motion="reduced"] .motion-page-enter,
+:root[data-motion="reduced"] .motion-modal-enter,
+:root[data-motion="reduced"] .motion-sheet-enter,
+:root[data-motion="reduced"] .motion-dropdown-enter,
+:root[data-motion="reduced"] .motion-popover-enter,
+:root[data-motion="off"] .motion-enter,
+:root[data-motion="off"] .motion-page-enter,
+:root[data-motion="off"] .motion-modal-enter,
+:root[data-motion="off"] .motion-sheet-enter,
+:root[data-motion="off"] .motion-dropdown-enter,
+:root[data-motion="off"] .motion-popover-enter {
   animation-name: forward-fade;
+  transform: none !important;
 }
+
 :root[data-motion="reduced"] .motion-interactive:active,
 :root[data-motion="off"] .motion-interactive:active {
-  transform: none;
+  transform: none !important;
 }
+
 @keyframes forward-fade {
   from {
     opacity: 0;
   }
+  to {
+    opacity: 1;
+  }
 }
+
 @media (prefers-reduced-motion: reduce) {
-  .motion-enter {
+  .motion-enter,
+  .motion-page-enter,
+  .motion-modal-enter,
+  .motion-sheet-enter,
+  .motion-dropdown-enter,
+  .motion-popover-enter {
     animation-name: forward-fade;
+    transform: none !important;
   }
   .motion-interactive:active {
-    transform: none;
+    transform: none !important;
   }
 }

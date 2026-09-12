@@ -26,6 +26,7 @@
   min-width: 0;
   flex-direction: column;
   gap: 0.45rem;
+  animation: home-reveal 180ms var(--ease-emphasized) 0ms both;
 }
 
 .greetingEyebrow,
@@ -73,6 +74,7 @@
   align-items: flex-end;
   flex-direction: column;
   justify-content: flex-end;
+  animation: home-reveal 180ms var(--ease-emphasized) 30ms both;
 }
 
 .clock {
@@ -100,6 +102,7 @@
   overflow: hidden;
   border-block: 1px solid var(--section-rule);
   background: linear-gradient(105deg, var(--surface-embedded), transparent 72%);
+  animation: home-reveal 190ms var(--ease-emphasized) 55ms both;
 }
 
 .nextClassFocus {
@@ -109,6 +112,7 @@
 .mainLayout {
   display: grid;
   gap: var(--section-gap);
+  animation: home-reveal 200ms var(--ease-emphasized) 80ms both;
 }
 
 .primaryColumn,
@@ -684,4 +688,35 @@
   .notesAction { grid-column: 1 / -1; }
   .notesAction > * { width: 100%; justify-content: center; }
   .upcomingFooter { align-items: flex-start; flex-direction: column; gap: 0.15rem; }
+}
+
+@keyframes home-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .greetingBlock,
+  .clockBlock,
+  .focusBand,
+  .mainLayout {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+:global([data-motion="reduced"]) .greetingBlock,
+:global([data-motion="reduced"]) .clockBlock,
+:global([data-motion="reduced"]) .focusBand,
+:global([data-motion="reduced"]) .mainLayout {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
 }

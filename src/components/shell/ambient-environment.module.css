@@ -6,6 +6,7 @@
   background-color: var(--ambient-bg-base);
   pointer-events: none;
   contain: strict;
+  isolation: isolate;
 }
 
 .ambientBase {
@@ -29,7 +30,7 @@
   border-radius: 50%;
   background: radial-gradient(circle, var(--ambient-glow-primary) 0%, transparent 68%);
   opacity: 0.85;
-  filter: blur(40px);
+  contain: paint;
   will-change: transform;
   animation: ambient-drift-primary var(--motion-ambient-drift-1, 30s) ease-in-out infinite alternate;
 }
@@ -49,9 +50,41 @@
     transparent 68%
   );
   opacity: 0.8;
-  filter: blur(48px);
+  contain: paint;
   will-change: transform;
   animation: ambient-drift-secondary var(--motion-ambient-drift-2, 38s) ease-in-out infinite alternate;
+}
+
+@media (max-width: 47.99rem) {
+  .ambientFieldPrimary {
+    top: -8rem;
+    left: -12rem;
+    width: 32rem;
+    height: 32rem;
+    min-width: 0;
+    min-height: 0;
+    opacity: 0.78;
+  }
+
+  .ambientFieldSecondary {
+    right: -13rem;
+    bottom: -10rem;
+    width: 28rem;
+    height: 28rem;
+    min-width: 0;
+    min-height: 0;
+    opacity: 0.58;
+  }
+
+  @keyframes ambient-drift-primary {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(1.25rem, 1.75rem, 0) scale(1.025); }
+  }
+
+  @keyframes ambient-drift-secondary {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(-1.5rem, -1rem, 0) scale(1.02); }
+  }
 }
 
 .ambientVignette {

@@ -85,6 +85,8 @@ export function DatePicker({
   const selectedDate = controlledValue !== undefined ? controlledValue : internalValue;
 
   const [isOpen, setIsOpen] = useState(false);
+  const [effectivePlacement, setEffectivePlacement] = useState<"bottom" | "top">(placement);
+  const [effectiveAlign, setEffectiveAlign] = useState<"start" | "end">("start");
   const today = getTodayIso();
   const [viewMonth, setViewMonth] = useState(() => {
     return isIsoDate(selectedDate) ? startOfMonth(selectedDate) : startOfMonth(today);
@@ -98,6 +100,42 @@ export function DatePicker({
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
+
+  const updateGeometry = useCallback(() => {
+    if (placement === "top") {
+      setEffectivePlacement("top");
+      return;
+    }
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const scrollParent = triggerRef.current.closest("dialog, [class*='body'], [class*='dialog']");
+      const parentBottom = scrollParent ? scrollParent.getBoundingClientRect().bottom : window.innerHeight;
+      const parentTop = scrollParent ? scrollParent.getBoundingClientRect().top : 0;
+      const spaceBelow = Math.min(window.innerHeight - rect.bottom, parentBottom - rect.bottom);
+      const spaceAbove = Math.min(rect.top, rect.top - parentTop);
+
+      if (spaceBelow < 350 && spaceAbove > spaceBelow) {
+        setEffectivePlacement("top");
+      } else {
+        setEffectivePlacement("bottom");
+      }
+
+      if (window.innerWidth - rect.left < 310 && rect.right >= 310) {
+        setEffectiveAlign("end");
+      } else {
+        setEffectiveAlign("start");
+      }
+    }
+  }, [placement]);
+
+  // Ensure opened popover is visible within scrolling containers
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
+      popoverRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }, 40);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
 
   // Synchronize viewMonth when selectedDate changes externally
   const [prevSelectedDate, setPrevSelectedDate] = useState(selectedDate);
@@ -167,6 +205,7 @@ export function DatePicker({
     if (isOpen) {
       closePicker();
     } else {
+      updateGeometry();
       setIsOpen(true);
       if (isIsoDate(selectedDate)) {
         setViewMonth(startOfMonth(selectedDate));
@@ -181,6 +220,7 @@ export function DatePicker({
     if (!isOpen) {
       if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
         e.preventDefault();
+        updateGeometry();
         setIsOpen(true);
       }
       return;
@@ -319,8 +359,8 @@ export function DatePicker({
           aria-label="Calendar date picker"
           tabIndex={-1}
           className={`${styles.popover} ${
-            placement === "top" ? styles.popoverTop : ""
-          } ${isExiting ? styles.popoverExiting : styles.popoverEntering}`}
+            effectivePlacement === "top" ? styles.popoverTop : ""
+          } ${effectiveAlign === "end" ? styles.popoverEnd : ""} ${isExiting ? styles.popoverExiting : styles.popoverEntering}`}
         >
           {/* Quick preset action chips */}
           <div className={styles.presetStrip}>

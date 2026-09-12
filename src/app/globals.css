@@ -18,11 +18,18 @@ body {
   overflow-x: hidden;
   background: var(--background);
   color: var(--text-primary);
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
   text-rendering: optimizeLegibility;
   transition:
     background-color var(--motion-standard) ease,
     color var(--motion-standard) ease;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
 }
 
 button,

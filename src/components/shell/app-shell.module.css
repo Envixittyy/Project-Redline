@@ -45,9 +45,9 @@
     0.75rem
     max(1.15rem, env(safe-area-inset-left));
   border-bottom: 1px solid var(--border-hairline, var(--border-subtle));
-  background: color-mix(in oklch, var(--navigation-surface) 82%, transparent);
-  backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
+  background: color-mix(in oklch, var(--navigation-surface) 91%, transparent);
+  backdrop-filter: blur(12px) saturate(1.08);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
 }
 
 .mobileIdentity {
@@ -74,6 +74,10 @@
     max(var(--page-gutter), env(safe-area-inset-left));
 }
 
+.main > * {
+  animation: forward-enter var(--motion-shell) var(--motion-ease) both;
+}
+
 .mobileNav {
   position: fixed;
   z-index: 50;
@@ -89,20 +93,57 @@
 }
 
 .mobileBar {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  width: min(100%, 42rem);
+  width: min(calc(100% - 1.3rem), 34rem);
   min-height: var(--mobile-nav-height);
-  margin-inline: auto;
-  padding: 0.38rem max(0.5rem, env(safe-area-inset-left));
+  margin: 0 auto 0.35rem;
+  padding: 0.25rem 0.4rem;
   border: 0;
   border-top: 1px solid var(--border-highlight);
-  border-radius: 1.15rem 1.15rem 0 0;
-  background: color-mix(in oklch, var(--navigation-surface) 91%, transparent);
-  box-shadow: 0 1px 0 var(--border-highlight) inset, 0 -12px 36px oklch(0% 0 0 / 24%);
-  backdrop-filter: blur(var(--blur-navigation)) saturate(1.2);
-  -webkit-backdrop-filter: blur(var(--blur-navigation)) saturate(1.2);
+  border-radius: 1.1rem;
+  background: color-mix(in oklch, var(--navigation-surface) 88%, transparent);
+  box-shadow:
+    0 1px 0 color-mix(in oklch, var(--border-highlight) 74%, transparent) inset,
+    0 -1px 0 oklch(0% 0 0 / 9%) inset,
+    0 12px 38px oklch(0% 0 0 / 28%);
+  backdrop-filter: blur(16px) saturate(1.12);
+  -webkit-backdrop-filter: blur(16px) saturate(1.12);
   pointer-events: auto;
+}
+
+.mobileActiveMarker {
+  position: absolute;
+  z-index: 0;
+  top: 0.2rem;
+  bottom: 0.2rem;
+  left: 0.4rem;
+  width: calc((100% - 0.8rem) / 5);
+  border-radius: 0.85rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--accent-muted) 68%, var(--surface-hover)),
+    color-mix(in oklch, var(--accent-muted) 26%, transparent)
+  );
+  box-shadow: 0 1px 0 color-mix(in oklch, var(--accent) 26%, transparent) inset;
+  opacity: 0.72;
+  transform: translate3d(calc(var(--active-index) * 100%), 0, 0);
+  transition: transform var(--motion-shell) var(--motion-spring);
+  pointer-events: none;
+}
+
+.mobileActiveMarker::before {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1.25rem;
+  height: 1px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: var(--glow-blue);
+  content: "";
+  translate: -50% 0;
 }
 
 .mobileLink,
@@ -116,7 +157,7 @@
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 3.45rem;
+  min-height: 3.5rem;
   align-items: center;
   justify-content: center;
   flex-direction: column;
@@ -126,6 +167,7 @@
   font-size: clamp(0.61rem, 2.7vw, 0.7rem);
   font-weight: 650;
   line-height: 1;
+  z-index: 1;
   transition:
     color var(--motion-fast) ease,
     background-color var(--motion-fast) ease,
@@ -134,17 +176,11 @@
 
 .mobileLink[data-active] {
   color: var(--accent-text);
+  transform: translate3d(0, -1px, 0);
 }
 
 .mobileLink[data-active]::before {
-  position: absolute;
-  top: 0.08rem;
-  width: 1.35rem;
-  height: 2px;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  box-shadow: var(--glow-blue);
-  content: "";
+  content: none;
 }
 
 .mobileLink:active,
@@ -220,11 +256,51 @@
 }
 
 .desktopNav {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
   margin-top: 1.15rem;
   overflow-y: auto;
+}
+
+.desktopActiveIndicator {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: -0.35rem;
+  width: calc(100% + 0.35rem);
+  height: var(--active-indicator-height);
+  border-radius: 0.35rem var(--radius-control) var(--radius-control) 0.35rem;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--accent-muted) 78%, transparent),
+    color-mix(in oklch, var(--accent-muted) 22%, transparent) 72%,
+    transparent
+  );
+  box-shadow: 1px 0 0 color-mix(in oklch, var(--accent) 12%, transparent) inset;
+  opacity: 0;
+  transform: translate3d(0, var(--active-indicator-y), 0);
+  transition:
+    transform var(--motion-shell) var(--motion-spring),
+    opacity var(--motion-fast) var(--motion-ease);
+  pointer-events: none;
+}
+
+.desktopActiveIndicator::before {
+  position: absolute;
+  top: 0.55rem;
+  bottom: 0.55rem;
+  left: 0;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: var(--glow-blue);
+  content: "";
+}
+
+.desktopNav[data-indicator-ready] .desktopActiveIndicator {
+  opacity: 1;
 }
 
 .navGroup {
@@ -270,6 +346,10 @@
     transform var(--motion-fast) var(--motion-ease);
 }
 
+.desktopLink {
+  z-index: 1;
+}
+
 .linkLabel {
   flex: 1;
   min-width: 0;
@@ -280,21 +360,13 @@
 
 .desktopLink[data-active] {
   border-color: transparent;
-  background: color-mix(in oklch, var(--accent-muted) 58%, transparent);
+  background: transparent;
   color: var(--accent-text);
   box-shadow: none;
 }
 
 .desktopLink[data-active]::before {
-  position: absolute;
-  top: 0.55rem;
-  bottom: 0.55rem;
-  left: -0.7rem;
-  width: 2px;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  box-shadow: var(--glow-blue);
-  content: "";
+  content: none;
 }
 
 .desktopLink:focus-visible,
@@ -325,6 +397,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .mobileActiveMarker,
+  .desktopActiveIndicator {
+    transition: none;
+  }
+
   .mobileLink:active,
   .desktopLink:active,
   .appearanceLink:active,
@@ -333,12 +410,24 @@
   }
 }
 
+:global(:root[data-motion="reduced"]) .mobileActiveMarker,
+:global(:root[data-motion="reduced"]) .desktopActiveIndicator,
+:global(:root[data-motion="off"]) .mobileActiveMarker,
+:global(:root[data-motion="off"]) .desktopActiveIndicator {
+  transition: none;
+}
+
+:global(:root[data-motion="reduced"]) .main > *,
+:global(:root[data-motion="off"]) .main > * {
+  animation-name: forward-fade;
+}
+
 @media (min-width: 60rem) {
   .sidebar {
     position: fixed;
     z-index: 20;
     top: 0;
-    bottom: 0;
+    bottom: auto;
     left: 0;
     display: flex;
     width: var(--sidebar-width);
@@ -348,16 +437,22 @@
       1rem
       max(1.5rem, env(safe-area-inset-bottom))
       max(1rem, env(safe-area-inset-left));
-    border-right: 1px solid var(--border-hairline, var(--border-subtle));
+    margin: 0.75rem 0 0.75rem 0.75rem;
+    height: calc(100svh - 1.5rem);
+    border: 1px solid var(--border-hairline, var(--border-subtle));
+    border-top-color: var(--border-highlight);
+    border-radius: 1.35rem;
     background:
       linear-gradient(180deg, color-mix(in oklch, var(--accent-muted) 22%, transparent), transparent 28%),
-      color-mix(in oklch, var(--navigation-surface) 84%, transparent);
-    backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
-    -webkit-backdrop-filter: blur(var(--blur-navigation)) saturate(1.15);
+      color-mix(in oklch, var(--navigation-surface) 96%, var(--ambient-bg-base));
+    box-shadow:
+      0 1px 0 var(--border-highlight) inset,
+      0 22px 60px oklch(0% 0 0 / 22%),
+      1px 0 0 color-mix(in oklch, var(--accent) 10%, transparent);
   }
 
   .contentFrame {
-    margin-left: var(--sidebar-width);
+    margin-left: calc(var(--sidebar-width) + 0.75rem);
   }
 
   .mobileTopbar {

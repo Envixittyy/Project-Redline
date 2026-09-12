@@ -191,7 +191,14 @@ Feature business logic should be colocated with its feature rather than placed i
 
 Tailwind 4 theme mappings in that file expose the core semantic colors to utilities while raw custom properties remain available for CSS that needs shadows, blur, or motion. This keeps feature code independent from a particular aesthetic and makes a later redesign primarily a token change.
 
-The foundation uses a native system-font stack. This avoids a network dependency during production builds, feels at home on Apple platforms, and remains readable on Windows. A bundled local brand font can replace it later without changing feature code.
+Typography uses two semantic, local-first stacks. `--font-body` begins with
+`Avenir Next` / Avenir and falls through to Segoe UI Variable Text and the
+platform system stack for strong Windows readability. `--font-display` prefers
+a locally installed Space Grotesk, then geometric system faces (Bahnschrift or
+Century Gothic) before Avenir/Segoe display fallbacks. Major page headings,
+Home greeting/time, and selected course titles use the display stack; controls,
+navigation, descriptions, labels, and metadata remain on the body stack. No
+proprietary font file or build-time network dependency is bundled.
 
 Appearance is represented by `data-theme="system" | "light" | "dark"` on the root element. System mode uses `prefers-color-scheme`; explicit light and dark selectors override it. Phase 1B provides all three controls on More. A small synchronous bootstrap in the document head validates versioned browser-local preferences and applies root attributes before paint. Interactive controls subscribe to those attributes through a hydration-safe external-store boundary.
 

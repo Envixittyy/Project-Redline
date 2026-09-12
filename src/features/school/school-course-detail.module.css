@@ -64,8 +64,9 @@
 }
 
 .courseTitle {
+  font-family: var(--font-display);
   font-size: var(--type-page-title);
-  font-weight: 750;
+  font-weight: 600;
   color: var(--text-primary);
   margin: 0;
   line-height: 1.15;

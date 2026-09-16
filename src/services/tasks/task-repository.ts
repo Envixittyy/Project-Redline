@@ -503,17 +503,37 @@ export async function readTaskWorkloadCounts(now = new Date()) {
   const timeZone = resolveTimeZone();
   const today = todayIn(timeZone, now);
   const { start, end } = dayRangeIn(today, addDays(today, 1), timeZone);
-  const base = () => client.from(TABLE).select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", openTaskStatuses);
-  const results = await Promise.all([
-    base(),
-    base().or(`and(due_at.gte.${quote(start)},due_at.lt.${quote(end)}),and(due_at.is.null,due_date.eq.${today})`),
-    base().or(`due_at.lt.${quote(now.toISOString())},and(due_at.is.null,due_date.lt.${today})`),
-  ]);
-  for (const result of results) {
-    if (result.error) fail("load workload counts", result.error);
-    if (result.count === null) throw new TaskRepositoryError("Workload counts unavailable.");
+  const { data, count, error } = await client
+    .from(TABLE)
+    .select("due_date, due_at", { count: "exact" })
+    .eq("user_id", userId)
+    .in("status", openTaskStatuses)
+    .limit(2000);
+
+  if (error) fail("load workload counts", error);
+  if (count === null || !data) throw new TaskRepositoryError("Workload counts unavailable.");
+
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  const nowMs = now.getTime();
+
+  let dueToday = 0;
+  let overdue = 0;
+
+  for (const row of data as Array<{ due_date: string | null; due_at: string | null }>) {
+    const dueAtMs = row.due_at ? new Date(row.due_at).getTime() : null;
+    const isDueToday =
+      (dueAtMs !== null && dueAtMs >= startMs && dueAtMs < endMs) ||
+      (dueAtMs === null && row.due_date === today);
+    if (isDueToday) dueToday++;
+
+    const isOverdue =
+      (dueAtMs !== null && dueAtMs < nowMs) ||
+      (dueAtMs === null && row.due_date !== null && row.due_date < today);
+    if (isOverdue) overdue++;
   }
-  return { remainingTasks: results[0].count!, dueToday: results[1].count!, overdue: results[2].count! };
+
+  return { remainingTasks: count, dueToday, overdue };
 }
 
 /** Task additions and AI audit share one DB transaction. Proof stays server-only. */

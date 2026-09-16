@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 import { formatPostgrestErrorDiagnostic } from "@/services/supabase/errors";
@@ -39,7 +40,7 @@ const toMeeting = (row: MeetingRow): PersistedCourseMeeting => ({
   timeZone: row.time_zone, location: row.location,
 });
 
-export async function listCourses(): Promise<CourseWithMeetings[]> {
+export const listCourses = cache(async function listCourses(): Promise<CourseWithMeetings[]> {
   const { client, userId } = await requireAuthenticatedSupabase();
   const [courses, meetings] = await Promise.all([
     client.from("courses").select("id,code,name,instructor,location,color,archived_at").eq("user_id", userId).is("archived_at", null).order("code"),
@@ -53,7 +54,7 @@ export async function listCourses(): Promise<CourseWithMeetings[]> {
     values.push(toMeeting(row)); grouped.set(row.course_id, values);
   }
   return (courses.data as CourseRow[]).map((row) => ({ ...toCourse(row), meetings: grouped.get(row.id) ?? [] }));
-}
+});
 
 export async function listCourseMeetingsForCalendar(): Promise<CourseMeeting[]> {
   return (await listCourses()).flatMap((course) => course.meetings.map((meeting) => ({

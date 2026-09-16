@@ -65,6 +65,27 @@
   --shadow-card: 0 1px 2px oklch(20% 0.03 255 / 4%), 0 8px 26px oklch(20% 0.03 255 / 7%);
   --shadow-elevated: 0 2px 8px oklch(20% 0.03 255 / 7%), 0 28px 72px oklch(20% 0.03 255 / 15%);
   --shadow-navigation: 0 10px 36px oklch(20% 0.03 255 / 16%);
+  --dock-surface: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--surface-raised) 82%, transparent) 0%,
+    color-mix(in oklch, var(--navigation-surface) 72%, transparent) 100%
+  );
+  --dock-border: color-mix(in oklch, var(--border-strong) 28%, var(--border-hairline));
+  --dock-shadow:
+    0 1px 0 0 color-mix(in oklch, var(--border-highlight) 70%, transparent) inset,
+    0 -1px 0 0 color-mix(in oklch, var(--border-hairline) 50%, transparent) inset,
+    0 4px 14px -1px oklch(20% 0.03 255 / 8%),
+    0 18px 40px -4px oklch(20% 0.03 255 / 16%),
+    0 0 24px -4px color-mix(in oklch, var(--accent) 10%, transparent);
+  --topbar-surface: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--surface-raised) 86%, transparent) 0%,
+    color-mix(in oklch, var(--navigation-surface) 74%, transparent) 100%
+  );
+  --topbar-border: color-mix(in oklch, var(--border-subtle) 80%, var(--border-hairline));
+  --topbar-shadow:
+    0 1px 0 0 color-mix(in oklch, var(--border-highlight) 65%, transparent) inset,
+    0 8px 24px -8px oklch(20% 0.03 255 / 10%);
   --ambient-secondary: oklch(70% 0.14 220 / 14%);
   --scrim: oklch(18% 0.025 255 / 42%);
   --accent-foreground: oklch(99% 0 0);
@@ -120,7 +141,9 @@
   --motion-distance: 0.375rem;
   --motion-ambient-drift-1: 30s;
   --motion-ambient-drift-2: 38s;
-  --mobile-nav-height: 4.25rem;
+  --mobile-nav-height: 4rem;
+  --mobile-dock-offset: max(1.15rem, calc(env(safe-area-inset-bottom, 0px) + 0.65rem));
+  --mobile-nav-space: calc(var(--mobile-nav-height) + var(--mobile-dock-offset));
   --sidebar-width: 15.5rem;
   --content-max-width: 86rem;
   --page-gutter: clamp(1.15rem, 3.5vw, 3.25rem);
@@ -191,6 +214,27 @@
   --shadow-dropdown: 0 6px 24px oklch(0% 0 0 / 44%), 0 1px 4px oklch(0% 0 0 / 20%);
   --shadow-modal: 0 28px 72px oklch(0% 0 0 / 58%), 0 4px 16px oklch(0% 0 0 / 28%);
   --shadow-navigation: 0 10px 40px oklch(0% 0 0 / 48%);
+  --dock-surface: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--surface-raised) 62%, transparent) 0%,
+    color-mix(in oklch, var(--navigation-surface) 52%, transparent) 100%
+  );
+  --dock-border: color-mix(in oklch, var(--border-highlight) 32%, var(--border-hairline));
+  --dock-shadow:
+    0 1px 0 0 color-mix(in oklch, var(--border-highlight) 55%, transparent) inset,
+    0 -1px 0 0 color-mix(in oklch, var(--border-hairline) 35%, transparent) inset,
+    0 4px 16px -2px oklch(0% 0 0 / 26%),
+    0 18px 42px -4px oklch(0% 0 0 / 38%),
+    0 0 28px -6px color-mix(in oklch, var(--accent) 14%, transparent);
+  --topbar-surface: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--navigation-surface) 78%, transparent) 0%,
+    color-mix(in oklch, var(--ambient-bg-base) 68%, transparent) 100%
+  );
+  --topbar-border: color-mix(in oklch, var(--border-subtle) 60%, var(--border-hairline));
+  --topbar-shadow:
+    0 1px 0 0 color-mix(in oklch, var(--border-highlight) 35%, transparent) inset,
+    0 10px 30px -10px oklch(0% 0 0 / 32%);
   --ambient-secondary: oklch(67% 0.14 220 / 13%);
   --scrim: oklch(8% 0.02 255 / 55%);
   --accent-text: color-mix(in oklch, var(--accent) 72%, var(--text-primary));
@@ -252,6 +296,27 @@
     --shadow-dropdown: 0 6px 24px oklch(0% 0 0 / 44%), 0 1px 4px oklch(0% 0 0 / 20%);
     --shadow-modal: 0 28px 72px oklch(0% 0 0 / 58%), 0 4px 16px oklch(0% 0 0 / 28%);
     --shadow-navigation: 0 10px 40px oklch(0% 0 0 / 48%);
+    --dock-surface: linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--surface-raised) 62%, transparent) 0%,
+      color-mix(in oklch, var(--navigation-surface) 52%, transparent) 100%
+    );
+    --dock-border: color-mix(in oklch, var(--border-highlight) 32%, var(--border-hairline));
+    --dock-shadow:
+      0 1px 0 0 color-mix(in oklch, var(--border-highlight) 55%, transparent) inset,
+      0 -1px 0 0 color-mix(in oklch, var(--border-hairline) 35%, transparent) inset,
+      0 4px 16px -2px oklch(0% 0 0 / 26%),
+      0 18px 42px -4px oklch(0% 0 0 / 38%),
+      0 0 28px -6px color-mix(in oklch, var(--accent) 14%, transparent);
+    --topbar-surface: linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--navigation-surface) 78%, transparent) 0%,
+      color-mix(in oklch, var(--ambient-bg-base) 68%, transparent) 100%
+    );
+    --topbar-border: color-mix(in oklch, var(--border-subtle) 60%, var(--border-hairline));
+    --topbar-shadow:
+      0 1px 0 0 color-mix(in oklch, var(--border-highlight) 35%, transparent) inset,
+      0 10px 30px -10px oklch(0% 0 0 / 32%);
     --ambient-secondary: oklch(67% 0.14 220 / 13%);
     --scrim: oklch(8% 0.02 255 / 55%);
     --accent-text: color-mix(in oklch, var(--accent) 72%, var(--text-primary));

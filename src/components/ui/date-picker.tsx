@@ -14,10 +14,12 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { addDays, isIsoDate } from "@/lib/date/day";
 import { addMonths, startOfMonth, startOfWeek } from "@/features/calendar/calendar-date";
 import { useFloatingPresence } from "./use-floating-presence";
+import { useAnchoredFloating } from "./use-anchored-floating";
 import styles from "./date-picker.module.css";
 
 export type DatePickerProps = {
@@ -85,8 +87,6 @@ export function DatePicker({
   const selectedDate = controlledValue !== undefined ? controlledValue : internalValue;
 
   const [isOpen, setIsOpen] = useState(false);
-  const [effectivePlacement, setEffectivePlacement] = useState<"bottom" | "top">(placement);
-  const [effectiveAlign, setEffectiveAlign] = useState<"start" | "end">("start");
   const today = getTodayIso();
   const [viewMonth, setViewMonth] = useState(() => {
     return isIsoDate(selectedDate) ? startOfMonth(selectedDate) : startOfMonth(today);
@@ -97,45 +97,12 @@ export function DatePicker({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
   const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
-
-  const updateGeometry = useCallback(() => {
-    if (placement === "top") {
-      setEffectivePlacement("top");
-      return;
-    }
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const scrollParent = triggerRef.current.closest("dialog, [class*='body'], [class*='dialog']");
-      const parentBottom = scrollParent ? scrollParent.getBoundingClientRect().bottom : window.innerHeight;
-      const parentTop = scrollParent ? scrollParent.getBoundingClientRect().top : 0;
-      const spaceBelow = Math.min(window.innerHeight - rect.bottom, parentBottom - rect.bottom);
-      const spaceAbove = Math.min(rect.top, rect.top - parentTop);
-
-      if (spaceBelow < 350 && spaceAbove > spaceBelow) {
-        setEffectivePlacement("top");
-      } else {
-        setEffectivePlacement("bottom");
-      }
-
-      if (window.innerWidth - rect.left < 310 && rect.right >= 310) {
-        setEffectiveAlign("end");
-      } else {
-        setEffectiveAlign("start");
-      }
-    }
-  }, [placement]);
-
-  // Ensure opened popover is visible within scrolling containers
-  useEffect(() => {
-    if (!isOpen) return;
-    const timer = setTimeout(() => {
-      popoverRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    }, 40);
-    return () => clearTimeout(timer);
-  }, [isOpen]);
+  const { refs, floatingStyles, placement: resolvedPlacement } = useAnchoredFloating({
+    open: isMounted,
+    placement: `${placement}-start`,
+  });
+  const { floating, setFloating, setReference } = refs;
 
   // Synchronize viewMonth when selectedDate changes externally
   const [prevSelectedDate, setPrevSelectedDate] = useState(selectedDate);
@@ -153,8 +120,8 @@ export function DatePicker({
 
     function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        !containerRef.current?.contains(event.target as Node) &&
+        !floating.current?.contains(event.target as Node)
       ) {
         setIsOpen(false);
       }
@@ -166,7 +133,7 @@ export function DatePicker({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("touchstart", handleClickOutside);
     };
-  }, [isOpen]);
+  }, [floating, isOpen]);
 
   const closePicker = useCallback(() => {
     setIsOpen(false);
@@ -205,7 +172,6 @@ export function DatePicker({
     if (isOpen) {
       closePicker();
     } else {
-      updateGeometry();
       setIsOpen(true);
       if (isIsoDate(selectedDate)) {
         setViewMonth(startOfMonth(selectedDate));
@@ -220,7 +186,6 @@ export function DatePicker({
     if (!isOpen) {
       if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
         e.preventDefault();
-        updateGeometry();
         setIsOpen(true);
       }
       return;
@@ -317,7 +282,10 @@ export function DatePicker({
       {name ? <input type="hidden" name={name} value={selectedDate} required={required} /> : null}
 
       <button
-        ref={triggerRef}
+        ref={(node) => {
+          triggerRef.current = node;
+          setReference(node);
+        }}
         type="button"
         id={baseId}
         className={compact ? styles.compactTrigger : styles.trigger}
@@ -350,17 +318,18 @@ export function DatePicker({
         ) : null}
       </button>
 
-      {isMounted ? (
+      {isMounted && typeof document !== "undefined" ? createPortal(
         <div
-          ref={popoverRef}
+          ref={setFloating}
+          style={floatingStyles}
           id={popoverId}
           role="dialog"
           aria-modal="false"
           aria-label="Calendar date picker"
           tabIndex={-1}
           className={`${styles.popover} ${
-            effectivePlacement === "top" ? styles.popoverTop : ""
-          } ${effectiveAlign === "end" ? styles.popoverEnd : ""} ${isExiting ? styles.popoverExiting : styles.popoverEntering}`}
+            resolvedPlacement.startsWith("top") ? styles.popoverTop : ""
+          } ${resolvedPlacement.endsWith("end") ? styles.popoverEnd : ""} ${isExiting ? styles.popoverExiting : styles.popoverEntering}`}
         >
           {/* Quick preset action chips */}
           <div className={styles.presetStrip}>
@@ -449,7 +418,8 @@ export function DatePicker({
               );
             })}
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );

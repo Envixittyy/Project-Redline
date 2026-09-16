@@ -9,7 +9,9 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { useFloatingPresence } from "./use-floating-presence";
+import { useAnchoredFloating } from "./use-anchored-floating";
 import styles from "./select.module.css";
 
 export type SelectOption = {
@@ -49,7 +51,6 @@ export function Select({
   const listboxId = `${baseId}-listbox`;
 
   const [isOpen, setIsOpen] = useState(false);
-  const [effectivePlacement, setEffectivePlacement] = useState<"bottom" | "top">(placement);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -57,27 +58,13 @@ export function Select({
 
   const selectedIndex = options.findIndex((opt) => opt.value === value);
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : null;
-
-  const updateGeometry = useCallback(() => {
-    if (placement === "top") {
-      setEffectivePlacement("top");
-      return;
-    }
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const scrollParent = triggerRef.current.closest("dialog, [class*='body'], [class*='dialog']");
-      const parentBottom = scrollParent ? scrollParent.getBoundingClientRect().bottom : window.innerHeight;
-      const parentTop = scrollParent ? scrollParent.getBoundingClientRect().top : 0;
-      const spaceBelow = Math.min(window.innerHeight - rect.bottom, parentBottom - rect.bottom);
-      const spaceAbove = Math.min(rect.top, rect.top - parentTop);
-
-      if (spaceBelow < 220 && spaceAbove > spaceBelow) {
-        setEffectivePlacement("top");
-      } else {
-        setEffectivePlacement("bottom");
-      }
-    }
-  }, [placement]);
+  const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
+  const { refs, floatingStyles, placement: resolvedPlacement } = useAnchoredFloating({
+    open: isMounted,
+    placement: `${placement}-start`,
+    matchReferenceWidth: true,
+  });
+  const { floating, setFloating, setReference } = refs;
 
   // Close dropdown if clicking outside
   useEffect(() => {
@@ -85,8 +72,8 @@ export function Select({
 
     function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        !containerRef.current?.contains(event.target as Node) &&
+        !floating.current?.contains(event.target as Node)
       ) {
         setIsOpen(false);
       }
@@ -98,7 +85,7 @@ export function Select({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("touchstart", handleClickOutside);
     };
-  }, [isOpen]);
+  }, [floating, isOpen]);
 
   // Keep focused option visible in scrollable listbox
   useEffect(() => {
@@ -111,10 +98,9 @@ export function Select({
 
   const openDropdown = useCallback(() => {
     if (disabled) return;
-    updateGeometry();
     setIsOpen(true);
     setFocusedIndex(selectedIndex >= 0 ? selectedIndex : 0);
-  }, [disabled, selectedIndex, updateGeometry]);
+  }, [disabled, selectedIndex]);
 
   const closeDropdown = useCallback(() => {
     setIsOpen(false);
@@ -237,10 +223,8 @@ export function Select({
   const focusedOptionId =
     focusedIndex >= 0 ? `${baseId}-opt-${focusedIndex}` : undefined;
 
-  const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
-
   const placementClass =
-    effectivePlacement === "top" ? styles.listboxTop : styles.listboxBottom;
+    resolvedPlacement.startsWith("top") ? styles.listboxTop : styles.listboxBottom;
 
   return (
     <div
@@ -250,7 +234,10 @@ export function Select({
     >
       {name ? <input type="hidden" name={name} value={value} /> : null}
       <button
-        ref={triggerRef}
+        ref={(node) => {
+          triggerRef.current = node;
+          setReference(node);
+        }}
         type="button"
         id={baseId}
         className={styles.trigger}
@@ -275,9 +262,13 @@ export function Select({
         />
       </button>
 
-      {isMounted ? (
+      {isMounted && typeof document !== "undefined" ? createPortal(
         <ul
-          ref={listboxRef}
+          ref={(node) => {
+            listboxRef.current = node;
+            setFloating(node);
+          }}
+          style={floatingStyles}
           id={listboxId}
           className={`${styles.listbox} ${placementClass} ${
             isExiting ? styles.listboxExiting : styles.listboxEntering
@@ -329,7 +320,8 @@ export function Select({
               </li>
             );
           })}
-        </ul>
+        </ul>,
+        document.body,
       ) : null}
     </div>
   );

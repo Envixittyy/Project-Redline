@@ -4,7 +4,6 @@
 }
 
 .panel {
-  position: absolute;
   z-index: 70;
   min-width: 12rem;
   max-width: min(24rem, calc(100vw - 1.5rem));
@@ -20,29 +19,21 @@
 }
 
 .bottomStart {
-  top: calc(100% + 6px);
-  left: 0;
   transform-origin: top left;
   animation: forward-popover-down-enter var(--motion-control, 150ms) var(--ease-standard) both;
 }
 
 .bottomEnd {
-  top: calc(100% + 6px);
-  right: 0;
   transform-origin: top right;
   animation: forward-popover-down-enter var(--motion-control, 150ms) var(--ease-standard) both;
 }
 
 .topStart {
-  bottom: calc(100% + 6px);
-  left: 0;
   transform-origin: bottom left;
   animation: forward-popover-up-enter var(--motion-control, 150ms) var(--ease-standard) both;
 }
 
 .topEnd {
-  bottom: calc(100% + 6px);
-  right: 0;
   transform-origin: bottom right;
   animation: forward-popover-up-enter var(--motion-control, 150ms) var(--ease-standard) both;
 }
@@ -159,4 +150,3 @@
   animation-name: forward-fade-out;
   transform: none !important;
 }
-

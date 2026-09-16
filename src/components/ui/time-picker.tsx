@@ -9,8 +9,10 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { useFloatingPresence } from "./use-floating-presence";
+import { useAnchoredFloating } from "./use-anchored-floating";
 import styles from "./time-picker.module.css";
 
 export type TimePickerProps = {
@@ -78,49 +80,14 @@ export function TimePicker({
   const selectedTime = controlledValue !== undefined ? controlledValue : internalValue;
 
   const [isOpen, setIsOpen] = useState(false);
-  const [effectivePlacement, setEffectivePlacement] = useState<"bottom" | "top">(placement);
-  const [effectiveAlign, setEffectiveAlign] = useState<"start" | "end">("start");
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
   const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
-
-  const updateGeometry = useCallback(() => {
-    if (placement === "top") {
-      setEffectivePlacement("top");
-      return;
-    }
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const scrollParent = triggerRef.current.closest("dialog, [class*='body'], [class*='dialog']");
-      const parentBottom = scrollParent ? scrollParent.getBoundingClientRect().bottom : window.innerHeight;
-      const parentTop = scrollParent ? scrollParent.getBoundingClientRect().top : 0;
-      const spaceBelow = Math.min(window.innerHeight - rect.bottom, parentBottom - rect.bottom);
-      const spaceAbove = Math.min(rect.top, rect.top - parentTop);
-
-      if (spaceBelow < 290 && spaceAbove > spaceBelow) {
-        setEffectivePlacement("top");
-      } else {
-        setEffectivePlacement("bottom");
-      }
-
-      if (window.innerWidth - rect.left < 275 && rect.right >= 275) {
-        setEffectiveAlign("end");
-      } else {
-        setEffectiveAlign("start");
-      }
-    }
-  }, [placement]);
-
-  // Ensure opened popover is visible within scrolling containers
-  useEffect(() => {
-    if (!isOpen) return;
-    const timer = setTimeout(() => {
-      popoverRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    }, 40);
-    return () => clearTimeout(timer);
-  }, [isOpen]);
+  const { refs, floatingStyles, placement: resolvedPlacement } = useAnchoredFloating({
+    open: isMounted,
+    placement: `${placement}-start`,
+  });
+  const { floating, setFloating, setReference } = refs;
 
   // Parse hour (0-23) and minute (0-59)
   const [parsedHour, parsedMinute] = (selectedTime || "09:00")
@@ -136,8 +103,8 @@ export function TimePicker({
 
     function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        !containerRef.current?.contains(event.target as Node) &&
+        !floating.current?.contains(event.target as Node)
       ) {
         setIsOpen(false);
       }
@@ -149,7 +116,7 @@ export function TimePicker({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("touchstart", handleClickOutside);
     };
-  }, [isOpen]);
+  }, [floating, isOpen]);
 
   const closePicker = useCallback(() => {
     setIsOpen(false);
@@ -201,7 +168,6 @@ export function TimePicker({
     if (isOpen) {
       closePicker();
     } else {
-      updateGeometry();
       setIsOpen(true);
     }
   }
@@ -212,7 +178,6 @@ export function TimePicker({
     if (!isOpen) {
       if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
         e.preventDefault();
-        updateGeometry();
         setIsOpen(true);
       }
       return;
@@ -242,7 +207,10 @@ export function TimePicker({
       {name ? <input type="hidden" name={name} value={selectedTime} required={required} /> : null}
 
       <button
-        ref={triggerRef}
+        ref={(node) => {
+          triggerRef.current = node;
+          setReference(node);
+        }}
         type="button"
         id={baseId}
         className={compact ? styles.compactTrigger : styles.trigger}
@@ -275,17 +243,18 @@ export function TimePicker({
         ) : null}
       </button>
 
-      {isMounted ? (
+      {isMounted && typeof document !== "undefined" ? createPortal(
         <div
-          ref={popoverRef}
+          ref={setFloating}
+          style={floatingStyles}
           id={popoverId}
           role="dialog"
           aria-modal="false"
           aria-label="Time picker"
           tabIndex={-1}
           className={`${styles.popover} ${
-            effectivePlacement === "top" ? styles.popoverTop : ""
-          } ${effectiveAlign === "end" ? styles.popoverEnd : ""} ${isExiting ? styles.popoverExiting : styles.popoverEntering}`}
+            resolvedPlacement.startsWith("top") ? styles.popoverTop : ""
+          } ${resolvedPlacement.endsWith("end") ? styles.popoverEnd : ""} ${isExiting ? styles.popoverExiting : styles.popoverEntering}`}
         >
           {/* Quick Presets */}
           <div className={styles.presetStrip}>
@@ -367,7 +336,8 @@ export function TimePicker({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );

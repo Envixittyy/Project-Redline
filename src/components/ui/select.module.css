@@ -76,9 +76,6 @@
 }
 
 .listbox {
-  position: absolute;
-  left: 0;
-  right: 0;
   z-index: 60;
   max-height: 16rem;
   overflow-y: auto;
@@ -96,12 +93,10 @@
 }
 
 .listboxBottom {
-  top: calc(100% + 4px);
   transform-origin: top center;
 }
 
 .listboxTop {
-  bottom: calc(100% + 4px);
   transform-origin: bottom center;
 }
 

@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { Modal } from "@/components/ui/modal-frame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
+import { TimePicker } from "@/components/ui/time-picker";
 import type { PersistedCourseMeeting } from "@/types/course";
 import { saveMeetingAction } from "./school-actions";
 import modalStyles from "./course-form-modal.module.css";
@@ -200,11 +202,10 @@ export function MeetingFormModal({
             >
               Start Time *
             </label>
-            <Input
+            <TimePicker
               id="meeting-start-time"
-              type="time"
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onChange={setStartTime}
               required
             />
           </div>
@@ -216,11 +217,10 @@ export function MeetingFormModal({
             >
               End Time *
             </label>
-            <Input
+            <TimePicker
               id="meeting-end-time"
-              type="time"
               value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
+              onChange={setEndTime}
               required
             />
           </div>
@@ -234,11 +234,10 @@ export function MeetingFormModal({
             >
               Semester Starts *
             </label>
-            <Input
+            <DatePicker
               id="meeting-start-date"
-              type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={setStartDate}
               required
             />
           </div>
@@ -250,11 +249,10 @@ export function MeetingFormModal({
             >
               Semester Ends (Optional)
             </label>
-            <Input
+            <DatePicker
               id="meeting-end-date"
-              type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={setEndDate}
             />
           </div>
         </div>

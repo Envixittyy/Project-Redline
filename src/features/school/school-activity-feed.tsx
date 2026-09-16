@@ -18,6 +18,7 @@ import type { CourseWithMeetings } from "@/types/course";
 import type { SchoolEmailEvent } from "@/types/school-item";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import {
   mapSchoolEmailCourseAction,
   retrySchoolEmailAction,
@@ -150,23 +151,20 @@ export function SchoolActivityFeed({
                   </div>
                   {courses.length > 0 && parsed.courseKey ? (
                     <div className={styles.unresolvedForm}>
-                      <select
-                        className={styles.unresolvedSelect}
-                        aria-label="Select corresponding course"
+                      <Select
+                        ariaLabel="Select corresponding course"
                         value={selectedCourses[event.id] || courses[0]?.id || ""}
-                        onChange={(e) =>
+                        onChange={(value) =>
                           setSelectedCourses((prev) => ({
                             ...prev,
-                            [event.id]: e.target.value,
+                            [event.id]: value,
                           }))
                         }
-                      >
-                        {courses.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.code} — {c.name}
-                          </option>
-                        ))}
-                      </select>
+                        options={courses.map((course) => ({
+                          value: course.id,
+                          label: `${course.code} — ${course.name}`,
+                        }))}
+                      />
                       <Button
                         variant="primary"
                         size="sm"

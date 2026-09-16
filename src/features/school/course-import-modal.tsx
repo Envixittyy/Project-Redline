@@ -3,6 +3,7 @@
 import { Check, FileUp, Loader2, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { ModalFrame } from "@/components/ui/modal-frame";
+import { TimePicker } from "@/components/ui/time-picker";
 import { generateCourseImport } from "@/features/ai/course-import-client";
 import {
   applyCourseImportAction,
@@ -357,25 +358,23 @@ export function CourseImportModal({ onClose }: { onClose: () => void }) {
                   </div>
 
                   <div className={styles.timeRow}>
-                    <input
-                      type="time"
+                    <TimePicker
                       className={styles.timeInput}
-                      aria-label={`Meeting ${index + 1} start time`}
+                      ariaLabel={`Meeting ${index + 1} start time`}
                       value={meeting.startTime}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         handleUpdateMeeting(index, {
-                          startTime: e.target.value,
+                          startTime: value,
                         })
                       }
                     />
                     <span style={{ color: "var(--text-tertiary)" }}>to</span>
-                    <input
-                      type="time"
+                    <TimePicker
                       className={styles.timeInput}
-                      aria-label={`Meeting ${index + 1} end time`}
+                      ariaLabel={`Meeting ${index + 1} end time`}
                       value={meeting.endTime}
-                      onChange={(e) =>
-                        handleUpdateMeeting(index, { endTime: e.target.value })
+                      onChange={(value) =>
+                        handleUpdateMeeting(index, { endTime: value })
                       }
                     />
                     <input

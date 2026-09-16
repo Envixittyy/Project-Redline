@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cloudAllowed, localSelection, mayFallback, routingChain, type RoutingPreferences } from "./routing-contract";
+import { cloudAllowed, localSelection, mayFallback, routingChain, routingMessage, type RoutingPreferences } from "./routing-contract";
 const base: RoutingPreferences = { aiMode: "auto", cloudEnabled: false, cloudFallbackMode: "ask_each_time", preferredCloud: "gemini", secondaryCloud: false, checklistCloud: false, courseImportCloud: false };
 describe("provider-neutral routing and privacy", () => {
   it("defaults to local with no cloud egress authorization", () => expect(routingChain(base, "taskChecklist.propose")).toEqual(["local"]));
@@ -36,5 +36,10 @@ describe("provider-neutral routing and privacy", () => {
     expect(() => localSelection({ provider: "gemini", model: "x", location: "local" })).toThrow();
     expect(() => localSelection({ provider: "ollama", model: "x", location: "local", capability: "delete_task" })).toThrow();
     expect(() => localSelection({ provider: "ollama", model: "https://evil/x?secret=1", location: "local" })).toThrow();
+  });
+  it("explains missing trust signing without hiding deterministic planning", () => {
+    expect(routingMessage("trust_not_configured")).toBe(
+      "AI trust signing is not configured on this server. Plan My Day advice is unavailable, but deterministic planning still works.",
+    );
   });
 });

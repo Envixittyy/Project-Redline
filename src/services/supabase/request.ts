@@ -3,6 +3,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 import {
   AuthenticationRequiredError,
@@ -45,7 +46,7 @@ export async function createRequestSupabaseClient(): Promise<SupabaseClient> {
   });
 }
 
-export async function requireAuthenticatedSupabase(): Promise<AuthenticatedSupabaseContext> {
+export const requireAuthenticatedSupabase = cache(async function requireAuthenticatedSupabase(): Promise<AuthenticatedSupabaseContext> {
   const { url } = readPublicSupabaseConfig();
   const cookieStore = await cookies();
   const hadAuthCookie = hasSupabaseAuthCookie(
@@ -72,4 +73,4 @@ export async function requireAuthenticatedSupabase(): Promise<AuthenticatedSupab
     userId,
     email: typeof data?.claims?.email === "string" ? data.claims.email : null,
   };
-}
+});

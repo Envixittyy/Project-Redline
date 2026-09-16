@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
 import { Surface } from "@/components/ui/surface";
+import { Select } from "@/components/ui/select";
 import type {
   NotionAccountStatus,
   NotionPageLink,
@@ -238,23 +239,23 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
                   </div>
 
                   <div className={styles.linkControls}>
-                    <select
-                      className={styles.select}
+                    <Select
                       disabled={pending}
                       value={link.direction}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         run(() =>
                           updateNotionLinkDirectionAction(
                             link.noteId,
-                            e.target.value as NotionSyncDirection,
+                            value as NotionSyncDirection,
                           ),
                         )
                       }
-                      aria-label={`Sync direction for ${noteTitle}`}
-                    >
-                      <option value="forward_to_notion">Export Only (Forward → Notion)</option>
-                      <option value="selective_two_way">Two-Way (Forward ↔ Notion)</option>
-                    </select>
+                      ariaLabel={`Sync direction for ${noteTitle}`}
+                      options={[
+                        { value: "forward_to_notion", label: "Export Only (Forward → Notion)" },
+                        { value: "selective_two_way", label: "Two-Way (Forward ↔ Notion)" },
+                      ]}
+                    />
 
                     <Button
                       variant="secondary"

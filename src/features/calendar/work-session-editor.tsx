@@ -7,6 +7,7 @@ import { DateTimePicker, Select } from "@/components/ui";
 import { fromZonedInputValue, toZonedInputValue } from "@/lib/date/day";
 import type { WorkSession } from "@/types/work-session";
 
+import { getTaskLinkOptionsAction } from "@/features/tasks/task-actions";
 import {
   createWorkSessionAction,
   deleteWorkSessionAction,
@@ -19,13 +20,13 @@ type TaskOption = { id: string; title: string };
 export function WorkSessionEditor({
   session,
   initialDate,
-  taskOptions,
+  taskOptions: initialTaskOptions = [],
   timeZone,
   onClose,
 }: {
   session: WorkSession | null;
   initialDate: string;
-  taskOptions: TaskOption[];
+  taskOptions?: TaskOption[];
   timeZone: string;
   onClose: () => void;
 }) {
@@ -33,6 +34,11 @@ export function WorkSessionEditor({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [fetchedTaskOptions, setFetchedTaskOptions] = useState<TaskOption[] | null>(null);
+  const [loadingTasks, setLoadingTasks] = useState(initialTaskOptions.length === 0);
+
+  const taskOptions = initialTaskOptions.length > 0 ? initialTaskOptions : (fetchedTaskOptions ?? []);
+
   const initialStart = session
     ? toZonedInputValue(session.startsAt, timeZone)
     : `${initialDate}T09:00`;
@@ -40,10 +46,30 @@ export function WorkSessionEditor({
     ? toZonedInputValue(session.endsAt, timeZone)
     : `${initialDate}T10:00`;
   const [fields, setFields] = useState({
-    taskId: session?.taskId ?? taskOptions[0]?.id ?? "",
+    taskId: session?.taskId ?? initialTaskOptions[0]?.id ?? "",
     startsAt: initialStart,
     endsAt: initialEnd,
   });
+
+  useEffect(() => {
+    if (initialTaskOptions.length > 0) {
+      return;
+    }
+    let active = true;
+    getTaskLinkOptionsAction().then((options) => {
+      if (active) {
+        setFetchedTaskOptions(options);
+        setLoadingTasks(false);
+        setFields((current) => ({
+          ...current,
+          taskId: current.taskId || options[0]?.id || "",
+        }));
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [initialTaskOptions]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -99,9 +125,9 @@ export function WorkSessionEditor({
             <span>Task</span>
             <Select
               value={fields.taskId}
-              disabled={taskOptions.length === 0}
+              disabled={loadingTasks || taskOptions.length === 0}
               onChange={(value) => setFields((current) => ({ ...current, taskId: value }))}
-              placeholder={taskOptions.length === 0 ? "Create a task first" : "Select task…"}
+              placeholder={loadingTasks ? "Loading tasks…" : taskOptions.length === 0 ? "Create a task first" : "Select task…"}
               ariaLabel="Task"
               options={taskOptions.map((task) => ({
                 value: task.id,

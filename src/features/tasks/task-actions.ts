@@ -12,6 +12,7 @@ import {
   createTask,
   deleteTask,
   getTask,
+  listTaskLinkOptions,
   setTaskCompletion,
   updateTask,
 } from "@/services/tasks/task-repository";
@@ -297,5 +298,14 @@ export async function deleteTaskAction(id: unknown): Promise<ActionResult> {
     return { ok: true };
   } catch (error) {
     return toFailure(error);
+  }
+}
+
+export async function getTaskLinkOptionsAction(): Promise<Array<{ id: string; title: string }>> {
+  try {
+    return await listTaskLinkOptions();
+  } catch (error) {
+    console.error("[task-actions] getTaskLinkOptionsAction failed:", error);
+    return [];
   }
 }

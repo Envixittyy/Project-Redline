@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -31,15 +32,163 @@ function taskTiming(task: Task) {
   return task.dueDate ?? task.status.replaceAll("_", " ");
 }
 
+function TelemetryContent({ telemetry }: { telemetry: SystemTelemetry }) {
+  const loadBadgeTone =
+    telemetry.loadLevel === "nominal"
+      ? "success"
+      : telemetry.loadLevel === "moderate"
+        ? "info"
+        : telemetry.loadLevel === "elevated"
+          ? "warning"
+          : "destructive";
+
+  return (
+    <div className={styles.telemetryRow}>
+      <Badge tone={loadBadgeTone} size="sm" dot>
+        {`SYSTEM LOAD: ${telemetry.loadLevel.toUpperCase()}`}
+      </Badge>
+      <span className={styles.telemetryText}>
+        {telemetry.telemetryText}
+      </span>
+    </div>
+  );
+}
+
+async function DeferredTelemetry({
+  telemetryPromise,
+}: {
+  telemetryPromise: Promise<SystemTelemetry | null>;
+}) {
+  const telemetry = await telemetryPromise;
+  if (!telemetry) return null;
+  return <TelemetryContent telemetry={telemetry} />;
+}
+
+function TelemetryFallback() {
+  return (
+    <div
+      className={styles.telemetryRow}
+      style={{ minHeight: "1.5rem" }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function OverdueContent({ overdue }: { overdue: Task[] }) {
+  if (overdue.length === 0) return null;
+  return (
+    <div
+      className={styles.overdueBanner}
+      data-dashboard-widget="overdue"
+    >
+      <div className={styles.overdueHeaderRow}>
+        <div className={styles.overdueTitleGroup}>
+          <AlertCircle size={15} aria-hidden="true" />
+          <span>Overdue Tasks</span>
+        </div>
+      </div>
+      <ul className={styles.overdueList}>
+        {overdue.slice(0, 3).map((task) => (
+          <li key={task.id} className={styles.overdueItem}>
+            <span className={styles.overdueItemTitle}>{task.title}</span>
+            <span className={styles.overdueItemDate}>
+              {taskTiming(task)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <Link
+        href="/tasks?view=overdue"
+        className={styles.overdueActionLink}
+      >
+        Review all {overdue.length} overdue tasks →
+      </Link>
+    </div>
+  );
+}
+
+async function DeferredOverdue({
+  overduePromise,
+}: {
+  overduePromise: Promise<Task[]>;
+}) {
+  const overdue = await overduePromise;
+  return <OverdueContent overdue={overdue} />;
+}
+
+async function DeferredSectionTitle({
+  overduePromise,
+  todayCount,
+}: {
+  overduePromise: Promise<Task[]>;
+  todayCount: number;
+}) {
+  const overdue = await overduePromise;
+  if (overdue.length > 0) {
+    return <>{`${overdue.length} need attention`}</>;
+  }
+  return (
+    <>
+      {todayCount > 0
+        ? `${todayCount} task${todayCount === 1 ? "" : "s"} for today`
+        : "Clear tasks"}
+    </>
+  );
+}
+
+function UpcomingContent({ count }: { count: number }) {
+  return (
+    <div
+      className={styles.upcomingFooter}
+      data-dashboard-widget="upcoming"
+    >
+      <span>
+        {count > 0
+          ? `${count} upcoming in the next 7 days`
+          : "No tasks due in the next 7 days"}
+      </span>
+      <Link href="/tasks?view=next7">
+        View upcoming →
+      </Link>
+    </div>
+  );
+}
+
+async function DeferredUpcoming({
+  upcomingPromise,
+  todayIds,
+}: {
+  upcomingPromise: Promise<Task[]>;
+  todayIds: Set<string>;
+}) {
+  const upcoming = await upcomingPromise;
+  const upcomingWithoutToday = upcoming.filter((task) => !todayIds.has(task.id));
+  return <UpcomingContent count={upcomingWithoutToday.length} />;
+}
+
+function UpcomingFallback() {
+  return (
+    <div
+      className={styles.upcomingFooter}
+      data-dashboard-widget="upcoming"
+    >
+      <span style={{ opacity: 0.65 }}>Checking upcoming tasks…</span>
+      <Link href="/tasks?view=next7">
+        View upcoming →
+      </Link>
+    </div>
+  );
+}
+
 export type HomeDashboardProps = {
   courses: CourseWithMeetings[];
-  overdue: Task[];
+  overdue: Task[] | Promise<Task[]>;
   schedule: CalendarItem[];
   timeZone: string;
   today: Task[];
-  upcoming: Task[];
+  upcoming: Task[] | Promise<Task[]>;
   greeting?: HomeGreeting;
-  telemetry?: SystemTelemetry | null;
+  telemetry?: SystemTelemetry | null | Promise<SystemTelemetry | null>;
 };
 
 export function HomeDashboard({
@@ -52,9 +201,11 @@ export function HomeDashboard({
   greeting,
   telemetry,
 }: HomeDashboardProps) {
-  const upcomingWithoutToday = upcoming.filter(
-    (task) => !today.some((item) => item.id === task.id),
-  );
+  const todayIds = new Set(today.map((item) => item.id));
+  const isUpcomingArray = Array.isArray(upcoming);
+  const upcomingWithoutToday = isUpcomingArray
+    ? upcoming.filter((task) => !todayIds.has(task.id))
+    : [];
 
   const formattedDate = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -70,15 +221,6 @@ export function HomeDashboard({
     hour12: false,
     timeZone,
   }).format(currentInstant);
-
-  const loadBadgeTone =
-    telemetry?.loadLevel === "nominal"
-      ? "success"
-      : telemetry?.loadLevel === "moderate"
-        ? "info"
-        : telemetry?.loadLevel === "elevated"
-          ? "warning"
-          : "destructive";
 
   return (
     <div className={styles.dailyCanvas}>
@@ -97,15 +239,12 @@ export function HomeDashboard({
               </>
             ) : null}
           </h1>
-          {telemetry ? (
-            <div className={styles.telemetryRow}>
-              <Badge tone={loadBadgeTone} size="sm" dot>
-                {`SYSTEM LOAD: ${telemetry.loadLevel.toUpperCase()}`}
-              </Badge>
-              <span className={styles.telemetryText}>
-                {telemetry.telemetryText}
-              </span>
-            </div>
+          {telemetry instanceof Promise ? (
+            <Suspense fallback={<TelemetryFallback />}>
+              <DeferredTelemetry telemetryPromise={telemetry} />
+            </Suspense>
+          ) : telemetry ? (
+            <TelemetryContent telemetry={telemetry} />
           ) : null}
         </div>
         <div className={styles.clockBlock} aria-label={`Current time ${formattedTime}`}>
@@ -177,11 +316,26 @@ export function HomeDashboard({
                   <div>
                     <p className={styles.sectionKicker}>Action Items</p>
                     <h3 className={styles.sectionTitle}>
-                      {overdue.length
-                        ? `${overdue.length} need attention`
-                        : today.length
-                        ? `${today.length} task${today.length === 1 ? "" : "s"} for today`
-                        : "Clear tasks"}
+                      {overdue instanceof Promise ? (
+                        <Suspense
+                          fallback={
+                            today.length > 0
+                              ? `${today.length} task${today.length === 1 ? "" : "s"} for today`
+                              : "Clear tasks"
+                          }
+                        >
+                          <DeferredSectionTitle
+                            overduePromise={overdue}
+                            todayCount={today.length}
+                          />
+                        </Suspense>
+                      ) : overdue.length ? (
+                        `${overdue.length} need attention`
+                      ) : today.length ? (
+                        `${today.length} task${today.length === 1 ? "" : "s"} for today`
+                      ) : (
+                        "Clear tasks"
+                      )}
                     </h3>
                   </div>
                 </div>
@@ -191,35 +345,13 @@ export function HomeDashboard({
               </div>
 
               {/* Overdue Attention Alert */}
-              {overdue.length > 0 ? (
-                <div
-                  className={styles.overdueBanner}
-                  data-dashboard-widget="overdue"
-                >
-                  <div className={styles.overdueHeaderRow}>
-                    <div className={styles.overdueTitleGroup}>
-                      <AlertCircle size={15} aria-hidden="true" />
-                      <span>Overdue Tasks</span>
-                    </div>
-                  </div>
-                  <ul className={styles.overdueList}>
-                    {overdue.slice(0, 3).map((task) => (
-                      <li key={task.id} className={styles.overdueItem}>
-                        <span className={styles.overdueItemTitle}>{task.title}</span>
-                        <span className={styles.overdueItemDate}>
-                          {taskTiming(task)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    href="/tasks?view=overdue"
-                    className={styles.overdueActionLink}
-                  >
-                    Review all {overdue.length} overdue tasks →
-                  </Link>
-                </div>
-              ) : null}
+              {overdue instanceof Promise ? (
+                <Suspense fallback={null}>
+                  <DeferredOverdue overduePromise={overdue} />
+                </Suspense>
+              ) : (
+                <OverdueContent overdue={overdue} />
+              )}
 
               {/* Today's Tasks List */}
               {today.length > 0 ? (
@@ -248,19 +380,16 @@ export function HomeDashboard({
               )}
 
               {/* Upcoming Tasks Preview Footnote */}
-              <div
-                className={styles.upcomingFooter}
-                data-dashboard-widget="upcoming"
-              >
-                <span>
-                  {upcomingWithoutToday.length > 0
-                    ? `${upcomingWithoutToday.length} upcoming in the next 7 days`
-                    : "No tasks due in the next 7 days"}
-                </span>
-                <Link href="/tasks?view=next7">
-                  View upcoming →
-                </Link>
-              </div>
+              {upcoming instanceof Promise ? (
+                <Suspense fallback={<UpcomingFallback />}>
+                  <DeferredUpcoming
+                    upcomingPromise={upcoming}
+                    todayIds={todayIds}
+                  />
+                </Suspense>
+              ) : (
+                <UpcomingContent count={upcomingWithoutToday.length} />
+              )}
             </section>
           </div>
 

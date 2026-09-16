@@ -14,7 +14,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
@@ -28,8 +28,10 @@ import { enqueueOfflineMutation } from "@/lib/offline/queue";
 import type { Course } from "@/types/course";
 import type { Attachment, Note } from "@/types/note";
 
+import { getTaskLinkOptionsAction } from "@/features/tasks/task-actions";
 import {
   exportNoteToNotionAction,
+  getNotionIntegrationDataAction,
   syncNoteAction,
 } from "@/features/integrations/notion-actions";
 import type { NotionPageLink } from "@/services/integrations/notion/types";
@@ -44,19 +46,52 @@ type TaskOption = { id: string; title: string };
 export function NoteWorkspace({
   notes,
   courses,
-  tasks,
+  tasks: initialTasks = [],
   initialSearch,
-  notionConnected = false,
-  notionLinks = [],
+  notionConnected: initialNotionConnected = false,
+  notionLinks: initialNotionLinks = [],
 }: {
   notes: Note[];
   courses: Course[];
-  tasks: TaskOption[];
+  tasks?: TaskOption[];
   initialSearch: string;
   notionConnected?: boolean;
   notionLinks?: NotionPageLink[];
 }) {
   const router = useRouter();
+  const [deferredTasks, setDeferredTasks] = useState<TaskOption[] | null>(null);
+  const tasks = initialTasks.length > 0 ? initialTasks : (deferredTasks ?? []);
+
+  const [deferredNotion, setDeferredNotion] = useState<{
+    connected: boolean;
+    links: NotionPageLink[];
+  } | null>(null);
+
+  const notionConnected = initialNotionConnected || (deferredNotion?.connected ?? false);
+  const notionLinks = initialNotionLinks.length > 0 ? initialNotionLinks : (deferredNotion?.links ?? []);
+
+  // Keep Notion data out of the critical path: check in background after initial render
+  useEffect(() => {
+    if (!initialNotionConnected && initialNotionLinks.length === 0) {
+      let active = true;
+      getNotionIntegrationDataAction().then((data) => {
+        if (active && data.connected) {
+          setDeferredNotion(data);
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }
+  }, [initialNotionConnected, initialNotionLinks.length]);
+
+  const handleOpenTaskSelect = useCallback(() => {
+    if (deferredTasks !== null || initialTasks.length > 0) return;
+    getTaskLinkOptionsAction().then((loaded) => {
+      setDeferredTasks(loaded);
+    });
+  }, [deferredTasks, initialTasks.length]);
+
   const [selectedId, setSelectedId] = useState<string | null>(notes[0]?.id ?? null);
   const selected = notes.find((note) => note.id === selectedId) ?? null;
 
@@ -520,6 +555,7 @@ export function NoteWorkspace({
               id="note-task-select"
               value={draft.taskId ?? ""}
               onChange={(value) => updateDraft({ taskId: value || null })}
+              onOpen={handleOpenTaskSelect}
               options={[
                 { value: "", label: "No linked task" },
                 ...tasks.map((task) => ({ value: task.id, label: task.title })),

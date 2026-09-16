@@ -38,41 +38,42 @@ export default async function HomePage() {
   const range = dayRangeIn(todayDate, tomorrowDate, timeZone);
 
   let todayTasks: Awaited<ReturnType<typeof listTasksForView>> = [];
-  let overdueTasks: Awaited<ReturnType<typeof listTasksForView>> = [];
-  let upcomingTasks: Awaited<ReturnType<typeof listTasksForView>> = [];
+  let overdueTasks:
+    | Awaited<ReturnType<typeof listTasksForView>>
+    | Promise<Awaited<ReturnType<typeof listTasksForView>>> = [];
+  let upcomingTasks:
+    | Awaited<ReturnType<typeof listTasksForView>>
+    | Promise<Awaited<ReturnType<typeof listTasksForView>>> = [];
   let courses: Awaited<ReturnType<typeof listCourses>> = [];
   let schedule: CalendarItem[] = [];
-  let workload: Awaited<ReturnType<typeof readTaskWorkloadCounts>> | null =
-    null;
+  let telemetryPromise: Promise<ReturnType<typeof getSystemLoadTelemetry> | null> | null = null;
 
   if (configured) {
+    // Secondary data kicked off in parallel; deferred off critical path
+    const overduePromise = listTasksForView("overdue").catch(() => []);
+    const upcomingPromise = listTasksForView("next7").catch(() => []);
+    const workloadPromise = readTaskWorkloadCounts().catch(() => null);
+
     const [
       todayResult,
-      overdueResult,
-      upcomingResult,
       coursesResult,
       events,
       externalEvents,
       meetings,
       workSessions,
-      workloadResult,
     ] = await Promise.all([
       listTasksForView("today"),
-      listTasksForView("overdue"),
-      listTasksForView("next7"),
       listCourses(),
       listCalendarEventsInRange(range.start, range.end),
       listExternalCalendarEventsInRange(range.start, range.end),
       listCourseMeetingsForCalendar(),
       listWorkSessionsInRange(range.start, range.end),
-      readTaskWorkloadCounts().catch(() => null),
     ]);
 
     todayTasks = todayResult;
-    overdueTasks = overdueResult;
-    upcomingTasks = upcomingResult;
     courses = coursesResult;
-    workload = workloadResult;
+    overdueTasks = overduePromise;
+    upcomingTasks = upcomingPromise;
 
     const workSessionTasks =
       workSessions.length > 0
@@ -96,20 +97,24 @@ export default async function HomePage() {
     ).filter((item) => item.date === todayDate);
 
     schedule = sortCalendarItemsChronologically(scheduleItems);
+
+    const todayClassesCount = schedule.filter(
+      (item) => item.kind === "course_meeting",
+    ).length;
+
+    telemetryPromise = workloadPromise.then((workload) =>
+      workload
+        ? getSystemLoadTelemetry({
+            openTaskCount: workload.remainingTasks,
+            dueSoonCount: workload.dueToday,
+            overdueCount: workload.overdue,
+            todayClassCount: todayClassesCount,
+          })
+        : null,
+    );
   }
 
   const greeting = getTimeAwareGreeting("Kyle", new Date(), timeZone);
-  const todayClassesCount = schedule.filter(
-    (item) => item.kind === "course_meeting",
-  ).length;
-  const telemetry = workload
-    ? getSystemLoadTelemetry({
-        openTaskCount: workload.remainingTasks,
-        dueSoonCount: workload.dueToday,
-        overdueCount: workload.overdue,
-        todayClassCount: todayClassesCount,
-      })
-    : null;
 
   return configured ? (
     <HomeDashboard
@@ -117,7 +122,7 @@ export default async function HomePage() {
       greeting={greeting}
       overdue={overdueTasks}
       schedule={schedule}
-      telemetry={telemetry}
+      telemetry={telemetryPromise}
       timeZone={timeZone}
       today={todayTasks}
       upcoming={upcomingTasks}

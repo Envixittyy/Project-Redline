@@ -6,6 +6,8 @@ import {
   connectNotionAccount,
   disconnectNotionAccount,
   exportNoteToNotion,
+  getNotionAccountStatus,
+  listNotionPageLinks,
   resolveNotionConflict,
   syncNoteWithNotion,
   unlinkNotionPage,
@@ -13,6 +15,7 @@ import {
 } from "@/services/integrations/notion/notion-repository";
 import type {
   NotionConflictResolution,
+  NotionPageLink,
   NotionSyncDirection,
 } from "@/services/integrations/notion/types";
 import { authFailureMessage } from "@/services/supabase/errors";
@@ -150,5 +153,20 @@ export async function updateNotionLinkDirectionAction(
     return result;
   } catch (error) {
     return handleActionResult(error);
+  }
+}
+
+export async function getNotionIntegrationDataAction(): Promise<{
+  connected: boolean;
+  links: NotionPageLink[];
+}> {
+  try {
+    const status = await getNotionAccountStatus().catch(() => ({ connected: false }));
+    const connected = Boolean(status && "connected" in status && status.connected);
+    const links = connected ? await listNotionPageLinks().catch(() => []) : [];
+    return { connected, links };
+  } catch (error) {
+    console.error("[notion-actions] getNotionIntegrationDataAction failed:", error);
+    return { connected: false, links: [] };
   }
 }

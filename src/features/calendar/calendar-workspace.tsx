@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import { Surface } from "@/components/ui/surface";
 import { TaskEditor } from "@/features/tasks/task-editor";
 import { addDays } from "@/lib/date/day";
 import type { CalendarEvent } from "@/types/calendar-event";
+import type { ExternalCalendarProjection } from "@/types/external-calendar";
 import type { Task } from "@/types/task";
 import type { WorkSession } from "@/types/work-session";
 
@@ -35,6 +36,7 @@ import {
   type CalendarView,
 } from "./calendar-date";
 import {
+  buildExternalCalendarItems,
   sortCalendarItemsChronologically,
   type CalendarItem,
 } from "./calendar-items";
@@ -51,7 +53,7 @@ const viewOptions: Array<SegmentOption<CalendarView>> = [
   { value: "agenda", label: "Agenda" },
 ];
 
-type CalendarWorkspaceProps = {
+export type CalendarWorkspaceProps = {
   view: CalendarView;
   anchor: string;
   heading: string;
@@ -60,7 +62,8 @@ type CalendarWorkspaceProps = {
   today: string;
   timeZone: string;
   items: CalendarItem[];
-  taskOptions: Array<{ id: string; title: string }>;
+  taskOptions?: Array<{ id: string; title: string }>;
+  externalEventsPromise?: Promise<ExternalCalendarProjection[]>;
 };
 
 function calendarHref(view: CalendarView, date: string) {
@@ -318,10 +321,40 @@ export function CalendarWorkspace({
   toDateExclusive,
   today,
   timeZone,
-  items,
-  taskOptions,
+  items: initialItems,
+  taskOptions = [],
+  externalEventsPromise,
 }: CalendarWorkspaceProps) {
   const router = useRouter();
+  const [extraExternalItems, setExtraExternalItems] = useState<CalendarItem[]>([]);
+
+  useEffect(() => {
+    if (!externalEventsPromise) return;
+    let active = true;
+    externalEventsPromise.then((externalEvents) => {
+      if (!active || !externalEvents || externalEvents.length === 0) return;
+      const externalItems = buildExternalCalendarItems(
+        externalEvents,
+        timeZone,
+        fromDate,
+        toDateExclusive,
+      );
+      if (externalItems.length > 0) {
+        setExtraExternalItems(externalItems);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [externalEventsPromise, fromDate, toDateExclusive, timeZone]);
+
+  const items = useMemo(() => {
+    if (extraExternalItems.length === 0) return initialItems;
+    const existingKeys = new Set(initialItems.map((item) => item.key));
+    const additions = extraExternalItems.filter((item) => !existingKeys.has(item.key));
+    return additions.length > 0 ? [...initialItems, ...additions] : initialItems;
+  }, [initialItems, extraExternalItems]);
+
   const [selectedDate, setSelectedDate] = useState<string>(anchor);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [isLegendOpen, setIsLegendOpen] = useState(false);

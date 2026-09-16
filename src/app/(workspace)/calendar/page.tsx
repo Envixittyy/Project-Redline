@@ -11,7 +11,7 @@ import { listCalendarEventsInRange } from "@/services/calendar-events/calendar-e
 import { listCourseMeetingsForCalendar } from "@/services/courses/course-repository";
 import { listExternalCalendarEventsInRange } from "@/services/external-calendars/external-calendar-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
-import { listTaskLinkOptions, listTasksByIds, listTasksForCalendarRange } from "@/services/tasks/task-repository";
+import { listTasksByIds, listTasksForCalendarRange } from "@/services/tasks/task-repository";
 import { listWorkSessionsInRange } from "@/services/work-sessions/work-session-repository";
 
 import styles from "./calendar-page.module.css";
@@ -45,17 +45,20 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
     );
   } else {
     let calendarData:
-      | { items: ReturnType<typeof buildCalendarItems>; taskOptions: Array<{ id: string; title: string }>; failure: null }
-      | { items: null; taskOptions: []; failure: string };
+      | { items: ReturnType<typeof buildCalendarItems>; failure: null }
+      | { items: null; failure: string };
+    let externalEventsPromise: ReturnType<typeof listExternalCalendarEventsInRange> | undefined;
 
     try {
-      const [events, externalEvents, taskRange, meetings, workSessions, taskOptions] = await Promise.all([
+      // Allow external calendar / Blackboard projections to resolve independently
+      externalEventsPromise = listExternalCalendarEventsInRange(range.start, range.end).catch(() => []);
+
+      // Critical path: native calendar events, task deadlines/schedules, meetings, and work sessions
+      const [events, taskRange, meetings, workSessions] = await Promise.all([
         listCalendarEventsInRange(range.start, range.end),
-        listExternalCalendarEventsInRange(range.start, range.end),
         listTasksForCalendarRange(range.start, range.end, fromDate, toDateExclusive),
         listCourseMeetingsForCalendar(),
         listWorkSessionsInRange(range.start, range.end),
-        listTaskLinkOptions(),
       ]);
       const workSessionTasks = await listTasksByIds(workSessions.map((session) => session.taskId));
       const items = buildCalendarItems(
@@ -68,15 +71,14 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
         toDateExclusive,
         workSessions,
         workSessionTasks,
-        externalEvents,
+        [],
       )
         .filter((item) => item.date >= fromDate && item.date < toDateExclusive);
 
-      calendarData = { items, taskOptions, failure: null };
+      calendarData = { items, failure: null };
     } catch (error) {
       calendarData = {
         items: null,
-        taskOptions: [],
         failure: error instanceof Error ? error.message : "Something went wrong reading calendar data.",
       };
     }
@@ -91,7 +93,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           today={today}
           timeZone={timeZone}
           items={calendarData.items}
-          taskOptions={calendarData.taskOptions}
+          externalEventsPromise={externalEventsPromise}
         />
       ) : (
         <Surface variant="subtle" className={styles.notice} role="alert">

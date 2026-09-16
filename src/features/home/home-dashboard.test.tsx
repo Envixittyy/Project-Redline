@@ -339,4 +339,35 @@ describe("S7D1 Home Screen Control Surface (HomeDashboard)", () => {
       expect(html).toContain(`data-dashboard-widget="${widgetId}"`);
     }
   });
+
+  it("renders stable fallbacks and maintains geometry when secondary data is pending", () => {
+    // Pass pending promises for secondary data
+    const pendingOverdue = new Promise<Task[]>(() => {});
+    const pendingUpcoming = new Promise<Task[]>(() => {});
+    const pendingTelemetry = new Promise<SystemTelemetry | null>(() => {});
+
+    const html = renderToStaticMarkup(
+      <HomeDashboard
+        courses={[mockCourse()]}
+        greeting={mockGreeting}
+        overdue={pendingOverdue}
+        schedule={[mockCalendarItem()]}
+        telemetry={pendingTelemetry}
+        timeZone="Asia/Manila"
+        today={[mockTask()]}
+        upcoming={pendingUpcoming}
+      />,
+    );
+
+    // Primary content is immediately visible
+    expect(html).toContain("Good morning, Kyle.");
+    expect(html).toContain("Today&#x27;s Agenda");
+    expect(html).toContain("1 commitment");
+    expect(html).toContain("1 task for today");
+
+    // Secondary regions render stable geometry fallbacks without layout shift
+    expect(html).toContain("Checking upcoming tasks…");
+    expect(html).toContain("data-dashboard-widget=\"upcoming\"");
+    expect(html).toContain("aria-hidden=\"true\"");
+  });
 });

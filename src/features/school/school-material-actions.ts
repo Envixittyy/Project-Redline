@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   createCourseMaterial,
   deleteCourseMaterial,
+  listCourseMaterials,
   updateCourseMaterial,
 } from "@/services/course-materials/course-material-repository";
 import { authFailureMessage } from "@/services/supabase/errors";
@@ -107,6 +108,15 @@ export async function deleteCourseMaterialAction(
     return { ok: true };
   } catch (error) {
     return failure(error);
+  }
+}
+
+export async function loadCourseMaterialsAction(courseId?: string) {
+  try {
+    return await listCourseMaterials(courseId);
+  } catch (error) {
+    console.error("[school-materials] loadCourseMaterialsAction failed:", error);
+    return [];
   }
 }
 

@@ -5,8 +5,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { NoteWorkspace } from "@/features/notes/note-workspace";
 import { listCourses } from "@/services/courses/course-repository";
 import { listNotes } from "@/services/notes/note-repository";
-import { listTaskLinkOptions } from "@/services/tasks/task-repository";
-import { getNotionAccountStatus, listNotionPageLinks } from "@/services/integrations/notion/notion-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
 
 export const metadata: Metadata = { title: "Notes" };
@@ -29,29 +27,18 @@ export default async function NotesPage({ searchParams }: PageProps<"/notes">) {
     );
   }
 
-  const [notes, courses, tasks, notionStatus] = await Promise.all([
+  // Critical path: render notes list and editor immediately
+  // Task link options are deferred until link UI is opened; Notion integration stays off critical path
+  const [notes, courses] = await Promise.all([
     listNotes(q),
     listCourses(),
-    listTaskLinkOptions(),
-    getNotionAccountStatus().catch(() => ({ connected: false })),
   ]);
-
-  const notionConnected = Boolean(
-    notionStatus && "connected" in notionStatus && notionStatus.connected,
-  );
-
-  const notionLinks = notionConnected
-    ? await listNotionPageLinks().catch(() => [])
-    : [];
 
   return (
     <NoteWorkspace
       notes={notes}
       courses={courses}
-      tasks={tasks}
       initialSearch={q}
-      notionConnected={notionConnected}
-      notionLinks={notionLinks}
     />
   );
 }

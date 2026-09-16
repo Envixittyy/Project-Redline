@@ -44,6 +44,40 @@ function occupiedDates(start: string, end: string | null, timeZone: string): str
 }
 
 /**
+ * Builds projection items for external calendar events and Blackboard feeds.
+ */
+export function buildExternalCalendarItems(
+  externalEvents: ExternalCalendarProjection[],
+  timeZone: string,
+  fromDate?: string,
+  toDateExclusive?: string,
+): CalendarItem[] {
+  const items: CalendarItem[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const externalEvent of externalEvents) {
+    const entry = externalCalendarEventToEntry(externalEvent, timeZone);
+    if (!entry || !matchesCalendarFilters(entry, defaultCalendarFilters) || !entry.start) continue;
+    if (seenKeys.has(entry.key)) continue;
+    seenKeys.add(entry.key);
+
+    for (const date of occupiedDates(entry.start, entry.end, timeZone)) {
+      if (fromDate && date < fromDate) continue;
+      if (toDateExclusive && date >= toDateExclusive) continue;
+      items.push({
+        key: `${entry.key}:${date}`,
+        kind: "external_event",
+        date,
+        externalEvent,
+        entry,
+      });
+    }
+  }
+
+  return items;
+}
+
+/**
  * Builds a calendar-only union. It contains references to the original domain
  * records and has no persistence path of its own.
  */
@@ -70,22 +104,7 @@ export function buildCalendarItems(
     }
   }
 
-  const seenExternalKeys = new Set<string>();
-  for (const externalEvent of externalEvents) {
-    const entry = externalCalendarEventToEntry(externalEvent, timeZone);
-    if (!entry || !matchesCalendarFilters(entry, defaultCalendarFilters)) continue;
-    if (seenExternalKeys.has(entry.key)) continue;
-    seenExternalKeys.add(entry.key);
-    for (const date of occupiedDates(entry.start!, entry.end, timeZone)) {
-      items.push({
-        key: `${entry.key}:${date}`,
-        kind: "external_event",
-        date,
-        externalEvent,
-        entry,
-      });
-    }
-  }
+  items.push(...buildExternalCalendarItems(externalEvents, timeZone));
 
   if (fromDate && toDateExclusive) {
     for (const meeting of meetings) {

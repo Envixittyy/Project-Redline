@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -22,15 +22,17 @@ import { SchoolTimetableView } from "./school-timetable-view";
 import { SchoolUpcomingWork } from "./school-upcoming-work";
 import { SchoolActivityFeed } from "./school-activity-feed";
 import { SchoolCourseDetail } from "./school-course-detail";
+import { loadCourseMaterialsAction } from "./school-material-actions";
+import { loadSchoolEmailEventsAction } from "./school-email-actions";
 import styles from "./school-workspace.module.css";
 
 type SchoolViewTab = "overview" | "timetable" | "activity";
 
-type SchoolWorkspaceProps = {
+export type SchoolWorkspaceProps = {
   courses: CourseWithMeetings[];
   schoolItems: SchoolItem[];
-  materials: CourseMaterial[];
-  emailEvents: SchoolEmailEvent[];
+  materials?: CourseMaterial[];
+  emailEvents?: SchoolEmailEvent[];
   today: string;
   timeZone: string;
   initialCourseId?: string | null;
@@ -39,16 +41,47 @@ type SchoolWorkspaceProps = {
 export function SchoolWorkspace({
   courses,
   schoolItems,
-  materials,
-  emailEvents,
+  materials: initialMaterials = [],
+  emailEvents: initialEmailEvents = [],
   today,
   timeZone,
   initialCourseId = null,
 }: SchoolWorkspaceProps) {
+  const [fetchedMaterials, setFetchedMaterials] = useState<CourseMaterial[]>([]);
+  const [fetchedEmailEvents, setFetchedEmailEvents] = useState<SchoolEmailEvent[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(initialCourseId);
   const [activeTab, setActiveTab] = useState<SchoolViewTab>("overview");
   const [showAddCourse, setShowAddCourse] = useState(false);
   const [showImport, setShowImport] = useState(false);
+
+  const materials = initialMaterials.length > 0 ? initialMaterials : fetchedMaterials;
+  const emailEvents = initialEmailEvents.length > 0 ? initialEmailEvents : fetchedEmailEvents;
+
+  // Load materials when course detail is opened
+  useEffect(() => {
+    if (selectedCourseId && initialMaterials.length === 0 && fetchedMaterials.length === 0) {
+      let active = true;
+      loadCourseMaterialsAction(selectedCourseId).then((m) => {
+        if (active && m.length > 0) setFetchedMaterials(m);
+      });
+      return () => {
+        active = false;
+      };
+    }
+  }, [selectedCourseId, initialMaterials.length, fetchedMaterials.length]);
+
+  // Defer email activity events fetch in background or when activity tab is selected
+  useEffect(() => {
+    if (initialEmailEvents.length === 0 && fetchedEmailEvents.length === 0) {
+      let active = true;
+      loadSchoolEmailEventsAction().then((events) => {
+        if (active && events.length > 0) setFetchedEmailEvents(events);
+      });
+      return () => {
+        active = false;
+      };
+    }
+  }, [initialEmailEvents.length, fetchedEmailEvents.length]);
 
   // Unresolved mapping check
   const unresolvedEvents = useMemo(

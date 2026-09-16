@@ -32,6 +32,7 @@ export type SelectProps = {
   placement?: "bottom" | "top";
   ariaLabel?: string;
   className?: string;
+  onOpen?: () => void;
 };
 
 export function Select({
@@ -45,6 +46,7 @@ export function Select({
   placement = "bottom",
   ariaLabel,
   className,
+  onOpen,
 }: SelectProps) {
   const generatedId = useId();
   const baseId = customId || generatedId;
@@ -98,9 +100,10 @@ export function Select({
 
   const openDropdown = useCallback(() => {
     if (disabled) return;
+    onOpen?.();
     setIsOpen(true);
     setFocusedIndex(selectedIndex >= 0 ? selectedIndex : 0);
-  }, [disabled, selectedIndex]);
+  }, [disabled, selectedIndex, onOpen]);
 
   const closeDropdown = useCallback(() => {
     setIsOpen(false);

@@ -29,13 +29,20 @@ export default async function NotesPage({ searchParams }: PageProps<"/notes">) {
     );
   }
 
-  const [notes, courses, tasks, notionStatus, notionLinks] = await Promise.all([
+  const [notes, courses, tasks, notionStatus] = await Promise.all([
     listNotes(q),
     listCourses(),
     listTaskLinkOptions(),
     getNotionAccountStatus().catch(() => ({ connected: false })),
-    listNotionPageLinks().catch(() => []),
   ]);
+
+  const notionConnected = Boolean(
+    notionStatus && "connected" in notionStatus && notionStatus.connected,
+  );
+
+  const notionLinks = notionConnected
+    ? await listNotionPageLinks().catch(() => [])
+    : [];
 
   return (
     <NoteWorkspace
@@ -43,7 +50,7 @@ export default async function NotesPage({ searchParams }: PageProps<"/notes">) {
       courses={courses}
       tasks={tasks}
       initialSearch={q}
-      notionConnected={Boolean(notionStatus && "connected" in notionStatus && notionStatus.connected)}
+      notionConnected={notionConnected}
       notionLinks={notionLinks}
     />
   );

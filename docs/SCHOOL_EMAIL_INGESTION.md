@@ -61,6 +61,43 @@ and the hosted migration have **not** been provisioned or verified by this task.
 Postmark account retention is separate from Redline retention and should be set
 to the operator's chosen mailbox-data policy.
 
+## Resend Inbound integration & cutover
+
+Resend Inbound replaces Postmark as the production inbound-email provider.
+The route `/api/inbound/resend` verifies incoming webhook signatures using the
+official Svix HMAC-SHA256 signature verification mechanism (`svix-id`,
+`svix-timestamp`, `svix-signature`), retrieves full email bodies from the Resend
+Receiving API (`GET https://api.resend.com/emails/receiving/:id`), normalizes the
+email to `NormalizedInboundEmail`, and routes it through the existing deterministic
+Blackboard email parser and transactional School ingestion service.
+
+Both Postmark (`/api/inbound/postmark`) and Resend (`/api/inbound/resend`) routes
+remain active during the transition period to enable safe side-by-side testing.
+
+### Resend environment variables
+
+- `RESEND_WEBHOOK_SECRET`: Webhook signing secret from Resend dashboard (starts with `whsec_`).
+- `RESEND_API_KEY`: API key with read permission for received emails (starts with `re_`).
+- `SCHOOL_EMAIL_OWNER_ID`: Supabase Auth user UUID.
+- `SCHOOL_EMAIL_RECIPIENT`: Configured inbound address (e.g. `<alias>@<team-id>.resend.app`).
+- `SCHOOL_BLACKBOARD_SENDERS`: Allowed Blackboard notification sender mailboxes.
+- `SCHOOL_EMAIL_FORWARDERS`: Allowed student Outlook forwarder mailboxes.
+- `SCHOOL_BLACKBOARD_HOSTS`: Trusted Blackboard hostnames.
+
+### Final manual cutover procedure
+
+1. **Inbound address**: In the Resend Dashboard under Emails -> Receiving, create or use the automatically provided Resend inbound address:
+   `<alias>@<team-id>.resend.app` (or configure a custom domain with required MX records).
+2. **Webhook endpoint**: In Resend Dashboard -> Webhooks, create a webhook pointing to:
+   `https://<your-deployment-domain>/api/inbound/resend`
+3. **Event subscription**: Subscribe the webhook exclusively to the `email.received` event.
+4. **Environment variables**: Add `RESEND_WEBHOOK_SECRET` and `RESEND_API_KEY` (along with `SCHOOL_EMAIL_RECIPIENT` set to the Resend inbound address) to Vercel / production environment settings.
+5. **Update Outlook forwarding rule**: Change the existing Outlook Blackboard forwarding or redirect rule from the previous Postmark inbound address to the new Resend inbound address (`<alias>@<team-id>.resend.app`).
+6. **Live test email**: Send a real test Blackboard notification email (e.g. create or update an assignment).
+7. **Verify ingestion**: Confirm Redline creates or updates the expected School item and linked Task with accurate deadlines and course identity.
+8. **Verify deduplication**: Replay or resend the same notification; confirm Redline acknowledges the duplicate and creates no duplicate items or tasks.
+9. **Retire Postmark**: Only after successful real-world validation should Postmark code (`src/services/integrations/email/postmark.ts`, `src/app/api/inbound/postmark/route.ts`), tests, and deployment secrets (`POSTMARK_WEBHOOK_USERNAME`, `POSTMARK_WEBHOOK_PASSWORD`) be decommissioned.
+
 ## Parsing and temporal contract
 
 The parser recognizes explicit Course/Title/Item Type/Due Date labels and bounded
@@ -179,7 +216,7 @@ Synthetic fixtures are in
 `src/services/integrations/blackboard/fixtures/email-fixtures.ts`. Run:
 
 ```text
-pnpm test src/services/integrations/blackboard/email-parser.test.ts src/services/school/school-ingestion.integration.test.ts src/app/api/inbound/postmark/route.test.ts
+pnpm test src/services/integrations/email/resend.test.ts src/app/api/inbound/resend/route.test.ts src/services/integrations/blackboard/email-parser.test.ts src/services/school/school-ingestion.integration.test.ts src/app/api/inbound/postmark/route.test.ts
 pnpm lint
 pnpm typecheck
 pnpm test

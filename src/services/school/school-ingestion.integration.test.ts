@@ -3,6 +3,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
 import { normalizePostmarkEmail } from "@/services/integrations/email/postmark";
+import { normalizeResendEmail } from "@/services/integrations/email/resend";
 import { parseBlackboardEmail } from "@/services/integrations/blackboard/email-parser";
 import { assignmentEmail, deadlineEmail, emailPolicy, forwardedEmail, reminderEmail } from "@/services/integrations/blackboard/fixtures/email-fixtures";
 import type { SchoolIngestionResult } from "@/types/school-item";
@@ -133,6 +134,38 @@ describe("School email through actual PostgreSQL migrations", () => {
     const payload = assignmentEmail({ Headers: [...assignmentEmail().Headers, { Name: "Message-ID", Value: "<original@learn.example.edu>" }] });
     const first = await ingest(payload);
     expect(await ingest({ ...payload, MessageID: "provider-retry-new-id" })).toMatchObject({ status: "duplicate", itemId: first.itemId, taskId: first.taskId });
+    expect(await rows()).toHaveLength(1);
+  });
+  it("deduplicates cross-provider deliveries between Postmark and Resend using original message ID", async () => {
+    const rfcId = "<cross-provider-1@learn.example.edu>";
+    const postmarkPayload = assignmentEmail({
+      MessageID: "postmark-deliv-1",
+      Headers: [...assignmentEmail().Headers, { Name: "Message-ID", Value: rfcId }],
+    });
+    const postmarkResult = await ingest(postmarkPayload);
+    expect(postmarkResult.status).toBe("processed");
+
+    const resendPayload = {
+      id: "resend-deliv-2",
+      from: "notifications@learn.example.edu",
+      to: ["school@inbound.example.com"],
+      subject: "New assignment: Assignment 1",
+      created_at: "2026-09-08T02:00:00.000Z",
+      text: assignmentEmail().TextBody,
+      message_id: rfcId,
+      headers: {
+        "x-spam-status": "No",
+        "x-spam-tests": "DKIM_VALID_AU",
+        "message-id": rfcId,
+      },
+    };
+    const resendEvent = parseBlackboardEmail(normalizeResendEmail(resendPayload), emailPolicy);
+    const resendResult = (await db.query<{ result: SchoolIngestionResult }>(
+      "select public.ingest_school_email($1,$2::jsonb) result",
+      [owner, JSON.stringify(resendEvent)]
+    )).rows[0].result;
+
+    expect(resendResult).toMatchObject({ status: "duplicate", itemId: postmarkResult.itemId, taskId: postmarkResult.taskId });
     expect(await rows()).toHaveLength(1);
   });
   it("preserves item identity when a source URL adds the course parameter later", async () => {

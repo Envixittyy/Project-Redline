@@ -497,6 +497,36 @@ export async function readTaskChecklistContext(id: string) {
   return data as import("@/services/integrations/ai/trust-contract").ChecklistContext;
 }
 
+/** Evaluates exact workload metrics from complete row datasets in memory. */
+export function evaluateWorkloadFromRows(
+  rows: Array<{ due_date: string | null; due_at: string | null }>,
+  totalCount: number,
+  options: {
+    startMs: number;
+    endMs: number;
+    nowMs: number;
+    today: string;
+  },
+) {
+  let dueToday = 0;
+  let overdue = 0;
+
+  for (const row of rows) {
+    const dueAtMs = row.due_at ? new Date(row.due_at).getTime() : null;
+    const isDueToday =
+      (dueAtMs !== null && dueAtMs >= options.startMs && dueAtMs < options.endMs) ||
+      (dueAtMs === null && row.due_date === options.today);
+    if (isDueToday) dueToday++;
+
+    const isOverdue =
+      (dueAtMs !== null && dueAtMs < options.nowMs) ||
+      (dueAtMs === null && row.due_date !== null && row.due_date < options.today);
+    if (isOverdue) overdue++;
+  }
+
+  return { remainingTasks: totalCount, dueToday, overdue };
+}
+
 /** Exact owner-scoped counts; no task content is exposed to telemetry. */
 export async function readTaskWorkloadCounts(now = new Date()) {
   const { client, userId } = await requireAuthenticatedSupabase();
@@ -513,27 +543,45 @@ export async function readTaskWorkloadCounts(now = new Date()) {
   if (error) fail("load workload counts", error);
   if (count === null || !data) throw new TaskRepositoryError("Workload counts unavailable.");
 
-  const startMs = new Date(start).getTime();
-  const endMs = new Date(end).getTime();
-  const nowMs = now.getTime();
+  // If open tasks exceed the returned rows (e.g. >2,000 tasks boundary),
+  // evaluating only the returned slice would leave dueToday or overdue incomplete.
+  // Query exact database head counts to guarantee 100% semantic correctness.
+  if (count > data.length) {
+    const base = () =>
+      client
+        .from(TABLE)
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .in("status", openTaskStatuses);
 
-  let dueToday = 0;
-  let overdue = 0;
+    const [dueTodayResult, overdueResult] = await Promise.all([
+      base().or(
+        `and(due_at.gte.${quote(start)},due_at.lt.${quote(end)}),and(due_at.is.null,due_date.eq.${today})`,
+      ),
+      base().or(
+        `due_at.lt.${quote(now.toISOString())},and(due_at.is.null,due_date.lt.${today})`,
+      ),
+    ]);
 
-  for (const row of data as Array<{ due_date: string | null; due_at: string | null }>) {
-    const dueAtMs = row.due_at ? new Date(row.due_at).getTime() : null;
-    const isDueToday =
-      (dueAtMs !== null && dueAtMs >= startMs && dueAtMs < endMs) ||
-      (dueAtMs === null && row.due_date === today);
-    if (isDueToday) dueToday++;
+    if (dueTodayResult.error) fail("load workload counts (dueToday)", dueTodayResult.error);
+    if (overdueResult.error) fail("load workload counts (overdue)", overdueResult.error);
+    if (dueTodayResult.count === null || overdueResult.count === null) {
+      throw new TaskRepositoryError("Workload counts unavailable.");
+    }
 
-    const isOverdue =
-      (dueAtMs !== null && dueAtMs < nowMs) ||
-      (dueAtMs === null && row.due_date !== null && row.due_date < today);
-    if (isOverdue) overdue++;
+    return {
+      remainingTasks: count,
+      dueToday: dueTodayResult.count,
+      overdue: overdueResult.count,
+    };
   }
 
-  return { remainingTasks: count, dueToday, overdue };
+  return evaluateWorkloadFromRows(data, count, {
+    startMs: new Date(start).getTime(),
+    endMs: new Date(end).getTime(),
+    nowMs: now.getTime(),
+    today,
+  });
 }
 
 /** Task additions and AI audit share one DB transaction. Proof stays server-only. */

@@ -12,8 +12,10 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { useFloatingPresence } from "./use-floating-presence";
+import { useAnchoredFloating } from "./use-anchored-floating";
 import styles from "./popover.module.css";
 
 export type PopoverPlacement =
@@ -55,6 +57,7 @@ export function Popover({
   panelId: customPanelId,
 }: PopoverProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const autoId = useId();
   const panelId = customPanelId ?? `popover-${autoId.replace(/:/g, "")}`;
 
@@ -63,8 +66,8 @@ export function Popover({
 
     function handlePointerDown(e: MouseEvent | TouchEvent) {
       if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
+        !containerRef.current?.contains(e.target as Node) &&
+        !panelRef.current?.contains(e.target as Node)
       ) {
         onClose();
       }
@@ -92,12 +95,18 @@ export function Popover({
     };
   }, [isOpen, onClose]);
 
+  const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
+  const { refs, floatingStyles, placement: resolvedPlacement } = useAnchoredFloating({
+    open: isMounted,
+    placement,
+  });
+
   const placementClass =
-    placement === "bottom-end"
+    resolvedPlacement === "bottom-end"
       ? styles.bottomEnd
-      : placement === "top-start"
+      : resolvedPlacement === "top-start"
       ? styles.topStart
-      : placement === "top-end"
+      : resolvedPlacement === "top-end"
       ? styles.topEnd
       : styles.bottomStart;
 
@@ -115,25 +124,36 @@ export function Popover({
     });
   }
 
-  const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
+  const panel = isMounted ? (
+    <div
+      ref={(node) => {
+        panelRef.current = node;
+        refs.setFloating(node);
+      }}
+      style={floatingStyles}
+      id={panelId}
+      role={role}
+      aria-modal={role === "dialog" ? "false" : undefined}
+      aria-label={ariaLabel}
+      className={`${styles.panel} ${placementClass} ${
+        isExiting ? styles.exiting : ""
+      }`}
+    >
+      {children}
+    </div>
+  ) : null;
 
   return (
     <PopoverContext.Provider value={{ role, onClose }}>
-      <div ref={containerRef} className={`${styles.wrapper} ${className}`}>
+      <div
+        ref={(node) => {
+          containerRef.current = node;
+          refs.setReference(node);
+        }}
+        className={`${styles.wrapper} ${className}`}
+      >
         {renderedTrigger}
-        {isMounted ? (
-          <div
-            id={panelId}
-            role={role}
-            aria-modal={role === "dialog" ? "false" : undefined}
-            aria-label={ariaLabel}
-            className={`${styles.panel} ${placementClass} ${
-              isExiting ? styles.exiting : ""
-            }`}
-          >
-            {children}
-          </div>
-        ) : null}
+        {panel && typeof document !== "undefined" ? createPortal(panel, document.body) : panel}
       </div>
     </PopoverContext.Provider>
   );

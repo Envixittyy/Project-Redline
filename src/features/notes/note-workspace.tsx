@@ -23,6 +23,7 @@ import { Callout } from "@/components/ui/callout";
 import { PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Select } from "@/components/ui/select";
 import { enqueueOfflineMutation } from "@/lib/offline/queue";
 import type { Course } from "@/types/course";
 import type { Attachment, Note } from "@/types/note";
@@ -515,38 +516,33 @@ export function NoteWorkspace({
             <label className={styles.metaLabel} htmlFor="note-task-select">
               Linked Task
             </label>
-            <select
+            <Select
               id="note-task-select"
-              className={styles.metaSelect}
               value={draft.taskId ?? ""}
-              onChange={(event) => updateDraft({ taskId: event.target.value || null })}
-            >
-              <option value="">No linked task</option>
-              {tasks.map((task) => (
-                <option key={task.id} value={task.id}>
-                  {task.title}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => updateDraft({ taskId: value || null })}
+              options={[
+                { value: "", label: "No linked task" },
+                ...tasks.map((task) => ({ value: task.id, label: task.title })),
+              ]}
+            />
           </div>
 
           <div className={styles.metaSelectGroup}>
             <label className={styles.metaLabel} htmlFor="note-course-select">
               Linked Course
             </label>
-            <select
+            <Select
               id="note-course-select"
-              className={styles.metaSelect}
               value={draft.courseId ?? ""}
-              onChange={(event) => updateDraft({ courseId: event.target.value || null })}
-            >
-              <option value="">No linked course</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.code} · {course.name}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => updateDraft({ courseId: value || null })}
+              options={[
+                { value: "", label: "No linked course" },
+                ...courses.map((course) => ({
+                  value: course.id,
+                  label: `${course.code} · ${course.name}`,
+                })),
+              ]}
+            />
           </div>
         </div>
 

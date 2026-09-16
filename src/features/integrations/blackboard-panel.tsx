@@ -20,6 +20,7 @@ import { Button, IconButton } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Surface } from "@/components/ui/surface";
+import { Select } from "@/components/ui/select";
 import type { BlackboardStatus } from "@/services/integrations/blackboard/blackboard-repository";
 import type { BlackboardCalendarCharacterization } from "@/services/integrations/blackboard/characterization";
 
@@ -268,18 +269,14 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
               </label>
               <label className={styles.field}>
                 Target Redline Course
-                <select
-                  className={styles.select}
+                <Select
                   value={newTargetCourseId}
-                  onChange={(e) => setNewTargetCourseId(e.target.value)}
-                  required
-                >
-                  {status.courses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.code} — {c.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setNewTargetCourseId}
+                  options={status.courses.map((course) => ({
+                    value: course.id,
+                    label: `${course.code} — ${course.name}`,
+                  }))}
+                />
               </label>
             </div>
             <Button
@@ -334,18 +331,15 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
                   label={`Select all (${status.unassigned.length})`}
                 />
 
-                <select
-                  className={styles.select}
+                <Select
                   value={batchTargetCourseId}
-                  onChange={(e) => setBatchTargetCourseId(e.target.value)}
-                  aria-label="Target course for assignment"
-                >
-                  {status.courses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.code} — {c.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setBatchTargetCourseId}
+                  ariaLabel="Target course for assignment"
+                  options={status.courses.map((course) => ({
+                    value: course.id,
+                    label: `${course.code} — ${course.name}`,
+                  }))}
+                />
 
                 <Checkbox
                   checked={rememberMapping}

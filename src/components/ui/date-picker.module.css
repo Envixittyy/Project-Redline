@@ -135,9 +135,6 @@
 
 /* Floating popover surface */
 .popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
   z-index: 70;
   width: 19rem;
   max-width: calc(100vw - 1.5rem);
@@ -156,14 +153,10 @@
 }
 
 .popoverEnd {
-  left: auto;
-  right: 0;
   transform-origin: top right;
 }
 
 .popoverTop {
-  top: auto;
-  bottom: calc(100% + 6px);
   transform-origin: bottom left;
 }
 

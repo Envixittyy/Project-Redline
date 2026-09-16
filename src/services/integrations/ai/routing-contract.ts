@@ -191,6 +191,9 @@ export function mayFallback(code: string, location: InferenceLocation) {
     (location !== "cloud" && ["timeout", "network_unavailable"].includes(code));
 }
 export function routingMessage(code: string): string {
+  if (code === "trust_not_configured") {
+    return "AI trust signing is not configured on this server. Plan My Day advice is unavailable, but deterministic planning still works.";
+  }
   const messages: Record<string, string> = {
     school_intelligence_review_required: SCHOOL_INTELLIGENCE_UNAVAILABLE,
     local_unavailable: "Local AI is unavailable. Check the home PC, private network, Companion and model. No changes were made.",

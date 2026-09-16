@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Modal } from "@/components/ui/modal-frame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { courseMaterialTypes, type CourseMaterial } from "@/types/course-material";
 import { saveCourseMaterialAction } from "./school-material-actions";
 import styles from "./course-form-modal.module.css";
@@ -101,18 +102,15 @@ export function MaterialFormModal({
             <label htmlFor="material-type" className={styles.label}>
               Material Type *
             </label>
-            <select
+            <Select
               id="material-type"
               value={type}
-              onChange={(e) => setType(e.target.value)}
-              className={styles.select}
-            >
-              {courseMaterialTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
+              onChange={setType}
+              options={courseMaterialTypes.map((item) => ({
+                value: item.id,
+                label: item.label,
+              }))}
+            />
           </div>
 
           <div className={styles.field}>

@@ -165,9 +165,9 @@ Folders should gain code only when a phase needs it. Do not create generic repos
 
 ## Application shell and routing
 
-The `(workspace)` route group applies `AppShell` to Home, Tasks, Calendar, School, and More without adding a URL segment. The shell remains a server component. Its small `AppNavigation` client boundary reads the pathname only to expose the active route; page content does not become client-rendered as a consequence.
+The `(workspace)` route group applies `AppShell` to Home, Tasks, Calendar, School, and More without adding a URL segment. The shell remains a server component. Its small navigation client boundaries read the pathname and hold only ephemeral transition state; page content does not become client-rendered as a consequence. A destination-shaped shell and route-local `loading.tsx` boundaries provide immediate, geometry-stable feedback while dynamic data resolves. Primary links use Next's loading-boundary prefetch mode so route code and fallback UI warm without eagerly issuing every destination's private data queries.
 
-Primary destinations are defined once in `src/lib/navigation.ts` and consumed by both the persistent desktop sidebar and safe-area-aware mobile tab bar. Mobile content reserves enough bottom space for the fixed bar. Desktop content is constrained to a readable frame and can expand into multi-column dashboard layouts.
+Primary destinations are defined once in `src/lib/navigation.ts` and consumed by both the persistent desktop sidebar and safe-area-aware mobile tab bar. During a transition the visual marker follows the requested destination immediately, while `aria-current` remains bound to the committed pathname. Mobile content reserves enough bottom space for the fixed bar. Desktop content is constrained to a readable frame and can expand into multi-column dashboard layouts.
 
 The shell also owns two small global client boundaries. `Ctrl/Cmd+K` opens the navigation-only command palette. `Ctrl/Cmd+Shift+Space` and visible desktop/mobile controls open Universal Capture. Both reuse feature routes and server actions rather than introducing parallel persistence paths.
 
@@ -182,6 +182,8 @@ Tasks is a working route as of Phase 1C. Its seven views are query parameters (`
 ## Reusable UI and feature separation
 
 `src/components/ui` is for visual primitives that do not know about tasks, school, football, or calendar semantics. A button, dialog, or generic surface belongs there. `src/features/<feature>` owns domain-specific components and rules. For example, a future task row belongs to `features/tasks`, even if it composes generic components from `components/ui`.
+
+Date, time, select, and generic popover surfaces share the positioning-only `@floating-ui/react-dom` adapter in `use-anchored-floating.ts`. Overlays render through a body portal with fixed positioning, flip/shift collision handling, viewport sizing, and automatic anchor updates for scroll, resize, and layout shifts. Feature forms use these shared controls instead of browser-native select/date/time chrome.
 
 Feature business logic should be colocated with its feature rather than placed in pages or broad utility files. App Router files compose features and define routing; they should not become the primary business-logic layer.
 
@@ -295,7 +297,7 @@ Notification events are a core Redline capability separate from parsing and doma
 
 ## Data layer
 
-Supabase Auth and PostgreSQL hold the session plus task/native-event data. `src/services/supabase/request.ts` creates a fresh `@supabase/ssr` client for each request from secure cookies and the public project key. It verifies JWT claims before returning the authenticated subject. Normal repositories never receive or import the service-role client. `src/services/supabase/admin.ts` is a separately named, server-only maintenance boundary.
+Supabase Auth and PostgreSQL hold the session plus task/native-event data. `src/services/supabase/request.ts` creates a fresh `@supabase/ssr` client for each request from secure cookies and the public project key. It verifies JWT claims before returning the authenticated subject, and React request memoization shares that verified client/subject across parallel loaders in the same render request. Normal repositories never receive or import the service-role client. `src/services/supabase/admin.ts` is a separately named, server-only maintenance boundary.
 
 Root `proxy.ts` follows the Next.js 16 Proxy convention and refreshes Supabase cookies before rendering, including the private/no-store response headers required when auth cookies change. It does not make authorization decisions. The `(workspace)` layout is the route-level enforcement point, and repositories repeat authentication because Server Actions remain independently callable entry points.
 

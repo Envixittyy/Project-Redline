@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
 import { Surface } from "@/components/ui/surface";
 import { Toggle } from "@/components/ui/toggle";
+import { Select } from "@/components/ui/select";
 import type {
   AiPermissionMode,
   AiPreferences,
@@ -291,19 +292,21 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
         <div className={styles.form}>
           <label className={styles.field}>
             Companion transport
-            <select
-              className={styles.select}
+            <Select
               value={companionUrl}
               disabled={!!pairingToken}
-              onChange={(e) => {
-                setCompanionUrl(e.target.value);
+              onChange={(value) => {
+                setCompanionUrl(value);
                 setCompanionRunning(null);
                 setRuntimeConnected(null);
               }}
-            >
-              <option value="http://127.0.0.1:41400">Same PC · loopback</option>
-              {remoteOrigin && <option value={remoteOrigin}>Home PC · private Tailscale</option>}
-            </select>
+              options={[
+                { value: "http://127.0.0.1:41400", label: "Same PC · loopback" },
+                ...(remoteOrigin
+                  ? [{ value: remoteOrigin, label: "Home PC · private Tailscale" }]
+                  : []),
+              ]}
+            />
             <span className={styles.fieldHint}>
               {companionUrl}. Unpair before switching. Remote address is configured by the server
               operator, not browser input.
@@ -313,15 +316,15 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
           <div className={styles.twoColumn}>
             <label className={styles.field}>
               Local Runtime Provider
-              <select
-                className={styles.select}
+              <Select
                 value={localProvider}
-                onChange={(e) => handleProviderChange(e.target.value as LocalProviderType)}
-              >
-                <option value="ollama">Ollama (Default :11434)</option>
-                <option value="llamacpp">llama.cpp Server (Default :8080)</option>
-                <option value="openai_compatible">OpenAI-Compatible Local (LM Studio, LocalAI)</option>
-              </select>
+                onChange={(value) => handleProviderChange(value as LocalProviderType)}
+                options={[
+                  { value: "ollama", label: "Ollama (Default :11434)" },
+                  { value: "llamacpp", label: "llama.cpp Server (Default :8080)" },
+                  { value: "openai_compatible", label: "OpenAI-Compatible Local (LM Studio, LocalAI)" },
+                ]}
+              />
             </label>
 
             <label className={styles.field}>
@@ -339,17 +342,14 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
           <label className={styles.field}>
             Model Name / ID
             {discoveredModels.length > 0 ? (
-              <select
-                className={styles.select}
+              <Select
                 value={localModel}
-                onChange={(e) => setLocalModel(e.target.value)}
-              >
-                {discoveredModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setLocalModel}
+                options={discoveredModels.map((model) => ({
+                  value: model.id,
+                  label: model.name,
+                }))}
+              />
             ) : (
               <input
                 className={styles.input}
@@ -453,16 +453,16 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
         <form className={styles.form} onSubmit={handleSave}>
           <label className={styles.field}>
             AI Mode
-            <select
-              className={styles.select}
+            <Select
               value={aiMode}
-              onChange={(e) => setAiMode(e.target.value as AiMode)}
-            >
-              <option value="auto">Auto · local first</option>
-              <option value="local">Local only</option>
-              <option value="gemini">Gemini</option>
-              <option value="openrouter">OpenRouter</option>
-            </select>
+              onChange={(value) => setAiMode(value as AiMode)}
+              options={[
+                { value: "auto", label: "Auto · local first" },
+                { value: "local", label: "Local only" },
+                { value: "gemini", label: "Gemini" },
+                { value: "openrouter", label: "OpenRouter" },
+              ]}
+            />
           </label>
 
           <Toggle
@@ -474,28 +474,28 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
 
           <label className={styles.field}>
             Default Cloud Provider
-            <select
-              className={styles.select}
+            <Select
               value={defaultProvider}
-              onChange={(e) => setDefaultProvider(e.target.value as CloudProvider)}
+              onChange={(value) => setDefaultProvider(value as CloudProvider)}
               disabled={!cloudEnabled}
-            >
-              <option value="gemini">Gemini</option>
-              <option value="openrouter">OpenRouter</option>
-            </select>
+              options={[
+                { value: "gemini", label: "Gemini" },
+                { value: "openrouter", label: "OpenRouter" },
+              ]}
+            />
           </label>
 
           <label className={styles.field}>
             Cloud Consent Mode
-            <select
-              className={styles.select}
+            <Select
               value={fallbackMode}
-              onChange={(e) => setFallbackMode(e.target.value as CloudFallbackMode)}
+              onChange={(value) => setFallbackMode(value as CloudFallbackMode)}
               disabled={!cloudEnabled}
-            >
-              <option value="ask_each_time">Ask each time (Interactive disclosure & one-time consent)</option>
-              <option value="off">Off (Deny all cloud transfer requests)</option>
-            </select>
+              options={[
+                { value: "ask_each_time", label: "Ask each time (Interactive disclosure & one-time consent)" },
+                { value: "off", label: "Off (Deny all cloud transfer requests)" },
+              ]}
+            />
             <span className={styles.fieldHint}>
               Every transfer containing private app data requires interactive one-time consent.
             </span>
@@ -549,16 +549,14 @@ export function AiSettingsPanel({ preferences, providers }: AiSettingsPanelProps
 
           <label className={styles.field}>
             Mutation Permission Policy
-            <select
-              className={styles.select}
+            <Select
               value={permissionMode}
-              onChange={(e) => setPermissionMode(e.target.value as AiPermissionMode)}
-            >
-              <option value="ask_before_changing">
-                Ask before changing (Review proposal before commit)
-              </option>
-              <option value="suggest_only">Suggest only (Do not enable mutation commits)</option>
-            </select>
+              onChange={(value) => setPermissionMode(value as AiPermissionMode)}
+              options={[
+                { value: "ask_before_changing", label: "Ask before changing (Review proposal before commit)" },
+                { value: "suggest_only", label: "Suggest only (Do not enable mutation commits)" },
+              ]}
+            />
           </label>
 
           <div className={styles.actions}>

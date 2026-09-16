@@ -177,15 +177,7 @@
 }
 
 .timeInput {
-  width: 6rem;
-  min-height: 2.2rem;
-  padding: 0.3rem 0.5rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--input);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
+  width: 8rem;
 }
 
 .actions {
@@ -247,7 +239,6 @@
   min-width: 0;
 }
 .input,
-.timeInput,
 .cancelButton,
 .submitButton {
   min-height: 2.75rem;
@@ -267,8 +258,7 @@
 .meetingHeader .input {
   width: 100%;
 }
-.input:focus-visible,
-.timeInput:focus-visible {
+.input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

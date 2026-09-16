@@ -79,6 +79,112 @@
   animation: forward-page-enter var(--motion-page) var(--ease-standard) both;
 }
 
+.routeShell {
+  display: grid;
+  gap: 1rem;
+}
+
+.routeShellHeader {
+  display: flex;
+  min-height: 7.4rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.25rem;
+}
+
+.routeShellHeader h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(2rem, 6vw, 3.75rem);
+  letter-spacing: -0.04em;
+}
+
+.routeShellHeader p {
+  max-width: 44rem;
+  margin: 0.65rem 0 0;
+  color: var(--text-secondary);
+}
+
+.routeShellAction,
+.routeShellToolbar,
+.routeShellGrid > span {
+  border: 1px solid var(--border-hairline, var(--border-subtle));
+  border-top-color: var(--border-highlight);
+  background: var(--surface-subtle);
+  box-shadow: var(--shadow-card);
+}
+
+.routeShellAction {
+  width: 7.5rem;
+  height: 2.75rem;
+  border-radius: var(--radius-control);
+}
+
+.routeShellToolbar {
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-card);
+}
+
+.routeShellToolbar span {
+  width: 6rem;
+  height: 2.75rem;
+  border-radius: var(--radius-control);
+  background: var(--surface-hover);
+}
+
+.routeShellToolbar span:first-child {
+  width: min(16rem, 45%);
+}
+
+.routeShellGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.routeShellGrid > span {
+  min-height: 11rem;
+  border-radius: var(--radius-card);
+}
+
+.routeShellAction,
+.routeShellToolbar span,
+.routeShellGrid > span {
+  animation: forward-loading-pulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes forward-loading-pulse {
+  from {
+    opacity: 0.48;
+  }
+  to {
+    opacity: 0.82;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  .routeShellHeader {
+    min-height: 6.5rem;
+  }
+
+  .routeShellAction {
+    display: none;
+  }
+
+  .routeShellGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .routeShellGrid > span {
+    min-height: 7.5rem;
+  }
+}
+
 .mobileNav {
   position: fixed;
   z-index: 50;

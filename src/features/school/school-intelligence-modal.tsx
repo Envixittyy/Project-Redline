@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select } from "@/components/ui/select";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
 import { getCompanionSession } from "@/services/integrations/ai/companion-session";
 import type { CourseWithMeetings } from "@/types/course";
@@ -506,42 +507,40 @@ export function SchoolIntelligenceModal({ courses, onClose }: SchoolIntelligence
                     <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", flex: 1 }}>
                       {c.title}
                     </span>
-                    <select
-                      className={styles.courseCodeInput}
-                      style={{ width: "auto" }}
+                    <Select
                       value={c.action}
-                      onChange={(e) => {
+                      onChange={(value) => {
                         const updated = [...bbCourses];
                         updated[idx] = {
                           ...updated[idx],
-                          action: e.target.value as "create" | "match" | "ignore",
+                          action: value as "create" | "match" | "ignore",
                         };
                         setBbCourses(updated);
                       }}
-                    >
-                      <option value="create">Create new course</option>
-                      <option value="match">Match existing</option>
-                      <option value="ignore">Ignore</option>
-                    </select>
+                      options={[
+                        { value: "create", label: "Create new course" },
+                        { value: "match", label: "Match existing" },
+                        { value: "ignore", label: "Ignore" },
+                      ]}
+                    />
                   </div>
 
                   {c.action === "match" ? (
-                    <select
-                      className={styles.courseTitleInput}
+                    <Select
                       value={c.targetCourseId || ""}
-                      onChange={(e) => {
+                      onChange={(value) => {
                         const updated = [...bbCourses];
-                        updated[idx] = { ...updated[idx], targetCourseId: e.target.value };
+                        updated[idx] = { ...updated[idx], targetCourseId: value };
                         setBbCourses(updated);
                       }}
-                    >
-                      <option value="">Select existing course to match…</option>
-                      {courses.map((ex) => (
-                        <option key={ex.id} value={ex.id}>
-                          {ex.code} · {ex.name}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: "", label: "Select existing course to match…" },
+                        ...courses.map((course) => ({
+                          value: course.id,
+                          label: `${course.code} · ${course.name}`,
+                        })),
+                      ]}
+                    />
                   ) : null}
                 </div>
               ))}

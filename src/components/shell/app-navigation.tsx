@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useNavigationTransition } from "./navigation-transition-context";
 
 import {
   primaryNavigation,
@@ -18,20 +19,38 @@ import styles from "./app-shell.module.css";
 function NavigationLink({
   item,
   active,
+  current,
   mobile = false,
 }: {
   item: NavigationItem;
   active: boolean;
+  current: boolean;
   mobile?: boolean;
 }) {
   const Icon = item.icon;
+  const { beginNavigation } = useNavigationTransition();
+  const warmRoute =
+    primaryNavigation.some(({ href }) => href === item.href) ||
+    item.href === moreNavigationItem.href;
 
   return (
     <Link
       href={item.href}
+      prefetch={warmRoute ? null : false}
+      onClick={(event) => {
+        if (
+          event.button === 0 &&
+          !event.metaKey &&
+          !event.ctrlKey &&
+          !event.shiftKey &&
+          !event.altKey
+        ) {
+          beginNavigation(item.href);
+        }
+      }}
       className={mobile ? styles.mobileLink : styles.desktopLink}
       data-active={active || undefined}
-      aria-current={active ? "page" : undefined}
+      aria-current={current ? "page" : undefined}
     >
       <span className={styles.iconFrame} aria-hidden="true">
         <Icon size={mobile ? 20 : 18} strokeWidth={active ? 2.25 : 1.8} />
@@ -43,18 +62,25 @@ function NavigationLink({
 
 export function DesktopNavigation() {
   const pathname = usePathname();
+  const { pendingPath } = useNavigationTransition();
+  const visualPathname = pendingPath ?? pathname;
   const navRef = useRef<HTMLElement>(null);
   const [indicator, setIndicator] = useState({ top: 0, height: 0 });
   const [animated, setAnimated] = useState(false);
 
   useLayoutEffect(() => {
-    const activeLink = navRef.current?.querySelector<HTMLElement>("[data-active='true']");
+    const activeLink = navRef.current?.querySelector<HTMLElement>(
+      "[data-active='true']",
+    );
     if (!activeLink) return;
 
-    setIndicator({ top: activeLink.offsetTop, height: activeLink.offsetHeight });
+    setIndicator({
+      top: activeLink.offsetTop,
+      height: activeLink.offsetHeight,
+    });
     const timer = setTimeout(() => setAnimated(true), 50);
     return () => clearTimeout(timer);
-  }, [pathname]);
+  }, [visualPathname]);
 
   const indicatorStyle = {
     "--active-indicator-y": `${indicator.top}px`,
@@ -76,7 +102,8 @@ export function DesktopNavigation() {
           <NavigationLink
             key={item.href}
             item={item}
-            active={isActiveRoute(pathname, item.href, item.exact)}
+            active={isActiveRoute(visualPathname, item.href, item.exact)}
+            current={isActiveRoute(pathname, item.href, item.exact)}
           />
         ))}
       </div>
@@ -89,7 +116,8 @@ export function DesktopNavigation() {
           <NavigationLink
             key={item.href}
             item={item}
-            active={isActiveRoute(pathname, item.href, item.exact)}
+            active={isActiveRoute(visualPathname, item.href, item.exact)}
+            current={isActiveRoute(pathname, item.href, item.exact)}
           />
         ))}
       </div>
@@ -99,7 +127,16 @@ export function DesktopNavigation() {
       <div className={styles.navGroup}>
         <NavigationLink
           item={moreNavigationItem}
-          active={isActiveRoute(pathname, moreNavigationItem.href, moreNavigationItem.exact)}
+          active={isActiveRoute(
+            visualPathname,
+            moreNavigationItem.href,
+            moreNavigationItem.exact,
+          )}
+          current={isActiveRoute(
+            pathname,
+            moreNavigationItem.href,
+            moreNavigationItem.exact,
+          )}
         />
       </div>
     </nav>
@@ -108,10 +145,12 @@ export function DesktopNavigation() {
 
 export function MobileTabBar() {
   const pathname = usePathname();
+  const { pendingPath } = useNavigationTransition();
+  const visualPathname = pendingPath ?? pathname;
   const activeIndex = Math.max(
     0,
     mobileNavigation.findIndex((item) =>
-      isActiveRoute(pathname, item.href, item.exact),
+      isActiveRoute(visualPathname, item.href, item.exact),
     ),
   );
   const markerStyle = { "--active-index": activeIndex } as CSSProperties;
@@ -124,7 +163,8 @@ export function MobileTabBar() {
           <NavigationLink
             key={item.href}
             item={item}
-            active={isActiveRoute(pathname, item.href, item.exact)}
+            active={isActiveRoute(visualPathname, item.href, item.exact)}
+            current={isActiveRoute(pathname, item.href, item.exact)}
             mobile
           />
         ))}

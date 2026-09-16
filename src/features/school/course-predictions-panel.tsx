@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { generateRoutedProposal } from "@/features/ai/routing-client";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Select } from "@/components/ui/select";
 import { getCompanionSession } from "@/services/integrations/ai/companion-session";
 import type { SchoolAssessmentPrediction } from "@/services/school/prediction-service";
 import type { AssessmentPredictionReview, ProposedPrediction } from "@/services/integrations/ai/assessment-prediction-contract";
@@ -70,10 +72,15 @@ export function CoursePredictionsPanel({ courseId, courseCode, syllabuses }: Pro
     <p>Use one saved syllabus and this Course’s meetings. Local AI only; cloud fallback is disabled. Generating predictions creates no Tasks or Calendar events. Each conversion needs a separate review and approval.</p>
     {!review && <div className={styles.actions}>
       <label>Syllabus
-        <select value={syllabusId} onChange={e => setSyllabusId(e.target.value)} disabled={pending}>
-          <option value="">Select a saved syllabus</option>
-          {syllabuses.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
-        </select>
+        <Select
+          value={syllabusId}
+          onChange={setSyllabusId}
+          disabled={pending}
+          options={[
+            { value: "", label: "Select a saved syllabus" },
+            ...syllabuses.map((syllabus) => ({ value: syllabus.id, label: syllabus.title })),
+          ]}
+        />
       </label>
       <button type="button" disabled={pending || !syllabusId} onClick={generate}>Recalculate predictions</button>
     </div>}
@@ -86,7 +93,7 @@ export function CoursePredictionsPanel({ courseId, courseCode, syllabuses }: Pro
       {draft.map((p, index) => <fieldset key={index} disabled={pending}>
         <legend>Possible assessment {index + 1} · {p.confidence}</legend>
         <label>Title<input value={p.title} maxLength={200} onChange={e => edit(index, { title: e.target.value })} /></label>
-        <label>Date<input type="date" value={p.predictedDate} onChange={e => edit(index, { predictedDate: e.target.value })} /></label>
+        <label>Date<DatePicker value={p.predictedDate} onChange={value => edit(index, { predictedDate: value })} /></label>
         {p.predictedTime && <p>Time: {p.predictedTime} (local)</p>}
         <p>{p.rationale}</p>
         <p>Evidence: {p.sourceReferences.map(ref => ref.endsWith("_syllabus") ? "selected syllabus" : "Course meetings").join(", ")}</p>

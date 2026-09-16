@@ -16,6 +16,7 @@ vi.mock("@/services/supabase/request", () => ({
 import {
   evaluateWorkloadFromRows,
   readTaskWorkloadCounts,
+  WORKLOAD_PAGE_SIZE,
 } from "./task-repository";
 
 describe("readTaskWorkloadCounts row evaluation semantics", () => {
@@ -80,18 +81,19 @@ describe("readTaskWorkloadCounts boundary & >2000-row regression", () => {
     vi.clearAllMocks();
   });
 
-  it("uses single database query when open tasks are within 2,000 limit", async () => {
+  it("uses single database query when open tasks are within page size limit", async () => {
     const mockRows = [
       { due_date: "2026-09-16", due_at: null },
       { due_date: "2026-09-15", due_at: null },
     ];
 
-    const mockLimit = vi.fn().mockResolvedValue({
+    const mockRange = vi.fn().mockResolvedValue({
       data: mockRows,
       count: 2,
       error: null,
     });
-    const mockIn = vi.fn().mockReturnValue({ limit: mockLimit });
+    const mockOrder = vi.fn().mockReturnValue({ range: mockRange });
+    const mockIn = vi.fn().mockReturnValue({ order: mockOrder });
     const mockEq = vi.fn().mockReturnValue({ in: mockIn });
     const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
 
@@ -108,56 +110,83 @@ describe("readTaskWorkloadCounts boundary & >2000-row regression", () => {
 
     // Only 1 database query should have been executed
     expect(mockFrom).toHaveBeenCalledTimes(1);
-    expect(mockLimit).toHaveBeenCalledWith(2000);
+    expect(mockOrder).toHaveBeenCalledWith("id", { ascending: true });
+    expect(mockRange).toHaveBeenCalledWith(0, WORKLOAD_PAGE_SIZE - 1);
   });
 
-  it("falls back to exact database head counts when open tasks exceed 2,000", async () => {
-    // Simulate 2,500 total open tasks where PostgREST truncated data to 2,000 rows
-    const truncatedRows = new Array(2000).fill({ due_date: null, due_at: null });
+  it("paginates deterministically when open tasks exceed page size and counts across all pages", async () => {
+    // Total 2,500 open tasks across 3 pages (exceeds the 2,000 ceiling):
+    // Page 1: 1,000 tasks, all unscheduled (null dates), total count = 2500
+    // Page 2: 1,000 tasks, including 1 task due today
+    // Page 3: 500 tasks, including 1 task overdue
+    const page1Rows = new Array(1000).fill(null).map(() => ({ due_date: null, due_at: null }));
 
-    const mockLimit = vi.fn().mockResolvedValue({
-      data: truncatedRows,
-      count: 2500, // Total tasks exceeds returned rows!
-      error: null,
-    });
-    const mockInPrimary = vi.fn().mockReturnValue({ limit: mockLimit });
-    const mockEqPrimary = vi.fn().mockReturnValue({ in: mockInPrimary });
-    const mockSelectPrimary = vi.fn().mockReturnValue({ eq: mockEqPrimary });
+    const page2Rows = new Array(1000).fill(null).map((_, i) =>
+      i === 500
+        ? { due_date: "2026-09-16", due_at: null } // due today on page 2
+        : { due_date: null, due_at: null },
+    );
 
-    // Fallback queries for dueToday and overdue
-    const mockOrDueToday = vi.fn().mockResolvedValue({ count: 42, error: null });
-    const mockOrOverdue = vi.fn().mockResolvedValue({ count: 18, error: null });
+    const page3Rows = new Array(500).fill(null).map((_, i) =>
+      i === 250
+        ? { due_date: "2026-09-15", due_at: null } // overdue on page 3
+        : { due_date: null, due_at: null },
+    );
 
-    let callCount = 0;
-    mockFrom.mockImplementation((_table: string) => {
-      callCount++;
-      if (callCount === 1) {
-        return { select: mockSelectPrimary };
+    const rangeCalls: Array<[number, number]> = [];
+    const mockRange = vi.fn().mockImplementation((from: number, to: number) => {
+      rangeCalls.push([from, to]);
+      if (from === 0) {
+        return Promise.resolve({
+          data: page1Rows,
+          count: 2500,
+          error: null,
+        });
       }
-      // Fallback base() calls
-      return {
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            in: vi.fn(() => ({
-              or: callCount === 2 ? mockOrDueToday : mockOrOverdue,
-            })),
-          })),
-        })),
-      };
+      if (from === 1000) {
+        return Promise.resolve({
+          data: page2Rows,
+          count: null,
+          error: null,
+        });
+      }
+      if (from === 2000) {
+        return Promise.resolve({
+          data: page3Rows,
+          count: null,
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: [], count: null, error: null });
     });
+
+    const mockOrder = vi.fn().mockReturnValue({ range: mockRange });
+    const mockIn = vi.fn().mockReturnValue({ order: mockOrder });
+    const mockEq = vi.fn().mockReturnValue({ in: mockIn });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+
+    mockFrom.mockReturnValue({ select: mockSelect });
 
     const fixedNow = new Date("2026-09-16T14:00:00.000Z");
     const result = await readTaskWorkloadCounts(fixedNow);
 
-    // Verifies that counts are NOT truncated to 0 (which in-memory truncatedRows would have produced)
+    // Verifies:
+    // 1. Exact remaining count
+    // 2. Due-today values beyond the first page are counted (found on page 2)
+    // 3. Overdue values beyond the first page are counted (found on page 3)
     expect(result).toEqual({
       remainingTasks: 2500,
-      dueToday: 42,
-      overdue: 18,
+      dueToday: 1,
+      overdue: 1,
     });
 
-    // Verifies fallback queries were executed because count (2500) > data.length (2000)
-    expect(mockOrDueToday).toHaveBeenCalledTimes(1);
-    expect(mockOrOverdue).toHaveBeenCalledTimes(1);
+    // Verifies exactly 3 queries were executed with sequential ranges and deterministic ordering
+    expect(mockFrom).toHaveBeenCalledTimes(3);
+    expect(rangeCalls).toEqual([
+      [0, 999],
+      [1000, 1999],
+      [2000, 2999],
+    ]);
+    expect(mockOrder).toHaveBeenCalledWith("id", { ascending: true });
   });
 });

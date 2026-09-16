@@ -527,56 +527,54 @@ export function evaluateWorkloadFromRows(
   return { remainingTasks: totalCount, dueToday, overdue };
 }
 
+export const WORKLOAD_PAGE_SIZE = 1000;
+
 /** Exact owner-scoped counts; no task content is exposed to telemetry. */
 export async function readTaskWorkloadCounts(now = new Date()) {
   const { client, userId } = await requireAuthenticatedSupabase();
   const timeZone = resolveTimeZone();
   const today = todayIn(timeZone, now);
   const { start, end } = dayRangeIn(today, addDays(today, 1), timeZone);
-  const { data, count, error } = await client
+
+  const firstPage = await client
     .from(TABLE)
     .select("due_date, due_at", { count: "exact" })
     .eq("user_id", userId)
     .in("status", openTaskStatuses)
-    .limit(2000);
+    .order("id", { ascending: true })
+    .range(0, WORKLOAD_PAGE_SIZE - 1);
 
-  if (error) fail("load workload counts", error);
-  if (count === null || !data) throw new TaskRepositoryError("Workload counts unavailable.");
-
-  // If open tasks exceed the returned rows (e.g. >2,000 tasks boundary),
-  // evaluating only the returned slice would leave dueToday or overdue incomplete.
-  // Query exact database head counts to guarantee 100% semantic correctness.
-  if (count > data.length) {
-    const base = () =>
-      client
-        .from(TABLE)
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .in("status", openTaskStatuses);
-
-    const [dueTodayResult, overdueResult] = await Promise.all([
-      base().or(
-        `and(due_at.gte.${quote(start)},due_at.lt.${quote(end)}),and(due_at.is.null,due_date.eq.${today})`,
-      ),
-      base().or(
-        `due_at.lt.${quote(now.toISOString())},and(due_at.is.null,due_date.lt.${today})`,
-      ),
-    ]);
-
-    if (dueTodayResult.error) fail("load workload counts (dueToday)", dueTodayResult.error);
-    if (overdueResult.error) fail("load workload counts (overdue)", overdueResult.error);
-    if (dueTodayResult.count === null || overdueResult.count === null) {
-      throw new TaskRepositoryError("Workload counts unavailable.");
-    }
-
-    return {
-      remainingTasks: count,
-      dueToday: dueTodayResult.count,
-      overdue: overdueResult.count,
-    };
+  if (firstPage.error) fail("load workload counts", firstPage.error);
+  if (firstPage.count === null || !firstPage.data) {
+    throw new TaskRepositoryError("Workload counts unavailable.");
   }
 
-  return evaluateWorkloadFromRows(data, count, {
+  const totalCount = firstPage.count;
+  const allRows: Array<{ due_date: string | null; due_at: string | null }> = [
+    ...firstPage.data,
+  ];
+
+  if (totalCount > allRows.length) {
+    for (let offset = allRows.length; offset < totalCount; offset += WORKLOAD_PAGE_SIZE) {
+      const page = await client
+        .from(TABLE)
+        .select("due_date, due_at")
+        .eq("user_id", userId)
+        .in("status", openTaskStatuses)
+        .order("id", { ascending: true })
+        .range(offset, offset + WORKLOAD_PAGE_SIZE - 1);
+
+      if (page.error) fail("load workload counts (page)", page.error);
+      if (!page.data) throw new TaskRepositoryError("Workload counts unavailable.");
+
+      allRows.push(...page.data);
+      if (page.data.length < WORKLOAD_PAGE_SIZE) {
+        break;
+      }
+    }
+  }
+
+  return evaluateWorkloadFromRows(allRows, Math.max(totalCount, allRows.length), {
     startMs: new Date(start).getTime(),
     endMs: new Date(end).getTime(),
     nowMs: now.getTime(),

@@ -96,7 +96,7 @@ export function EventEditor({ event, initialDate, timeZone, onClose }: EventEdit
       <form className={styles.form} onSubmit={handleSubmit}>
         <header className={styles.header}>
           <div>
-            <p className={styles.eyebrow}>Forward event</p>
+            <p className={styles.eyebrow}>Adulting.exe event</p>
             <h2 id="event-editor-title">{event ? "Edit event" : "New event"}</h2>
           </div>
           <button type="button" className={styles.iconButton} aria-label="Close editor" onClick={onClose}>

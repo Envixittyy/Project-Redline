@@ -60,14 +60,14 @@ export function TelemetryModal({ onClose }: { onClose: () => void }) {
   }
   return (
     <ModalFrame
-      label="Redline Telemetry"
+      label="Receipts & Diagnostics"
       className={`${styles.panel} motion-enter`}
       onClose={onClose}
     >
       <div className={styles.header}>
         <div className={styles.headerTitle}>
           <Activity size={16} />
-          Redline Telemetry
+          Receipts & Diagnostics
         </div>
         <Close onClose={onClose} />
       </div>

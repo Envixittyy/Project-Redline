@@ -1,0 +1,201 @@
+/* PlannedAreaPage CSS Module */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 3.5vw, 2rem);
+  width: 100%;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding-bottom: clamp(2rem, 5vw, 4rem);
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.statusBadge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.illustrationSection {
+  width: 100%;
+}
+
+.headerSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 4.5vw, 2.4rem);
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.headline {
+  margin: 0;
+  font-size: clamp(1.05rem, 2.5vw, 1.25rem);
+  font-weight: 650;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.description {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* Privacy Notice Box */
+.privacyNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1.15rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--info) 10%, transparent);
+  border: 1px solid color-mix(in oklch, var(--info) 30%, transparent);
+  color: var(--info-text);
+  font-size: 0.825rem;
+  line-height: 1.5;
+}
+
+.privacyNoticeIcon {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+/* Planned Capabilities Card */
+.capabilitiesCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: clamp(1.15rem, 3vw, 1.4rem);
+  border-radius: var(--radius-card);
+  background: var(--surface-embedded);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+}
+
+.capabilitiesHeader {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.capabilitiesList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capabilityItem {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.capabilityBullet {
+  display: inline-block;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  flex-shrink: 0;
+  transform: translateY(-2px);
+}
+
+/* Subtle Footer Note */
+.secondaryNote {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* Back Navigation Action */
+.actionFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 0.5rem;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.15rem;
+  min-height: 2.75rem; /* touch target >= 44px */
+  border-radius: var(--radius-control);
+  background: var(--surface-interactive);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.backButton:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  transform: translateX(-2px);
+}
+
+.backButton:active {
+  background: var(--surface-active);
+  transform: scale(0.98);
+}
+
+.backButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Media Query: Extra small viewports (344px) */
+@media (max-width: 360px) {
+  .topBar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}

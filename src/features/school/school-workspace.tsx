@@ -140,8 +140,8 @@ export function SchoolWorkspace({
     <div className={styles.pageContainer}>
       <div className={styles.pageHeaderWrap}>
         <PageHeader
-          title="School"
-          description="Courses, assignments, timetable meetings, materials, and Blackboard notifications stay owner-scoped and project directly to Home, Tasks, and Calendar."
+          title="Academic Suffering"
+          description="Courses, deadlines, Blackboard drops, and academic obligations."
         />
       </div>
 
@@ -149,7 +149,7 @@ export function SchoolWorkspace({
         {/* Overview Toolbar */}
         <div className={styles.toolbar}>
         <div className={styles.titleGroup}>
-          <p className={styles.kicker}>Academic Operating System</p>
+          <p className={styles.kicker}>Academic Suffering</p>
           <h2 className={styles.toolbarTitle}>
             {courses.length} Active {courses.length === 1 ? "Course" : "Courses"}
           </h2>

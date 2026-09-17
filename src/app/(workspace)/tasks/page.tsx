@@ -14,7 +14,7 @@ import { defaultTaskView, isTaskView, type Task, type TaskView } from "@/types/t
 
 import styles from "./tasks-page.module.css";
 
-export const metadata: Metadata = { title: "Tasks" };
+export const metadata: Metadata = { title: "Shit to Do" };
 
 function TaskSkeleton() {
   return (
@@ -90,8 +90,8 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
     <div className={styles.pageContainer}>
       <div className={styles.pageHeaderWrap}>
         <PageHeader
-          title="Tasks"
-          description="A focused execution surface for what needs doing today, upcoming commitments, and overdue triage."
+          title="Shit to Do"
+          description="Just do the fucking thing. Priorities, deadlines, and things you've been avoiding."
         />
       </div>
 

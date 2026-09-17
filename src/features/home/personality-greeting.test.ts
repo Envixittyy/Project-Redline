@@ -11,7 +11,7 @@ describe("Home Personality Greeting (getTimeAwareGreeting)", () => {
     // 08:00 Manila is 00:00 UTC
     const morning = new Date("2026-08-30T00:00:00Z");
     const res = getTimeAwareGreeting("Kyle", morning, timeZone);
-    expect(res.eyebrow).toBe("YOUR SPACE");
+    expect(res.eyebrow).toBe("SO, ANO NA?");
     expect(res.greeting).toBe("Good morning, Kyle.");
     expect(res.isLateNight).toBe(false);
   });

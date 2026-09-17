@@ -217,7 +217,7 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
             </Button>
           </Link>
           <Badge tone="accent" size="sm" dot>
-            Goldfish Mode
+            Goldfish Mode · Lock In
           </Badge>
         </div>
 
@@ -236,7 +236,7 @@ export function FocusView({ initialReadModel, timeZone }: FocusViewProps) {
         <div className={styles.focalHeader}>
           <div className={styles.focalEyebrow}>
             {renderNowIcon(now)}
-            <span>NOW</span>
+            <span>DO THIS FIRST</span>
           </div>
           <div className={styles.focalCountdown}>{renderNowCountdown(now)}</div>
         </div>

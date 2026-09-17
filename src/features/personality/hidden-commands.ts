@@ -27,7 +27,7 @@ export type CookedAssessment = {
  */
 export function matchHiddenCommand(query: string): HiddenCommandKind | null {
   const normalized = query.trim().toLowerCase();
-  if (normalized === "telemetry" || normalized === "44") {
+  if (normalized === "telemetry" || normalized === "44" || normalized === "receipts") {
     return "telemetry";
   }
   if (normalized === "how cooked am i") {
@@ -36,7 +36,11 @@ export function matchHiddenCommand(query: string): HiddenCommandKind | null {
   if (normalized === "los santos") {
     return "los_santos";
   }
-  if (normalized === "redline") {
+  if (
+    normalized === "redline" ||
+    normalized === "adulting" ||
+    normalized === "adulting.exe"
+  ) {
     return "about_redline";
   }
   return null;

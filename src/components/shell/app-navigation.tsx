@@ -55,7 +55,9 @@ function NavigationLink({
       <span className={styles.iconFrame} aria-hidden="true">
         <Icon size={mobile ? 20 : 18} strokeWidth={active ? 2.25 : 1.8} />
       </span>
-      <span className={styles.linkLabel}>{item.label}</span>
+      <span className={styles.linkLabel}>
+        {mobile && item.shortLabel ? item.shortLabel : item.label}
+      </span>
     </Link>
   );
 }

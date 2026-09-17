@@ -2,16 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Bell,
+  BookOpen,
   CalendarSync,
   ChevronRight,
-  FolderKanban,
+  Clock,
+  Compass,
+  Film,
   Inbox,
-  LandPlot,
   Layers,
+  Lock,
   NotebookPen,
+  Plane,
   ShieldCheck,
   Sparkles,
+  Target,
   Trophy,
+  Users,
+  Wallet,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,23 +26,31 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
 import { AppearanceControls } from "@/features/appearance/appearance-controls";
 import { SignOutControl } from "@/features/auth/sign-out-control";
+import { copy } from "@/lib/copy";
 
 import styles from "./more-page.module.css";
 
 export const metadata: Metadata = { title: "More" };
 
-const secondarySections = [
-  { title: "Football", detail: "Club organization and EFU reference", icon: Trophy },
-  { title: "Projects", detail: "Simple multi-step outcomes", icon: FolderKanban },
-  { title: "Areas", detail: "Ongoing parts of life", icon: LandPlot },
-] as const;
+const plannedAreas = [
+  { ...copy.plannedAreas.antiGastador, icon: Wallet },
+  { ...copy.plannedAreas.soon, icon: Clock },
+  { ...copy.plannedAreas.media, icon: Film },
+  { ...copy.plannedAreas.journal, icon: BookOpen },
+  { ...copy.plannedAreas.lore, icon: Compass },
+  { ...copy.plannedAreas.people, icon: Users },
+  { ...copy.plannedAreas.gala, icon: Plane },
+  { ...copy.plannedAreas.football, icon: Trophy },
+  { ...copy.plannedAreas.skills, icon: Target },
+  { ...copy.plannedAreas.privateData, icon: Lock },
+];
 
 export default function MorePage() {
   return (
     <>
       <PageHeader
         title="More"
-        description="Personalization, integrations, intelligence, and account controls."
+        description="Preferences, integrations, receipts, and deferred life areas."
       />
 
       <div className={styles.hubContainer}>
@@ -70,8 +85,8 @@ export default function MorePage() {
                 <Inbox size={18} aria-hidden="true" />
               </div>
               <div className={styles.rowContent}>
-                <h3 className={styles.rowTitle}>Capture Inbox</h3>
-                <p className={styles.rowDetail}>Raw input, proposals & reversible triage</p>
+                <h3 className={styles.rowTitle}>Unsorted Bullshit</h3>
+                <p className={styles.rowDetail}>Raw input stays intact. Dito muna.</p>
               </div>
               <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
             </Link>
@@ -193,26 +208,32 @@ export default function MorePage() {
               Planned Life Areas
             </h2>
             <p className={styles.sectionDesc}>
-              Deferred areas reserved for upcoming milestones.
+              Deferred areas reserved for upcoming milestones. Still cooking.
             </p>
           </div>
 
           <div className={styles.indexGroup}>
-            {secondarySections.map((sec) => {
+            {plannedAreas.map((sec) => {
               const Icon = sec.icon;
               return (
-                <div key={sec.title} className={`${styles.indexRow} ${styles.disabledRow}`}>
+                <Link
+                  key={sec.route}
+                  href={sec.route}
+                  className={styles.indexRow}
+                  aria-label={`${sec.name} (Planned area - ${sec.status})`}
+                >
                   <div className={styles.rowIcon}>
                     <Icon size={18} aria-hidden="true" />
                   </div>
                   <div className={styles.rowContent}>
-                    <h3 className={styles.rowTitle}>{sec.title}</h3>
-                    <p className={styles.rowDetail}>{sec.detail}</p>
+                    <h3 className={styles.rowTitle}>{sec.name}</h3>
+                    <p className={styles.rowDetail}>{sec.summary}</p>
                   </div>
                   <Badge tone="neutral" size="sm">
-                    Later
+                    {sec.status}
                   </Badge>
-                </div>
+                  <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
+                </Link>
               );
             })}
           </div>

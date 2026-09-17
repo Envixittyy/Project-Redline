@@ -34,9 +34,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <Sparkles size={17} strokeWidth={2.2} />
                 </span>
                 <div>
-                  <p className={styles.productName}>Forward</p>
+                  <p className={styles.productName}>Adulting.exe</p>
                   <p className={styles.productNote}>
-                    Be curious, not judgmental.
+                    apparently I need software to keep my life together
                   </p>
                 </div>
               </Link>
@@ -67,7 +67,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className={styles.contentFrame}>
             <div className={styles.mobileTopbar}>
               <Link className={styles.mobileIdentity} href="/">
-                Forward
+                Adulting.exe
               </Link>
               <div className={styles.mobileActions}>
                 <NotificationTrigger compact />

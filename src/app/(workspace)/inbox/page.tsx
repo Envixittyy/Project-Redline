@@ -9,13 +9,13 @@ import { isSupabaseConfigured } from "@/services/supabase/public-config";
 
 import styles from "./inbox-page.module.css";
 
-export const metadata: Metadata = { title: "Capture Inbox" };
+export const metadata: Metadata = { title: "Unsorted Bullshit" };
 
 export default async function InboxPage() {
   if (!isSupabaseConfigured()) {
     return (
       <>
-        <PageHeader title="Capture Inbox" description="Raw input stays intact until you review and confirm what it should become." />
+        <PageHeader title="Unsorted Bullshit" description="Raw input stays intact until you review and confirm what it should become." />
         <Callout variant="warning" title="Connect Supabase to use universal capture">
           Apply the P2 capture migration after configuring the project environment.
         </Callout>
@@ -38,9 +38,9 @@ export default async function InboxPage() {
   return (
     <>
       <PageHeader
-        eyebrow="CAPTURE → REVIEW → COMMIT"
-        title="Capture Inbox"
-        description="Raw input stays intact. Proposals are editable, nothing commits silently, and recent task creation can be undone safely."
+        eyebrow="DITO MUNA"
+        title="Unsorted Bullshit"
+        description="Raw input stays intact. Whatever this is, put it here. I'll figure it out later."
       />
       <div className={styles.layout}>
         <CaptureComposer />

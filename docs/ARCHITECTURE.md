@@ -61,10 +61,16 @@ uses immutable owner-checked stored evidence through a narrow definer RPC.
 Migration `20260908090000_school_email_ingestion.sql` adds `school_items`,
 `school_email_events`, and `school_course_mappings`. The old mapping table depends
 on a calendar integration account and encrypted feed credential, so it is not
-repurposed with fake email credentials. New mappings use the Blackboard host and
-course identifier, falling back to a normalized exact course hint. Canonical
-`courses` and `tasks` remain the domain sources of truth; no second backend,
-database, calendar store, or job system is introduced.
+repurposed with fake email credentials. Migration `20260917193000_base_course_code_matching.sql`
+establishes Mapúa base course-code matching (`<COURSE_CODE>_<SECTION>_<TERM>` -> `<COURSE_CODE>`)
+and 6-tier course resolution priority (saved mapping -> strong courseId -> base code -> exact code -> exact name -> unresolved_course),
+persisting successful matches to `school_course_mappings`. Migration `20260917200000_blackboard_production_templates.sql`
+extends ingestion to support production Mapúa Blackboard Ultra notification templates:
+submission receipts transition linked tasks to `submitted` without changing deadlines or creating new tasks;
+new content notices create `material` school items without tasks; new grade and feedback notices associate
+events without creating tasks, inventing scores, or altering task status/deadlines. Outlook Safe Links wrappers
+are unwrapped strictly as data without network requests. Canonical `courses` and `tasks` remain the domain sources
+of truth; no second backend, database, calendar store, or job system is introduced.
 
 Assignments, quizzes and exams get one Task; materials, announcements and known
 course-opened notices remain School activity. Unknown courses/types and ambiguous

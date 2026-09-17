@@ -269,6 +269,7 @@ describe("S7D4 School & Course Experience Overhaul", () => {
           notificationType: "assignment",
           itemType: "assignment",
           courseHint: "CS101 Fall 26",
+          baseCourseCode: null,
           courseKey: "bb:_cs101_1",
           title: "Midterm Exam Announcement",
           titleKey: "midterm",

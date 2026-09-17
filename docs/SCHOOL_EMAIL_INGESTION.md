@@ -100,27 +100,38 @@ remain active during the transition period to enable safe side-by-side testing.
 
 ## Parsing and temporal contract
 
-The parser recognizes explicit Course/Title/Item Type/Due Date labels and bounded
-subject headings. It handles plain text, HTML-only messages, inline Outlook
+The parser recognizes explicit Course/Title/Item Type/Due Date labels, bounded
+subject headings, and structured Mapúa header layouts (`<COURSE_CODE>_<SECTION>_<TERM>`,
+display name, notification heading, item title). It handles plain text, HTML-only messages, inline Outlook
 forwarding and redirected messages with the original sender. Links are never
-fetched. Only HTTPS links on configured exact Blackboard hosts survive; tracking
-parameters are removed without losing course/content identifiers.
+fetched. Outlook Safe Links wrappers (`*.safelinks.protection.outlook.com`) are unwrapped
+strictly as data, validating HTTPS and trusted inner hostnames from `SCHOOL_BLACKBOARD_HOSTS` while
+rejecting embedded credentials or non-HTTPS schemes. Nested Blackboard `new_loc` paths are safely
+decoded to extract both legacy (`course_id`, `content_id`) and modern Ultra (`courseId`, `contentId`)
+identifiers into stable canonical keys.
 
 Supported item types: `assignment`, `quiz`, `exam` (including test), `material`,
 `announcement`, `course_opened`, `unknown`. Notification types additionally include
-`deadline_changed` and `reminder`. Announcements take informational precedence.
+`deadline_changed`, `reminder`, `submission_received`, and `grade_updated`. Announcements take informational precedence.
 Unknown/digest/multiple-item messages fail safely rather than generating tasks.
 Course-opened notices resolve existing courses or remain `unresolved_course` for
 review; automatic course creation is not performed.
 
+For `submission_received` notices, the parser deterministically classifies the underlying item (assignment,
+quiz, exam) from unambiguous evidence in the title or text, extracts trailing parenthesized weighting (e.g. `(10%)` -> 10),
+and the RPC transitions the existing linked Task to `submitted` without changing due dates or recreating deleted tasks.
+For `material` notices (e.g. `New content`), the item is created/updated without generating a Task.
+For `grade_updated` notices (e.g. `New grade and feedback`), the event is associated with the existing assessment item
+without creating a task, mutating task status, altering deadlines, or inventing numerical scores.
+
 Dates require an explicit ISO calendar date or English month/day/year. Optional
 times may use AM/PM, numeric offsets, UTC, or an IANA timezone. An explicit clock
 without a zone uses the configured workspace zone. Ambiguous numeric dates,
-relative dates, timezone abbreviations, invalid days and DST gaps are unresolved.
-Date-only input produces `due_date` with **null** `due_at`; timed input produces a
-UTC instant and its workspace-local calendar day. No exam time is invented.
+relative dates, timezone abbreviations (such as bare `PST`, which is ambiguous in the Philippine context),
+invalid days and DST gaps are unresolved. Date-only input produces `due_date` with **null** `due_at`;
+timed input produces a UTC instant and its workspace-local calendar day. No exam time is invented.
 
-Only explicit labelled percentage weights are retained. Other numbers, grades
+Only explicit labelled percentage weights or trailing title percentages (e.g. `(10%)`) are retained. Other numbers, grades
 and point totals are not interpreted as weighting. MIME attachment-forwarding
 (`.eml` attachments), arbitrary localized templates, course-code extraction from
 unstructured prose and multi-item digests are not implemented. Postmark handles
@@ -131,9 +142,14 @@ MIME decoding; Redline discards attachments and does not silently parse them.
 - Message uniqueness: `(user_id, provider, provider_message_id)` plus a SHA-256
   message key using normalized sender and original Message-ID where available.
   Changed forwarding wrappers also converge through logical-item identity.
-- Course resolution: saved host/course mapping, then unique normalized exact
-  course code, then unique normalized exact course name. Archived/ambiguous
-  courses remain unresolved. No global fuzzy matching occurs.
+- Course resolution: 6-tier deterministic resolution priority:
+  1. Saved explicit `school_course_mappings` mapping (by header/hint key).
+  2. Saved strong Blackboard `courseId` mapping (by full courseKey or Blackboard ID).
+  3. Exact unique match of extracted `baseCourseCode` (`<COURSE_CODE>_<SECTION>_<TERM>` -> `<COURSE_CODE>`) against active `courses.code`. Ambiguous duplicate matches fail closed to `unresolved_course`.
+  4. Existing exact full-code matching against active `courses.code`.
+  5. Exact normalized course-name matching as fallback against active `courses.name`.
+  6. Otherwise fails closed to `unresolved_course`.
+  Successful resolution automatically persists external mappings (`courseHint` and Blackboard `courseId`) to `school_course_mappings` for future instant lookup without inference. No partial-prefix (`RZL11` never matches `RZL110`) or global fuzzy matching occurs.
 - Item resolution: course-scoped Blackboard content/assessment/assignment ID or
   canonical item URL. Normalized course/type/title is an ambiguity guard, not an
   identity: when either side lacks a strong key, a same-title candidate remains

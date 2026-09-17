@@ -5,15 +5,25 @@ import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
 import { normalizePostmarkEmail } from "@/services/integrations/email/postmark";
 import { normalizeResendEmail } from "@/services/integrations/email/resend";
 import { parseBlackboardEmail } from "@/services/integrations/blackboard/email-parser";
-import { assignmentEmail, deadlineEmail, emailPolicy, forwardedEmail, reminderEmail } from "@/services/integrations/blackboard/fixtures/email-fixtures";
+import {
+  assignmentEmail,
+  deadlineEmail,
+  emailPolicy,
+  forwardedEmail,
+  mapuaPolicy,
+  newContentEmail,
+  newGradeAndFeedbackEmail,
+  reminderEmail,
+  submissionReceivedEmail,
+} from "@/services/integrations/blackboard/fixtures/email-fixtures";
 import type { SchoolIngestionResult } from "@/types/school-item";
 
 const owner = "11111111-1111-4111-8111-111111111111";
 const foreign = "22222222-2222-4222-8222-222222222222";
 let db: PGlite;
 let course: string;
-async function ingest(payload = assignmentEmail()): Promise<SchoolIngestionResult> {
-  const event = parseBlackboardEmail(normalizePostmarkEmail(payload, "2026-09-08T02:01:00Z"), emailPolicy);
+async function ingest(payload = assignmentEmail(), policy = emailPolicy): Promise<SchoolIngestionResult> {
+  const event = parseBlackboardEmail(normalizePostmarkEmail(payload, "2026-09-08T02:01:00Z"), policy);
   return (await db.query<{ result: SchoolIngestionResult }>("select public.ingest_school_email($1,$2::jsonb) result", [owner, JSON.stringify(event)])).rows[0].result;
 }
 async function rows() {
@@ -198,5 +208,337 @@ describe("School email through actual PostgreSQL migrations", () => {
     const retry = (await db.query<{ result: SchoolIngestionResult }>("select retry_school_email_event($1) result", [pending.eventId])).rows[0].result;
     expect(retry.status).toBe("processed");
     expect(await rows()).toHaveLength(1);
+  });
+
+  describe("Base course-code matching and resolution priority", () => {
+    it("resolves RZL110_A4_1Q2627 to course code RZL110", async () => {
+      const rzlCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'RZL110','ANG BUHAY AT MGA AKDA NI RIZAL') returning id",
+        [owner],
+      )).rows[0].id;
+
+      const result = await ingest(assignmentEmail({
+        MessageID: "rzl-1",
+        TextBody: "Course: RZL110_A4_1Q2627\nItem Type: Assignment\nTitle: Rizal Essay\nDue Date: 2026-10-15",
+      }));
+
+      expect(result.status).toBe("processed");
+      expect(result.taskId).toBeTruthy();
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(1);
+      expect(currentRows[0].course_id).toBe(rzlCourse);
+      expect(currentRows[0].title).toBe("Rizal Essay");
+    });
+
+    it("resolves MATH177_E06_1Q2627 to MATH177", async () => {
+      const mathCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'MATH177','CALCULUS 2') returning id",
+        [owner],
+      )).rows[0].id;
+
+      const result = await ingest(assignmentEmail({
+        MessageID: "math-1",
+        TextBody: "Course: MATH177_E06_1Q2627\nItem Type: Assignment\nTitle: Problem Set 1\nDue Date: 2026-10-10",
+      }));
+
+      expect(result.status).toBe("processed");
+      const currentRows = await rows();
+      expect(currentRows[0].course_id).toBe(mathCourse);
+    });
+
+    it("resolves GED107_C2_1Q2627 to GED107", async () => {
+      const gedCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'GED107','ETHICS') returning id",
+        [owner],
+      )).rows[0].id;
+
+      const result = await ingest(assignmentEmail({
+        MessageID: "ged-1",
+        TextBody: "Course: GED107_C2_1Q2627\nItem Type: Assignment\nTitle: Case Analysis\nDue Date: 2026-10-20",
+      }));
+
+      expect(result.status).toBe("processed");
+      const currentRows = await rows();
+      expect(currentRows[0].course_id).toBe(gedCourse);
+    });
+
+    it("matching is case-insensitive after normalization", async () => {
+      const rzlCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'RZL110','ANG BUHAY AT MGA AKDA NI RIZAL') returning id",
+        [owner],
+      )).rows[0].id;
+
+      const result = await ingest(assignmentEmail({
+        MessageID: "case-insens-1",
+        TextBody: "Course: rzl110_a4_1q2627\nItem Type: Assignment\nTitle: Rizal Case Study\nDue Date: 2026-10-15",
+      }));
+
+      expect(result.status).toBe("processed");
+      const currentRows = await rows();
+      expect(currentRows[0].course_id).toBe(rzlCourse);
+    });
+
+    it("no partial-prefix matching: RZL11 must not match RZL110", async () => {
+      await db.query(
+        "insert into courses(user_id,code,name) values($1,'RZL110','ANG BUHAY AT MGA AKDA NI RIZAL')",
+        [owner],
+      );
+
+      const result = await ingest(assignmentEmail({
+        MessageID: "partial-prefix-1",
+        TextBody: "Course: RZL11_A4_1Q2627\nItem Type: Assignment\nTitle: Rizal Paper\nDue Date: 2026-10-15",
+      }));
+
+      expect(result.status).toBe("unresolved_course");
+      expect(result.itemId).toBeNull();
+      expect(result.taskId).toBeNull();
+      expect(await rows()).toHaveLength(0);
+    });
+
+    it("ambiguous duplicate course codes fail closed to unresolved_course", async () => {
+      // Two active courses that normalize to the same code rzl110 (allowed by case-sensitive unique constraint)
+      await db.query("insert into courses(user_id,code,name) values($1,'RZL110','Rizal Section A')", [owner]);
+      await db.query("insert into courses(user_id,code,name) values($1,'rzl110','Rizal Section B')", [owner]);
+
+      const result = await ingest(assignmentEmail({
+        MessageID: "ambiguous-dupe-1",
+        TextBody: "Course: RZL110_A4_1Q2627\nItem Type: Assignment\nTitle: Midterm Essay\nDue Date: 2026-10-15",
+      }));
+
+      expect(result.status).toBe("unresolved_course");
+      expect(result.itemId).toBeNull();
+      expect(result.taskId).toBeNull();
+      expect(await rows()).toHaveLength(0);
+    });
+
+    it("successful match persists external mappings and subsequent email resolves from saved mapping", async () => {
+      const rzlCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'RZL110','ANG BUHAY AT MGA AKDA NI RIZAL') returning id",
+        [owner],
+      )).rows[0].id;
+
+      // First email with header RZL110_A4_1Q2627 and Blackboard course_id=_165958_1
+      const first = await ingest(assignmentEmail({
+        MessageID: "first-delivery-1",
+        TextBody: "Course: RZL110_A4_1Q2627\nItem Type: Assignment\nTitle: Chapter 1 Essay\nDue Date: 2026-10-15\nhttps://learn.example.edu/webapps/assignment/uploadAssignment?course_id=_165958_1&content_id=_901_1",
+      }));
+
+      expect(first.status).toBe("processed");
+
+      // Verify external mappings persisted
+      const mappings = (await db.query<{ source_course_key: string; course_id: string }>(
+        "select source_course_key, course_id from school_course_mappings where user_id=$1 order by source_course_key",
+        [owner],
+      )).rows;
+
+      const mappedKeys = mappings.map((m) => m.source_course_key);
+      expect(mappedKeys).toContain("RZL110_A4_1Q2627");
+      expect(mappedKeys).toContain("_165958_1");
+      expect(mappedKeys).toContain("learn.example.edu:_165958_1");
+      for (const m of mappings) {
+        expect(m.course_id).toBe(rzlCourse);
+      }
+
+      // Now change the course code in Redline to something else (e.g. 'RZL110-OLD')
+      // to prove the subsequent email resolves via the persisted mapping, not inference!
+      await db.query("update courses set code='RZL110-RENAMED' where id=$1", [rzlCourse]);
+
+      // Subsequent email from the same Blackboard course resolves directly via saved mapping
+      const subsequent = await ingest(assignmentEmail({
+        MessageID: "second-delivery-2",
+        TextBody: "Course: RZL110_A4_1Q2627\nItem Type: Assignment\nTitle: Chapter 2 Essay\nDue Date: 2026-10-22",
+      }));
+
+      expect(subsequent.status).toBe("processed");
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(2);
+      expect(currentRows[1].course_id).toBe(rzlCourse);
+      expect(currentRows[1].title).toBe("Chapter 2 Essay");
+    });
+
+    it("existing exact code and name matching still works", async () => {
+      // CS101 was created in beforeEach with name 'Computer Science'
+      // 1. Exact code match: 'CS101'
+      const byCode = await ingest(assignmentEmail({
+        MessageID: "exact-code-1",
+        TextBody: "Course: CS101\nItem Type: Assignment\nTitle: Lab 1\nDue Date: 2026-09-20",
+      }));
+      expect(byCode.status).toBe("processed");
+      expect((await rows())[0].course_id).toBe(course);
+
+      // 2. Exact name match: 'Computer Science'
+      const byName = await ingest(assignmentEmail({
+        MessageID: "exact-name-1",
+        TextBody: "Course: Computer Science\nItem Type: Assignment\nTitle: Lab 2\nDue Date: 2026-09-25",
+      }));
+      expect(byName.status).toBe("processed");
+      expect((await rows())[1].course_id).toBe(course);
+    });
+  });
+
+  describe("Mapúa Production Blackboard Templates Ingestion", () => {
+    it("Template A: marks existing linked task as submitted, preserves due date, does not create new task, survives replay", async () => {
+      const gedCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'GED107','ETHICS') returning id",
+        [owner],
+      )).rows[0].id;
+
+      // First, create the quiz item and task
+      const quizCreateResult = await ingest(assignmentEmail({
+        MessageID: "quiz-created-1",
+        Subject: "New quiz: Synthesis Quiz 2",
+        TextBody: "Course: GED107_C2_1Q2627\nItem Type: Quiz\nTitle: Synthesis Quiz 2\nDue Date: 2026-10-01\nhttps://mapua.blackboard.com/item?courseId=_165894_1&contentId=_6827441_1",
+      }), mapuaPolicy);
+
+      expect(quizCreateResult.status).toBe("processed");
+      expect(quizCreateResult.taskId).toBeTruthy();
+
+      const initialTask = (await db.query<{ status: string; due_date: string }>(
+        "select status, due_date::text from tasks where id=$1",
+        [quizCreateResult.taskId],
+      )).rows[0];
+      expect(initialTask.status).toBe("inbox");
+      expect(initialTask.due_date).toBe("2026-10-01");
+
+      // Now receive submission confirmation
+      const submissionResult = await ingest(submissionReceivedEmail(), mapuaPolicy);
+      expect(submissionResult.status).toBe("processed");
+      expect(submissionResult.itemId).toBe(quizCreateResult.itemId);
+      expect(submissionResult.taskId).toBe(quizCreateResult.taskId);
+      expect((await rows())[0].course_id).toBe(gedCourse);
+
+      // Verify task status changed to 'submitted'
+      const updatedTask = (await db.query<{ status: string; due_date: string }>(
+        "select status, due_date::text from tasks where id=$1",
+        [quizCreateResult.taskId],
+      )).rows[0];
+      expect(updatedTask.status).toBe("submitted");
+      // Due date remains unchanged
+      expect(updatedTask.due_date).toBe("2026-10-01");
+
+      // Total tasks in db is still 1 (no new task created)
+      expect((await db.query("select id from tasks")).rows).toHaveLength(1);
+
+      // Replay of same email is duplicate
+      const replay = await ingest(submissionReceivedEmail(), mapuaPolicy);
+      expect(replay.status).toBe("duplicate");
+      expect(replay.itemId).toBe(quizCreateResult.itemId);
+      expect(replay.taskId).toBe(quizCreateResult.taskId);
+    });
+
+    it("Template A: missing existing item yields unresolved_item without creating a task", async () => {
+      await db.query("insert into courses(user_id,code,name) values($1,'GED107','ETHICS')", [owner]);
+
+      const result = await ingest(submissionReceivedEmail(), mapuaPolicy);
+      expect(result.status).toBe("unresolved_item");
+      expect(result.itemId).toBeNull();
+      expect(result.taskId).toBeNull();
+      expect((await db.query("select id from tasks")).rows).toHaveLength(0);
+      expect((await rows())).toHaveLength(0);
+    });
+
+    it("Template A: deleted/missing task yields unresolved_task and never recreates task", async () => {
+      await db.query("insert into courses(user_id,code,name) values($1,'GED107','ETHICS')", [owner]);
+
+      const quizCreate = await ingest(assignmentEmail({
+        MessageID: "quiz-created-del",
+        Subject: "New quiz: Synthesis Quiz 2",
+        TextBody: "Course: GED107_C2_1Q2627\nItem Type: Quiz\nTitle: Synthesis Quiz 2\nDue Date: 2026-10-01\nhttps://mapua.blackboard.com/item?courseId=_165894_1&contentId=_6827441_1",
+      }), mapuaPolicy);
+
+      // Delete the linked task
+      await db.query("delete from tasks where id=$1", [quizCreate.taskId]);
+      expect((await db.query("select id from tasks")).rows).toHaveLength(0);
+
+      // Ingest submission confirmation
+      const submissionResult = await ingest(submissionReceivedEmail(), mapuaPolicy);
+      expect(submissionResult.status).toBe("unresolved_task");
+      // Never recreated user-deleted task
+      expect((await db.query("select id from tasks")).rows).toHaveLength(0);
+    });
+
+    it("Template B: creates material school item, creates no Task, and replay does not duplicate", async () => {
+      const rzlCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'RZL110','ANG BUHAY AT MGA AKDA NI RIZAL') returning id",
+        [owner],
+      )).rows[0].id;
+
+      const result = await ingest(newContentEmail(), mapuaPolicy);
+      expect(result.status).toBe("processed");
+      expect(result.itemId).toBeTruthy();
+      expect(result.taskId).toBeNull();
+
+      // Verify school_items
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(1);
+      expect(currentRows[0].course_id).toBe(rzlCourse);
+      expect(currentRows[0].item_type).toBe("material");
+      expect(currentRows[0].title).toBe("Ikapitong Linggo - Si Rizal at Ang Noli Me Tangere.pdf");
+      expect(currentRows[0].task_id).toBeNull();
+      expect(currentRows[0].source_url).toContain("mapua.blackboard.com");
+
+      // Verify no task was created
+      expect((await db.query("select id from tasks")).rows).toHaveLength(0);
+
+      // Subsequent message with same contentId does not duplicate the material
+      const secondDelivery = await ingest(newContentEmail({ MessageID: "mapua-content-2" }), mapuaPolicy);
+      expect(secondDelivery.status).toBe("processed");
+      expect(secondDelivery.itemId).toBe(result.itemId);
+      expect(await rows()).toHaveLength(1);
+    });
+
+    it("Template C: associates grade_updated event with existing item, leaves task status/due unchanged, does not invent score", async () => {
+      const mathCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'MATH177','CALCULUS 2') returning id",
+        [owner],
+      )).rows[0].id;
+
+      // Create initial assessment item
+      const initial = await ingest(assignmentEmail({
+        MessageID: "math-assessment-1",
+        Subject: "New assignment: Series and Integration",
+        TextBody: "Course: MATH177_E06_1Q2627\nItem Type: Assignment\nTitle: Calculus through Data & Modelling: Series and Integration\nDue Date: 2026-10-10\nhttps://mapua.blackboard.com/item?courseId=_164519_1&contentId=_6996549_1",
+      }), mapuaPolicy);
+
+      expect(initial.status).toBe("processed");
+      expect(initial.taskId).toBeTruthy();
+
+      // Receive grade updated notification
+      const gradeResult = await ingest(newGradeAndFeedbackEmail(), mapuaPolicy);
+      expect(gradeResult.status).toBe("processed");
+      expect(gradeResult.itemId).toBe(initial.itemId);
+
+      // Verify task status and due date remain unchanged
+      const task = (await db.query<{ status: string; due_date: string }>(
+        "select status, due_date::text from tasks where id=$1",
+        [initial.taskId],
+      )).rows[0];
+      expect(task.status).toBe("inbox");
+      expect(task.due_date).toBe("2026-10-10");
+
+      // Verify no score is invented and no new tasks created
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(1);
+      expect(currentRows[0].course_id).toBe(mathCourse);
+      expect((await db.query("select id from tasks")).rows).toHaveLength(1);
+
+      // Event is linked to the item
+      const eventRow = (await db.query<{ item_id: string; status: string }>(
+        "select item_id, status from school_email_events where id=$1",
+        [gradeResult.eventId],
+      )).rows[0];
+      expect(eventRow.item_id).toBe(initial.itemId);
+      expect(eventRow.status).toBe("processed");
+    });
+
+    it("Template C: missing existing item yields unresolved_item without creating a task", async () => {
+      await db.query("insert into courses(user_id,code,name) values($1,'MATH177','CALCULUS 2')", [owner]);
+
+      const result = await ingest(newGradeAndFeedbackEmail(), mapuaPolicy);
+      expect(result.status).toBe("unresolved_item");
+      expect(result.itemId).toBeNull();
+      expect(result.taskId).toBeNull();
+      expect((await db.query("select id from tasks")).rows).toHaveLength(0);
+    });
   });
 });

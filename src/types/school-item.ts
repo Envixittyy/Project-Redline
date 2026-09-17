@@ -2,7 +2,7 @@ import type { TaskStatus } from "./task";
 
 export const schoolItemTypes = ["assignment", "quiz", "exam", "material", "announcement", "course_opened", "unknown"] as const;
 export type SchoolItemType = (typeof schoolItemTypes)[number];
-export type SchoolNotificationType = SchoolItemType | "deadline_changed" | "reminder";
+export type SchoolNotificationType = SchoolItemType | "deadline_changed" | "reminder" | "submission_received" | "grade_updated";
 export type SchoolIngestionStatus = "processed" | "duplicate" | "ignored" | "unknown_type" | "malformed" | "unresolved_course" | "unresolved_item" | "unresolved_task" | "stale";
 
 /** Provider-independent, minimized evidence. Bodies and mailbox headers are not persisted. */
@@ -18,6 +18,7 @@ export type ParsedSchoolEvent = {
   notificationType: SchoolNotificationType;
   itemType: SchoolItemType;
   courseHint: string | null;
+  baseCourseCode: string | null;
   courseKey: string | null;
   title: string | null;
   titleKey: string | null;

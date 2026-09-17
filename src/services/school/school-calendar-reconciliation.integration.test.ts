@@ -83,6 +83,7 @@ async function ingestEmail(overrides: Record<string, unknown> = {}) {
     notificationType: "assignment",
     itemType: "assignment",
     courseHint: "CS101",
+    baseCourseCode: null,
     courseKey: "learn.example.edu:_101_1",
     title: "Assignment 1",
     titleKey: "assignment 1",

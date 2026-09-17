@@ -8,12 +8,12 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Forward",
-    template: "%s · Forward",
+    default: "Adulting.exe",
+    template: "%s · Adulting.exe",
   },
-  description: "A private personal command center. Be curious, not judgmental.",
-  applicationName: "Forward",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Forward" },
+  description: "I built this shit for myself because apparently I need software to keep my life together.",
+  applicationName: "Adulting.exe",
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Adulting.exe" },
 };
 
 export const viewport: Viewport = {

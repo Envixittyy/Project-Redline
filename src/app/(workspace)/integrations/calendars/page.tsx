@@ -39,7 +39,7 @@ export default async function CalendarConnectionsPage({ searchParams }: PageProp
       <PageHeader
         eyebrow="SOURCE-AWARE BY DEFAULT"
         title="Calendar connections"
-        description="External calendars remain fixed provider records. Their declared capabilities decide what Forward may read or change."
+        description="External calendars remain fixed provider records. Their declared capabilities decide what Adulting.exe may read or change."
       />
       <div className={styles.layout}>
         {googleResult === "connected" ? (

@@ -45,7 +45,7 @@ export function getTimeAwareGreeting(
 
   if (hour >= 0 && hour < 5) {
     return {
-      eyebrow: "YOUR SPACE",
+      eyebrow: "SO, ANO NA?",
       greeting: `You're still here, ${userName}.`,
       subtext: "Let's at least make this useful.",
       isLateNight: true,
@@ -54,24 +54,24 @@ export function getTimeAwareGreeting(
 
   if (hour >= 5 && hour < 12) {
     return {
-      eyebrow: "YOUR SPACE",
+      eyebrow: "SO, ANO NA?",
       greeting: `Good morning, ${userName}.`,
-      subtext: "Here's where things stand.",
+      subtext: "Okay, what the fuck is happening today?",
       isLateNight: false,
     };
   }
 
   if (hour >= 12 && hour < 17) {
     return {
-      eyebrow: "YOUR SPACE",
+      eyebrow: "SO, ANO NA?",
       greeting: `Good afternoon, ${userName}.`,
-      subtext: "Here's the state of things.",
+      subtext: "Here's where things stand.",
       isLateNight: false,
     };
   }
 
   return {
-    eyebrow: "YOUR SPACE",
+    eyebrow: "SO, ANO NA?",
     greeting: `Good evening, ${userName}.`,
     subtext: "Here's where things stand.",
     isLateNight: false,

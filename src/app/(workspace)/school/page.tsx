@@ -6,7 +6,7 @@ import { listCourses } from "@/services/courses/course-repository";
 import { listSchoolItems } from "@/services/school/school-repository";
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
 
-export const metadata: Metadata = { title: "School" };
+export const metadata: Metadata = { title: "Academic Suffering" };
 
 type SchoolPageProps = {
   searchParams?: Promise<{ course?: string }>;

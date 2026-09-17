@@ -13,32 +13,47 @@ export type NavigationItem = {
   href: string;
   icon: LucideIcon;
   label: string;
+  shortLabel?: string;
   exact?: boolean;
 };
 
 export type PrimaryNavigationItem = NavigationItem;
 
 export const primaryNavigation: readonly NavigationItem[] = [
-  { href: "/", icon: House, label: "Home", exact: true },
-  { href: "/tasks", icon: ListTodo, label: "Tasks" },
-  { href: "/calendar", icon: CalendarDays, label: "Calendar" },
-  { href: "/school", icon: GraduationCap, label: "School" },
+  { href: "/", icon: House, label: "So, Ano Na?", shortLabel: "Ano Na?", exact: true },
+  { href: "/tasks", icon: ListTodo, label: "Shit to Do", shortLabel: "Shit to Do" },
+  { href: "/calendar", icon: CalendarDays, label: "My Alleged Schedule", shortLabel: "Schedule" },
+  { href: "/school", icon: GraduationCap, label: "Academic Suffering", shortLabel: "Suffering" },
 ];
 
 export const secondaryNavigation: readonly NavigationItem[] = [
   { href: "/notes", icon: NotebookPen, label: "Notes" },
-  { href: "/inbox", icon: Inbox, label: "Capture Inbox" },
+  { href: "/inbox", icon: Inbox, label: "Unsorted Bullshit", shortLabel: "Bullshit" },
 ];
 
 export const moreNavigationItem: NavigationItem = {
   href: "/more",
   icon: Ellipsis,
   label: "More",
+  shortLabel: "More",
 };
 
 export const mobileNavigation: readonly NavigationItem[] = [
   ...primaryNavigation,
   moreNavigationItem,
+];
+
+export const plannedAreaRoutes: readonly string[] = [
+  "/anti-gastador",
+  "/soon",
+  "/consume",
+  "/dear-dumbass",
+  "/lore",
+  "/people",
+  "/gala",
+  "/football",
+  "/skills",
+  "/private",
 ];
 
 /**
@@ -55,11 +70,15 @@ export function isActiveRoute(pathname: string, href: string, exact = false): bo
   }
 
   if (cleanHref === "/more") {
+    const isPlannedArea = plannedAreaRoutes.some(
+      (route) => cleanPath === route || cleanPath.startsWith(route + "/"),
+    );
     return (
       cleanPath === "/more" ||
       cleanPath.startsWith("/more/") ||
       cleanPath.startsWith("/settings/") ||
-      cleanPath.startsWith("/integrations/")
+      cleanPath.startsWith("/integrations/") ||
+      isPlannedArea
     );
   }
 

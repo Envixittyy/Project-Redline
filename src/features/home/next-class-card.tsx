@@ -27,7 +27,7 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
               <BookOpen size={16} />
             </span>
             <div>
-              <p className={styles.sectionKicker}>School</p>
+              <p className={styles.sectionKicker}>Academic Suffering</p>
               <h3 className={styles.sectionTitle}>Next Class</h3>
             </div>
           </div>
@@ -57,7 +57,7 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
               <CalendarCheck size={16} />
             </span>
             <div>
-              <p className={styles.sectionKicker}>School</p>
+              <p className={styles.sectionKicker}>Academic Suffering</p>
               <h3 className={styles.sectionTitle}>
                 {isDone ? "Classes Finished" : "No Classes Today"}
               </h3>
@@ -89,7 +89,7 @@ export function NextClassCard({ courses, timeZone }: NextClassCardProps) {
           <p className={styles.empty}>
             {isDone
               ? "You have completed all scheduled classes for today."
-              : "No classes scheduled for today. Enjoy the open time."}
+              : "No classes scheduled for today. Aba himala."}
           </p>
         )}
       </section>

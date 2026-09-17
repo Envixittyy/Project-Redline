@@ -230,8 +230,8 @@ describe("S7D3 Tasks Screen Overhaul", () => {
         />,
       );
 
-      expect(markup).toContain("All clear for today");
-      expect(markup).toContain("Nothing is scheduled or due today");
+      expect(markup).toContain("Nothing to do. Fucking finally.");
+      expect(markup).toContain("Nothing scheduled or due today");
       expect(markup).toContain("Add a task");
     });
 
@@ -247,7 +247,7 @@ describe("S7D3 Tasks Screen Overhaul", () => {
       );
 
       expect(markup).toContain("No overdue tasks");
-      expect(markup).toContain("You&#x27;re completely caught up on your deadlines");
+      expect(markup).toContain("Zero overdue. Keep it that way.");
     });
   });
 

@@ -91,13 +91,13 @@ export function CaptureLauncher() {
         <div className={styles.launcherHeading}>
           <span className={styles.launcherIcon} aria-hidden="true"><Inbox size={18} /></span>
           <div>
-            <p>Universal capture</p>
-            <h2 id="capture-dialog-title">Get it out of your head</h2>
+            <p>Dito muna.</p>
+            <h2 id="capture-dialog-title">Unsorted Bullshit</h2>
           </div>
           <button type="button" aria-label="Close universal capture" onClick={close}><X size={18} aria-hidden="true" /></button>
         </div>
         <CaptureComposer compact onCaptured={close} />
-        <Link className={styles.inboxLink} href="/inbox" onClick={close}>Open Capture Inbox</Link>
+        <Link className={styles.inboxLink} href="/inbox" onClick={close}>Open Unsorted Bullshit →</Link>
       </div>
     </div>
   );

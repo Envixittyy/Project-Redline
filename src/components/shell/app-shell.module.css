@@ -290,6 +290,12 @@
 }
 
 .mobileLink .linkLabel {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  padding-inline: 0.15rem;
   transition:
     color var(--motion-control) var(--ease-standard),
     opacity var(--motion-control) var(--ease-standard);

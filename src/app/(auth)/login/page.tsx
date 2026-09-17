@@ -23,11 +23,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <div className={styles.page}>
       <header className={styles.heading}>
-        <p className={styles.eyebrow}>Private Workspace</p>
+        <p className={styles.eyebrow}>Adulting.exe</p>
         <h1>Sign in</h1>
         <p className={styles.description}>
           {configured
-            ? "Use your Supabase account to open your private workspace."
+            ? "Log in to keep your life together."
             : "Supabase Auth must be configured before this private workspace can be opened."}
         </p>
       </header>

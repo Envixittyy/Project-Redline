@@ -85,6 +85,7 @@ export function DearDumbassFeed({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<DearDumbassSearchResult[] | null>(null);
   const searchVersionRef = useRef(0);
+  const searchQueryRef = useRef("");
 
   const performSearch = useCallback(
     async (query: string) => {
@@ -110,9 +111,17 @@ export function DearDumbassFeed({
     [repository],
   );
 
-  useEffect(() => {
-    void performSearch(searchQuery);
-  }, [performSearch, searchQuery]);
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    searchQueryRef.current = value;
+    void performSearch(value);
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    searchQueryRef.current = "";
+    setSearchResults(null);
+  };
 
   const loadFeed = useCallback(async () => {
     if (!repository) return;
@@ -146,8 +155,8 @@ export function DearDumbassFeed({
 
     const unsubscribe = repository.subscribe(() => {
       void loadFeed();
-      if (searchQuery.trim()) {
-        void performSearch(searchQuery);
+      if (searchQueryRef.current.trim()) {
+        void performSearch(searchQueryRef.current);
       }
     });
 
@@ -156,7 +165,7 @@ export function DearDumbassFeed({
       feedLoadVersionRef.current += 1;
       unsubscribe();
     };
-  }, [loadFeed, performSearch, repository, searchQuery]);
+  }, [loadFeed, performSearch, repository]);
 
   const handlePostSubmit = async () => {
     const trimmed = composerInput.trim();
@@ -281,7 +290,7 @@ export function DearDumbassFeed({
             className={styles.searchInput}
             placeholder="Search thoughts & replies locally…"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             disabled={!repository}
             aria-label="Search thoughts locally"
           />
@@ -289,7 +298,7 @@ export function DearDumbassFeed({
             <button
               type="button"
               className={styles.searchClearBtn}
-              onClick={() => setSearchQuery("")}
+              onClick={handleClearSearch}
               aria-label="Clear search"
             >
               <X size={14} aria-hidden="true" />
@@ -308,7 +317,7 @@ export function DearDumbassFeed({
             <button
               type="button"
               className={styles.actionButton}
-              onClick={() => setSearchQuery("")}
+              onClick={handleClearSearch}
             >
               Clear
             </button>

@@ -351,7 +351,7 @@ describe("DearDumbassRepository", () => {
         const p1 = await repo.createPost("Need to study for Algorithms exam");
 
         vi.setSystemTime(new Date("2026-09-18T10:05:00Z"));
-        const p2 = await repo.createPost("Coffee break at 3pm");
+        await repo.createPost("Coffee break at 3pm");
 
         vi.setSystemTime(new Date("2026-09-18T10:10:00Z"));
         const p3 = await repo.createPost("Algorithms homework was brutal");
@@ -369,7 +369,7 @@ describe("DearDumbassRepository", () => {
     it("searches replies and returns root thread context even if root body does not match", async () => {
       const root = await repo.createPost("Today was uneventful");
       const r1 = await repo.createPost("Actually, bought some great Matcha", root.id);
-      const r2 = await repo.createPost("Also finished the reading", root.id);
+      await repo.createPost("Also finished the reading", root.id);
 
       const results = await repo.searchPosts("matcha");
       expect(results).toHaveLength(1);
@@ -383,7 +383,7 @@ describe("DearDumbassRepository", () => {
     it("includes both root match and matching reply when both match", async () => {
       const root = await repo.createPost("Deep thoughts on artificial intelligence");
       const r1 = await repo.createPost("Intelligence is a fuzzy term", root.id);
-      const r2 = await repo.createPost("Unrelated reply", root.id);
+      await repo.createPost("Unrelated reply", root.id);
 
       const results = await repo.searchPosts("intelligence");
       expect(results).toHaveLength(1);

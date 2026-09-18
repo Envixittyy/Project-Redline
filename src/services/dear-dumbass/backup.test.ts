@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { InMemoryPrivateStore } from "@/services/private-store";
+import {
+  InMemoryPrivateStore,
+  type PrivateStore,
+  type PrivateStoreTransaction,
+} from "@/services/private-store";
 import {
   createEncryptedBackup,
   decryptBackupArchive,
   validateArchivePayload,
   type DearDumbassArchivePayload,
-  type DearDumbassBackupEnvelope,
 } from "./backup";
 import { DearDumbassRepository } from "./dear-dumbass-repository";
 import type { DearDumbassPost } from "./types";
@@ -328,7 +331,7 @@ describe("Dear Dumbass Encrypted Backup & Restore", () => {
     it("12. transactional rollback on failure leaves database in original state", async () => {
       let shouldFail = false;
       const wrappedStore = new InMemoryPrivateStore();
-      const customStore = {
+      const customStore: PrivateStore = {
         get: wrappedStore.get.bind(wrappedStore),
         getAll: wrappedStore.getAll.bind(wrappedStore),
         getAllByIndex: wrappedStore.getAllByIndex.bind(wrappedStore),
@@ -341,20 +344,23 @@ describe("Dear Dumbass Encrypted Backup & Restore", () => {
         transaction: async <R>(
           storeNames: string | readonly string[],
           mode: "readonly" | "readwrite",
-          operation: (transaction: any) => Promise<R> | R,
+          operation: (transaction: PrivateStoreTransaction) => Promise<R> | R,
         ): Promise<R> => {
           return wrappedStore.transaction(storeNames, mode, (tx) => {
             const wrappedTx = new Proxy(tx, {
-              get(target, prop) {
+              get(target, prop, receiver) {
                 if (prop === "putBatch") {
-                  return async (storeName: string, values: any[]) => {
+                  return async <T extends { id: string }>(
+                    storeName: string,
+                    values: T[],
+                  ) => {
                     if (shouldFail) {
                       throw new Error("Disk IO failure simulated");
                     }
                     return target.putBatch(storeName, values);
                   };
                 }
-                const val = (target as any)[prop];
+                const val = Reflect.get(target, prop, receiver);
                 return typeof val === "function" ? val.bind(target) : val;
               },
             });
@@ -363,7 +369,7 @@ describe("Dear Dumbass Encrypted Backup & Restore", () => {
         },
       };
 
-      const customRepo = new DearDumbassRepository(customStore as any);
+      const customRepo = new DearDumbassRepository(customStore);
       const localPost = await customRepo.createPost(
         "Existing post in custom store",
       );

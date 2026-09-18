@@ -81,17 +81,12 @@ export function DearDumbassCard({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Thread replies state
-  const [isThreadOpen, setIsThreadOpen] = useState(initialOpenThread ?? false);
+  const [userToggledThread, setUserToggledThread] = useState<boolean | null>(null);
+  const isThreadOpen = userToggledThread ?? initialOpenThread ?? false;
   const [replies, setReplies] = useState<DearDumbassPost[]>([]);
   const [replyInput, setReplyInput] = useState("");
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (initialOpenThread !== undefined) {
-      setIsThreadOpen(initialOpenThread);
-    }
-  }, [initialOpenThread]);
 
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -113,7 +108,7 @@ export function DearDumbassCard({
   }, [isReply, post.id, repository]);
 
   const handleToggleThread = () => {
-    setIsThreadOpen((current) => !current);
+    setUserToggledThread(!isThreadOpen);
   };
 
   useEffect(() => {

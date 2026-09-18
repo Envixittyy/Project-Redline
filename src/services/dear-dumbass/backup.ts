@@ -95,7 +95,7 @@ async function deriveAesGcmKey(
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt,
+      salt: salt as unknown as BufferSource,
       iterations,
       hash: "SHA-256",
     },
@@ -265,11 +265,11 @@ export async function createEncryptedBackup(
   const encryptedBuffer = await crypto.subtle.encrypt(
     {
       name: "AES-GCM",
-      iv,
+      iv: iv as unknown as BufferSource,
       tagLength: TAG_LENGTH,
     },
     key,
-    plaintextBytes,
+    plaintextBytes as unknown as BufferSource,
   );
 
   return {
@@ -352,11 +352,11 @@ export async function decryptBackupArchive(
     decryptedBuffer = await crypto.subtle.decrypt(
       {
         name: "AES-GCM",
-        iv,
+        iv: iv as unknown as BufferSource,
         tagLength: rawEnvelope.cipher.tagLength ?? TAG_LENGTH,
       },
       key,
-      ciphertext,
+      ciphertext as unknown as BufferSource,
     );
   } catch {
     // Web Crypto Subtle throws when tag authentication fails (wrong passphrase or tampered ciphertext)

@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import { InMemoryPrivateStore } from "@/services/private-store";
 import {
-  createEncryptedBackup,
   decryptBackupArchive,
   DearDumbassRepository,
 } from "@/services/dear-dumbass";

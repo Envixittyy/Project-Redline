@@ -1,8 +1,25 @@
 import { getPrivateStore, type PrivateStore } from "@/services/private-store";
-import type { DearDumbassPost } from "./types";
+import {
+  createEncryptedBackup,
+  validateArchivePayload,
+  type DearDumbassArchivePayload,
+  type DearDumbassBackupEnvelope,
+  type RestoreMode,
+  type RestoreResult,
+} from "./backup";
+import type { DearDumbassPost, DearDumbassSearchResult } from "./types";
 
 export const DEAR_DUMBASS_STORE_NAME = "dear_dumbass_posts";
 export const DEAR_DUMBASS_CHANGE_EVENT = "redline:dear-dumbass-change";
+export const DEAR_DUMBASS_BROADCAST_CHANNEL = "redline:dear-dumbass-channel";
+
+export type DearDumbassBroadcastMessage = {
+  type: "change";
+  sourceId: string;
+  changeId: string;
+};
+
+const MAX_TRACKED_CHANGE_IDS = 100;
 
 function createPostId(): string {
   if (typeof crypto === "undefined" || typeof crypto.randomUUID !== "function") {
@@ -18,12 +35,42 @@ export class DearDumbassRepository {
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : `repository-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  private channel: BroadcastChannel | null = null;
+  private changeSequence = 0;
+  private readonly seenChangeIds = new Set<string>();
+  private windowHandler: EventListener | null = null;
 
   constructor(store?: PrivateStore) {
     this.store = store ?? getPrivateStore();
+    this.initWindowEvents();
+    this.initBroadcastChannel();
   }
 
-  private emitChange(): void {
+  private initWindowEvents(): void {
+    if (typeof window === "undefined") return;
+    this.windowHandler = (event) => {
+      this.handleExternalChange(
+        (event as CustomEvent<DearDumbassBroadcastMessage>).detail,
+      );
+    };
+    window.addEventListener(DEAR_DUMBASS_CHANGE_EVENT, this.windowHandler);
+  }
+
+  private initBroadcastChannel(): void {
+    if (typeof BroadcastChannel === "undefined") {
+      return;
+    }
+    try {
+      this.channel = new BroadcastChannel(DEAR_DUMBASS_BROADCAST_CHANNEL);
+      this.channel.onmessage = (event: MessageEvent<DearDumbassBroadcastMessage>) => {
+        this.handleExternalChange(event.data);
+      };
+    } catch {
+      this.channel = null;
+    }
+  }
+
+  private notifyListeners(): void {
     for (const listener of this.listeners) {
       try {
         listener();
@@ -31,13 +78,52 @@ export class DearDumbassRepository {
         // Subscriber failures must not interrupt persistence or expose private content.
       }
     }
+  }
+
+  private handleExternalChange(data: unknown): void {
+    if (!data || typeof data !== "object") return;
+    const message = data as Partial<DearDumbassBroadcastMessage>;
+    if (
+      message.type !== "change" ||
+      typeof message.sourceId !== "string" ||
+      typeof message.changeId !== "string" ||
+      message.sourceId === this.eventSourceId ||
+      this.seenChangeIds.has(message.changeId)
+    ) {
+      return;
+    }
+
+    this.seenChangeIds.add(message.changeId);
+    if (this.seenChangeIds.size > MAX_TRACKED_CHANGE_IDS) {
+      const oldest = this.seenChangeIds.values().next().value;
+      if (oldest) this.seenChangeIds.delete(oldest);
+    }
+    this.notifyListeners();
+  }
+
+  private emitChange(): void {
+    this.notifyListeners();
+
+    const message: DearDumbassBroadcastMessage = {
+      type: "change",
+      sourceId: this.eventSourceId,
+      changeId: `${this.eventSourceId}:${++this.changeSequence}`,
+    };
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent(DEAR_DUMBASS_CHANGE_EVENT, {
-          detail: { sourceId: this.eventSourceId },
+          detail: message,
         }),
       );
+    }
+
+    if (this.channel) {
+      try {
+        this.channel.postMessage(message);
+      } catch {
+        // Channel closed or failed to post message.
+      }
     }
   }
 
@@ -47,23 +133,29 @@ export class DearDumbassRepository {
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
 
-    let windowHandler: EventListener | null = null;
-    if (typeof window !== "undefined") {
-      windowHandler = (event) => {
-        const detail = (event as CustomEvent<{ sourceId?: string }>).detail;
-        if (detail?.sourceId !== this.eventSourceId) {
-          listener();
-        }
-      };
-      window.addEventListener(DEAR_DUMBASS_CHANGE_EVENT, windowHandler);
-    }
-
     return () => {
       this.listeners.delete(listener);
-      if (typeof window !== "undefined" && windowHandler) {
-        window.removeEventListener(DEAR_DUMBASS_CHANGE_EVENT, windowHandler);
-      }
     };
+  }
+
+  /**
+   * Close channel and clean up resources.
+   */
+  close(): void {
+    if (typeof window !== "undefined" && this.windowHandler) {
+      window.removeEventListener(DEAR_DUMBASS_CHANGE_EVENT, this.windowHandler);
+      this.windowHandler = null;
+    }
+    if (this.channel) {
+      try {
+        this.channel.close();
+      } catch {
+        // Channel close failure is safely ignored.
+      }
+      this.channel = null;
+    }
+    this.seenChangeIds.clear();
+    this.listeners.clear();
   }
 
   /**
@@ -181,6 +273,64 @@ export class DearDumbassRepository {
   }
 
   /**
+   * Search active posts and replies locally by body text (case-insensitive).
+   * Returns thread results preserving root context for matching replies.
+   */
+  async searchPosts(query: string): Promise<DearDumbassSearchResult[]> {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) {
+      return [];
+    }
+
+    const all = await this.store.getAll<DearDumbassPost>(
+      DEAR_DUMBASS_STORE_NAME,
+    );
+
+    // Exclude deleted posts (deleted posts excluded from normal search)
+    const active = all.filter((post) => !post.deletedAt);
+
+    const roots = new Map<string, DearDumbassPost>();
+    const repliesByRootId = new Map<string, DearDumbassPost[]>();
+
+    for (const post of active) {
+      if (!post.replyToId) {
+        roots.set(post.id, post);
+      } else {
+        const list = repliesByRootId.get(post.replyToId) ?? [];
+        list.push(post);
+        repliesByRootId.set(post.replyToId, list);
+      }
+    }
+
+    const results: DearDumbassSearchResult[] = [];
+
+    for (const [rootId, rootPost] of roots.entries()) {
+      const rootMatches = rootPost.body.toLowerCase().includes(trimmed);
+      const replies = repliesByRootId.get(rootId) ?? [];
+      const matchingReplies = replies
+        .filter((reply) => reply.body.toLowerCase().includes(trimmed))
+        .sort(
+          (a, b) =>
+            a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+        );
+
+      if (rootMatches || matchingReplies.length > 0) {
+        results.push({
+          root: rootPost,
+          matchingReplies,
+          rootMatches,
+        });
+      }
+    }
+
+    return results.sort(
+      (a, b) =>
+        b.root.createdAt.localeCompare(a.root.createdAt) ||
+        b.root.id.localeCompare(a.root.id),
+    );
+  }
+
+  /**
    * Get reply counts grouped by root post ID.
    */
   async getReplyCounts(): Promise<Record<string, number>> {
@@ -260,8 +410,15 @@ export class DearDumbassRepository {
         if (!existing || existing.deletedAt) return false;
 
         const now = new Date().toISOString();
+        const nextRevision = (existing.revision ?? 0) + 1;
         const toUpdate: DearDumbassPost[] = [
-          { ...existing, body: "", deletedAt: now },
+          {
+            ...existing,
+            body: "",
+            updatedAt: now,
+            revision: nextRevision,
+            deletedAt: now,
+          },
         ];
 
         if (!existing.replyToId) {
@@ -272,7 +429,13 @@ export class DearDumbassRepository {
           );
           for (const reply of childReplies) {
             if (!reply.deletedAt) {
-              toUpdate.push({ ...reply, body: "", deletedAt: now });
+              toUpdate.push({
+                ...reply,
+                body: "",
+                updatedAt: now,
+                revision: (reply.revision ?? 0) + 1,
+                deletedAt: now,
+              });
             }
           }
         }
@@ -301,6 +464,158 @@ export class DearDumbassRepository {
     }
 
     return deletedIds.length;
+  }
+
+  /**
+   * Export an encrypted backup envelope containing all posts and deletion tombstones.
+   * Encryption is performed via Web Crypto (PBKDF2 + AES-GCM).
+   */
+  async exportArchive(passphrase: string): Promise<DearDumbassBackupEnvelope> {
+    const all = await this.store.getAll<DearDumbassPost>(DEAR_DUMBASS_STORE_NAME);
+    return createEncryptedBackup(all, passphrase);
+  }
+
+  /**
+   * Restore an archive into the local store using an atomic transaction.
+   * - Validates schema and records before database writes are initiated.
+   * - In "merge" mode (default), preserves existing local data and tombstones.
+   * - In "replace" mode, atomically clears the store and restores all archive records.
+   * - Emits change event on success across current window and other tabs.
+   */
+  async restoreArchive(
+    payload: DearDumbassArchivePayload,
+    mode: RestoreMode = "merge",
+  ): Promise<RestoreResult> {
+    if (mode !== "merge" && mode !== "replace") {
+      throw new Error("Unsupported restore mode.");
+    }
+    const validated = validateArchivePayload(payload);
+
+    const result = await this.store.transaction(
+      DEAR_DUMBASS_STORE_NAME,
+      "readwrite",
+      async (transaction) => {
+        if (mode === "replace") {
+          await transaction.clear(DEAR_DUMBASS_STORE_NAME);
+          if (validated.posts.length > 0) {
+            await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, validated.posts);
+          }
+          return {
+            mode,
+            restoredCount: validated.posts.length,
+            updatedCount: 0,
+            preservedCount: 0,
+            totalProcessed: validated.posts.length,
+          };
+        }
+
+        const existingList = await transaction.getAll<DearDumbassPost>(
+          DEAR_DUMBASS_STORE_NAME,
+        );
+        const existingMap = new Map(existingList.map((p) => [p.id, p]));
+        const mergedMap = new Map(existingMap);
+        let preservedCount = 0;
+
+        for (const incoming of validated.posts) {
+          const existing = existingMap.get(incoming.id);
+
+          if (!existing) {
+            mergedMap.set(incoming.id, incoming);
+            continue;
+          }
+
+          if (
+            existing.createdAt !== incoming.createdAt ||
+            existing.replyToId !== incoming.replyToId
+          ) {
+            throw new Error(
+              "Backup conflicts with immutable post identity or parent relationship.",
+            );
+          }
+
+          const existingDeleted = Boolean(existing.deletedAt);
+          const incomingDeleted = Boolean(incoming.deletedAt);
+
+          if (existingDeleted) {
+            // Local post was already deleted & scrubbed. Tombstone MUST be preserved!
+            preservedCount += 1;
+            continue;
+          }
+
+          if (incomingDeleted) {
+            // Deletion is terminal. It dominates live versions regardless of
+            // revision or clock skew and always scrubs the retained body.
+            mergedMap.set(incoming.id, {
+              ...existing,
+              body: "",
+              revision: Math.max(
+                existing.revision ?? 0,
+                incoming.revision ?? 0,
+              ),
+              deletedAt: incoming.deletedAt,
+            });
+            continue;
+          }
+
+          const existingRev = existing.revision ?? 0;
+          const incomingRev = incoming.revision ?? 0;
+
+          if (incomingRev > existingRev) {
+            mergedMap.set(incoming.id, incoming);
+          } else {
+            // Revisions are authoritative. Timestamps are deliberately not a
+            // tie-breaker because device clock skew can make updatedAt regress.
+            preservedCount += 1;
+          }
+        }
+
+        // A root tombstone is terminal for the whole thread. This also scrubs
+        // local replies omitted from an imported archive and prevents a new
+        // imported reply from retaining plaintext under a deleted local root.
+        for (const root of mergedMap.values()) {
+          if (root.replyToId || !root.deletedAt) continue;
+          for (const post of mergedMap.values()) {
+            if (post.replyToId !== root.id || post.deletedAt) continue;
+            mergedMap.set(post.id, {
+              ...post,
+              body: "",
+              updatedAt: root.deletedAt,
+              revision: (post.revision ?? 0) + 1,
+              deletedAt: root.deletedAt,
+            });
+          }
+        }
+
+        const toPut: DearDumbassPost[] = [];
+        let restoredCount = 0;
+        let updatedCount = 0;
+        for (const [id, post] of mergedMap) {
+          const existing = existingMap.get(id);
+          if (!existing) {
+            toPut.push(post);
+            restoredCount += 1;
+          } else if (JSON.stringify(existing) !== JSON.stringify(post)) {
+            toPut.push(post);
+            updatedCount += 1;
+          }
+        }
+
+        if (toPut.length > 0) {
+          await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, toPut);
+        }
+
+        return {
+          mode,
+          restoredCount,
+          updatedCount,
+          preservedCount,
+          totalProcessed: validated.posts.length,
+        };
+      },
+    );
+
+    this.emitChange();
+    return result;
   }
 }
 

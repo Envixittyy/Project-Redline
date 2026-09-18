@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InMemoryPrivateStore } from "@/services/private-store";
 import { DearDumbassRepository } from "./dear-dumbass-repository";
@@ -10,6 +10,10 @@ describe("DearDumbassRepository", () => {
   beforeEach(() => {
     store = new InMemoryPrivateStore();
     repo = new DearDumbassRepository(store);
+  });
+
+  afterEach(() => {
+    repo.close();
   });
 
   it("1. creates a root post and stores it", async () => {
@@ -341,5 +345,241 @@ describe("DearDumbassRepository", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  describe("Local search", () => {
+    it("searches root posts case-insensitively by body text", async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date("2026-09-18T10:00:00Z"));
+        const p1 = await repo.createPost("Need to study for Algorithms exam");
+
+        vi.setSystemTime(new Date("2026-09-18T10:05:00Z"));
+        await repo.createPost("Coffee break at 3pm");
+
+        vi.setSystemTime(new Date("2026-09-18T10:10:00Z"));
+        const p3 = await repo.createPost("Algorithms homework was brutal");
+
+        const results = await repo.searchPosts("ALGORITHMS");
+        expect(results).toHaveLength(2);
+        expect(results.map((r) => r.root.id)).toEqual([p3.id, p1.id]);
+        expect(results[0].rootMatches).toBe(true);
+        expect(results[0].matchingReplies).toHaveLength(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("searches replies and returns root thread context even if root body does not match", async () => {
+      const root = await repo.createPost("Today was uneventful");
+      const r1 = await repo.createPost("Actually, bought some great Matcha", root.id);
+      await repo.createPost("Also finished the reading", root.id);
+
+      const results = await repo.searchPosts("matcha");
+      expect(results).toHaveLength(1);
+      expect(results[0].root.id).toBe(root.id);
+      expect(results[0].rootMatches).toBe(false); // Root didn't have 'matcha'
+      expect(results[0].matchingReplies).toHaveLength(1);
+      expect(results[0].matchingReplies[0].id).toBe(r1.id);
+      expect(results[0].matchingReplies[0].body).toBe("Actually, bought some great Matcha");
+    });
+
+    it("includes both root match and matching reply when both match", async () => {
+      const root = await repo.createPost("Deep thoughts on artificial intelligence");
+      const r1 = await repo.createPost("Intelligence is a fuzzy term", root.id);
+      await repo.createPost("Unrelated reply", root.id);
+
+      const results = await repo.searchPosts("intelligence");
+      expect(results).toHaveLength(1);
+      expect(results[0].root.id).toBe(root.id);
+      expect(results[0].rootMatches).toBe(true);
+      expect(results[0].matchingReplies).toHaveLength(1);
+      expect(results[0].matchingReplies[0].id).toBe(r1.id);
+    });
+
+    it("excludes deleted posts and deleted replies from search results", async () => {
+      const root1 = await repo.createPost("To be deleted secret thoughts");
+      const root2 = await repo.createPost("Active secret thoughts");
+      const reply = await repo.createPost("Secret reply to active post", root2.id);
+
+      await repo.deletePost(root1.id);
+      await repo.deletePost(reply.id);
+
+      const results = await repo.searchPosts("secret");
+      expect(results).toHaveLength(1);
+      expect(results[0].root.id).toBe(root2.id);
+      expect(results[0].matchingReplies).toHaveLength(0);
+    });
+
+    it("returns empty array for empty or whitespace-only search queries", async () => {
+      await repo.createPost("Some post content");
+
+      expect(await repo.searchPosts("")).toEqual([]);
+      expect(await repo.searchPosts("   \t\n  ")).toEqual([]);
+    });
+  });
+
+  describe("Multi-tab BroadcastChannel live updates", () => {
+    class MockBroadcastChannel {
+      name: string;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      static channels: Set<MockBroadcastChannel> = new Set();
+
+      constructor(name: string) {
+        this.name = name;
+        MockBroadcastChannel.channels.add(this);
+      }
+
+      postMessage(data: unknown): void {
+        for (const ch of MockBroadcastChannel.channels) {
+          if (ch !== this && ch.name === this.name && ch.onmessage) {
+            ch.onmessage(new MessageEvent("message", { data }));
+          }
+        }
+      }
+
+      close(): void {
+        MockBroadcastChannel.channels.delete(this);
+      }
+    }
+
+    beforeEach(() => {
+      MockBroadcastChannel.channels.clear();
+    });
+
+    it("notifies repository in Tab B when Tab A creates, edits, or deletes a post", async () => {
+      vi.stubGlobal("BroadcastChannel", MockBroadcastChannel);
+      try {
+        const tabAStore = new InMemoryPrivateStore();
+        // Point both repositories to the shared underlying store (simulating shared IndexedDB origin)
+        const repoA = new DearDumbassRepository(tabAStore);
+        const repoB = new DearDumbassRepository(tabAStore);
+
+        const listenerB = vi.fn();
+        repoB.subscribe(listenerB);
+
+        // Tab A creates a post
+        const post = await repoA.createPost("From Tab A");
+        expect(listenerB).toHaveBeenCalledTimes(1);
+
+        // Tab A updates the post
+        await repoA.updatePost(post.id, "Edited in Tab A");
+        expect(listenerB).toHaveBeenCalledTimes(2);
+
+        // Tab A replies to the post
+        await repoA.createPost("Reply from Tab A", post.id);
+        expect(listenerB).toHaveBeenCalledTimes(3);
+
+        // Tab A deletes the post
+        await repoA.deletePost(post.id);
+        expect(listenerB).toHaveBeenCalledTimes(4);
+
+        repoA.close();
+        repoB.close();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("ignores self-originated broadcast messages and avoids event loops", async () => {
+      vi.stubGlobal("BroadcastChannel", MockBroadcastChannel);
+      try {
+        const sharedStore = new InMemoryPrivateStore();
+        const repo = new DearDumbassRepository(sharedStore);
+
+        const listener = vi.fn();
+        repo.subscribe(listener);
+
+        // Artificially route a self-originated message to repo's channel
+        const selfSourceId = (repo as unknown as { eventSourceId: string }).eventSourceId;
+        const channel = (repo as unknown as { channel: MockBroadcastChannel }).channel;
+
+        channel.onmessage?.(
+          new MessageEvent("message", {
+            data: { type: "change", sourceId: selfSourceId },
+          }),
+        );
+
+        // Listener should NOT be called for self-originated message
+        expect(listener).not.toHaveBeenCalled();
+
+        repo.close();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("gracefully operates when BroadcastChannel is undefined in the environment", async () => {
+      const originalBC = globalThis.BroadcastChannel;
+      // @ts-expect-error intentionally removing BroadcastChannel to test fallback
+      delete globalThis.BroadcastChannel;
+
+      try {
+        const fallbackRepo = new DearDumbassRepository(store);
+        const listener = vi.fn();
+        fallbackRepo.subscribe(listener);
+
+        const post = await fallbackRepo.createPost("Fallback post");
+        expect(post.body).toBe("Fallback post");
+        expect(listener).toHaveBeenCalledTimes(1);
+
+        fallbackRepo.close();
+      } finally {
+        globalThis.BroadcastChannel = originalBC;
+      }
+    });
+
+    it("cleanly closes channel on close()", async () => {
+      vi.stubGlobal("BroadcastChannel", MockBroadcastChannel);
+      try {
+        const repo = new DearDumbassRepository(store);
+        expect(MockBroadcastChannel.channels.size).toBe(1);
+
+        repo.close();
+        expect(MockBroadcastChannel.channels.size).toBe(0);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("deduplicates same-tab window and BroadcastChannel notifications", async () => {
+      vi.stubGlobal("window", new EventTarget());
+      vi.stubGlobal("BroadcastChannel", MockBroadcastChannel);
+      try {
+        const sharedStore = new InMemoryPrivateStore();
+        const repoA = new DearDumbassRepository(sharedStore);
+        const repoB = new DearDumbassRepository(sharedStore);
+        const listenerB = vi.fn();
+        repoB.subscribe(listenerB);
+
+        await repoA.createPost("One logical change");
+
+        expect(listenerB).toHaveBeenCalledTimes(1);
+        repoA.close();
+        repoB.close();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("keeps same-tab updates when BroadcastChannel is unavailable", async () => {
+      vi.stubGlobal("window", new EventTarget());
+      vi.stubGlobal("BroadcastChannel", undefined);
+      try {
+        const sharedStore = new InMemoryPrivateStore();
+        const repoA = new DearDumbassRepository(sharedStore);
+        const repoB = new DearDumbassRepository(sharedStore);
+        const listenerB = vi.fn();
+        repoB.subscribe(listenerB);
+
+        await repoA.createPost("Fallback change");
+
+        expect(listenerB).toHaveBeenCalledTimes(1);
+        repoA.close();
+        repoB.close();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
   });
 });

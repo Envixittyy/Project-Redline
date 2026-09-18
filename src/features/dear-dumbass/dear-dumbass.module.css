@@ -42,6 +42,38 @@
   letter-spacing: 0.01em;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.durabilityButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  background: var(--surface-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: all var(--motion-fast, 140ms) ease;
+  min-height: 2.75rem;
+}
+
+.durabilityButton:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
 .privacyBadge {
   display: inline-flex;
   align-items: center;
@@ -82,7 +114,7 @@
 }
 
 .composerSurface:focus-within {
-  border-color: var(--accent, #38bdf8);
+  border-color: var(--accent);
 }
 
 .errorBanner {
@@ -476,4 +508,110 @@
   color: var(--text-muted);
   margin: 0;
   max-width: 20rem;
+}
+
+/* Search Controls */
+.searchSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.875rem;
+  transition: border-color var(--motion-fast, 140ms) ease;
+}
+
+.searchBar:focus-within {
+  border-color: var(--accent);
+}
+
+.searchIcon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.searchInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.searchInput::placeholder {
+  color: var(--text-muted);
+}
+
+.searchClearBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: color var(--motion-fast, 140ms) ease;
+}
+
+.searchClearBtn:hover {
+  color: var(--text-primary);
+}
+
+.searchStatusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.125rem 0.25rem;
+}
+
+.searchCount {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.contextBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  color: var(--accent-text);
+  border: 1px solid color-mix(in oklch, var(--accent) 25%, transparent);
+}
+
+.matchBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  background: var(--success-muted);
+  color: var(--success-text);
+  border: 1px solid color-mix(in oklch, var(--success) 25%, transparent);
+}
+
+.searchMatchCard {
+  border-color: color-mix(in oklch, var(--accent) 40%, transparent);
 }

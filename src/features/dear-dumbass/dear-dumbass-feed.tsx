@@ -1,6 +1,6 @@
 "use client";
 
-import { Radio, Send, ShieldCheck } from "lucide-react";
+import { HardDrive, Radio, Search, Send, ShieldCheck, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -15,8 +15,10 @@ import {
   getDearDumbassRepository,
   type DearDumbassPost,
   type DearDumbassRepository,
+  type DearDumbassSearchResult,
 } from "@/services/dear-dumbass";
 import { DearDumbassCard } from "./dear-dumbass-card";
+import { DurabilityModal } from "./durability-modal";
 import styles from "./dear-dumbass.module.css";
 
 export type DearDumbassFeedProps = {
@@ -74,7 +76,63 @@ export function DearDumbassFeed({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const submitInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
   const feedLoadVersionRef = useRef(0);
+
+  // Durability / Backup modal state
+  const [isDurabilityOpen, setIsDurabilityOpen] = useState(false);
+
+  // Search state (strictly local in-memory, never in URL query string)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<DearDumbassSearchResult[] | null>(null);
+  const searchVersionRef = useRef(0);
+  const searchQueryRef = useRef("");
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      submitInFlightRef.current = false;
+    };
+  }, []);
+
+  const performSearch = useCallback(
+    async (query: string) => {
+      if (!repository) return;
+      const version = ++searchVersionRef.current;
+      const trimmed = query.trim();
+      if (!trimmed) {
+        if (version === searchVersionRef.current) setSearchResults(null);
+        return;
+      }
+
+      try {
+        const results = await repository.searchPosts(trimmed);
+        if (version === searchVersionRef.current) {
+          setSearchResults(results);
+        }
+      } catch {
+        if (version === searchVersionRef.current) {
+          setSearchResults([]);
+        }
+      }
+    },
+    [repository],
+  );
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    searchQueryRef.current = value;
+    void performSearch(value);
+  };
+
+  const handleClearSearch = () => {
+    searchVersionRef.current += 1;
+    setSearchQuery("");
+    searchQueryRef.current = "";
+    setSearchResults(null);
+  };
 
   const loadFeed = useCallback(async () => {
     if (!repository) return;
@@ -104,35 +162,47 @@ export function DearDumbassFeed({
 
     const initialLoad = window.setTimeout(() => {
       void loadFeed();
+      if (searchQueryRef.current.trim()) {
+        void performSearch(searchQueryRef.current);
+      }
     }, 0);
 
     const unsubscribe = repository.subscribe(() => {
       void loadFeed();
+      if (searchQueryRef.current.trim()) {
+        void performSearch(searchQueryRef.current);
+      }
     });
 
     return () => {
       window.clearTimeout(initialLoad);
       feedLoadVersionRef.current += 1;
+      searchVersionRef.current += 1;
       unsubscribe();
     };
-  }, [loadFeed, repository]);
+  }, [loadFeed, performSearch, repository]);
 
   const handlePostSubmit = async () => {
     const trimmed = composerInput.trim();
-    if (!repository || !trimmed || isSubmitting) return;
+    if (!repository || !trimmed || submitInFlightRef.current) return;
 
+    submitInFlightRef.current = true;
     setPostError(null);
     setIsSubmitting(true);
     try {
       await repository.createPost(trimmed);
+      if (!mountedRef.current) return;
       setComposerInput("");
       if (composerTextareaRef.current) {
         composerTextareaRef.current.style.height = "auto";
       }
     } catch {
-      setPostError("Failed to save post locally. Your text has been preserved.");
+      if (mountedRef.current) {
+        setPostError("Failed to save post locally. Your text has been preserved.");
+      }
     } finally {
-      setIsSubmitting(false);
+      submitInFlightRef.current = false;
+      if (mountedRef.current) setIsSubmitting(false);
     }
   };
 
@@ -164,15 +234,27 @@ export function DearDumbassFeed({
             <h1 className={styles.title}>Dear Dumbass</h1>
             <p className={styles.population}>Population: 1</p>
           </div>
-          <span
-            className={styles.privacyBadge}
-            title="PrivateStore: Stored exclusively in your browser. Never sent to any server or cloud API."
-            aria-label="Storage status: Local Only"
-          >
-            <span className={styles.privacyDot} aria-hidden="true" />
-            <ShieldCheck size={13} aria-hidden="true" />
-            <span>Local Only</span>
-          </span>
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              className={styles.durabilityButton}
+              onClick={() => setIsDurabilityOpen(true)}
+              aria-label="Manage storage durability and encrypted backup"
+              title="Storage Durability & Encrypted Backup"
+            >
+              <HardDrive size={13} aria-hidden="true" />
+              <span>Backup &amp; Durability</span>
+            </button>
+            <span
+              className={styles.privacyBadge}
+              title="PrivateStore: Stored exclusively in your browser. Never sent to any server or cloud API."
+              aria-label="Storage status: Local Only"
+            >
+              <span className={styles.privacyDot} aria-hidden="true" />
+              <ShieldCheck size={13} aria-hidden="true" />
+              <span>Local Only</span>
+            </span>
+          </div>
         </div>
       </header>
 
@@ -219,6 +301,50 @@ export function DearDumbassFeed({
         </div>
       </section>
 
+      {/* Local Search Control */}
+      <section className={styles.searchSection} aria-label="Search thoughts locally">
+        <div className={styles.searchBar}>
+          <Search size={15} className={styles.searchIcon} aria-hidden="true" />
+          <input
+            type="search"
+            className={styles.searchInput}
+            placeholder="Search thoughts & replies locally…"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            disabled={!repository}
+            aria-label="Search thoughts locally"
+          />
+          {searchQuery.trim() ? (
+            <button
+              type="button"
+              className={styles.searchClearBtn}
+              onClick={handleClearSearch}
+              aria-label="Clear search"
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+        {searchResults !== null ? (
+          <div className={styles.searchStatusRow} role="status">
+            <span className={styles.searchCount}>
+              {searchResults.length === 0
+                ? `No thoughts found matching "${searchQuery.trim()}"`
+                : `Found ${searchResults.length} ${
+                    searchResults.length === 1 ? "thread" : "threads"
+                  } matching "${searchQuery.trim()}"`}
+            </span>
+            <button
+              type="button"
+              className={styles.actionButton}
+              onClick={handleClearSearch}
+            >
+              Clear
+            </button>
+          </div>
+        ) : null}
+      </section>
+
       {/* Main Feed Content */}
       <main className={styles.feedList} aria-label="Dear Dumbass feed">
         {feedError ? (
@@ -232,7 +358,40 @@ export function DearDumbassFeed({
               Retry
             </button>
           </div>
-        ) : isLoading || !repository ? null : posts.length === 0 ? (
+        ) : isLoading || !repository ? null : searchResults !== null ? (
+          searchResults.length === 0 ? (
+            <div className={styles.emptyState} data-testid="dear-dumbass-search-empty">
+              <Search size={36} className={styles.emptyIcon} aria-hidden="true" />
+              <h2 className={styles.emptyTitle}>Nothing found in the void.</h2>
+              <p className={styles.emptyDescription}>
+                No thoughts or replies matched &quot;{searchQuery.trim()}&quot;.
+              </p>
+            </div>
+          ) : (
+            searchResults.map((result) => {
+              const matchingIds = new Set(result.matchingReplies.map((r) => r.id));
+              const hasMatchingReplies = result.matchingReplies.length > 0;
+              return (
+                <DearDumbassCard
+                  key={`search-${result.root.id}`}
+                  post={result.root}
+                  replyCount={replyCounts[result.root.id] ?? 0}
+                  repository={repository}
+                  initialOpenThread={hasMatchingReplies}
+                  matchingReplyIds={matchingIds}
+                  isSearchMatch={result.rootMatches}
+                  contextNote={
+                    !result.rootMatches && hasMatchingReplies
+                      ? `${result.matchingReplies.length} matching ${
+                          result.matchingReplies.length === 1 ? "reply" : "replies"
+                        } in thread`
+                      : undefined
+                  }
+                />
+              );
+            })
+          )
+        ) : posts.length === 0 ? (
           <div className={styles.emptyState} data-testid="dear-dumbass-empty-state">
             <Radio size={36} className={styles.emptyIcon} aria-hidden="true" />
             <h2 className={styles.emptyTitle}>The void is listening.</h2>
@@ -251,6 +410,13 @@ export function DearDumbassFeed({
           ))
         )}
       </main>
+
+      {isDurabilityOpen && repository ? (
+        <DurabilityModal
+          repository={repository}
+          onClose={() => setIsDurabilityOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

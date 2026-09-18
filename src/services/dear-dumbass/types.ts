@@ -18,3 +18,9 @@ export type DearDumbassThread = {
   post: DearDumbassPost;
   replies: DearDumbassPost[];
 };
+
+export type DearDumbassSearchResult = {
+  root: DearDumbassPost;
+  matchingReplies: DearDumbassPost[];
+  rootMatches: boolean;
+};

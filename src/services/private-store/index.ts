@@ -4,6 +4,7 @@ import type { PrivateStore } from "./types";
 export type { PrivateStore } from "./types";
 export { IndexedDbPrivateStore, DEFAULT_PRIVATE_DATABASE_NAME } from "./indexed-db-adapter";
 export { InMemoryPrivateStore } from "./in-memory-adapter";
+export * from "./storage-durability";
 
 let defaultPrivateStore: PrivateStore | null = null;
 

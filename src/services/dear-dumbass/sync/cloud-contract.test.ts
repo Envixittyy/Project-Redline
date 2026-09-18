@@ -5,6 +5,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const userA = "11111111-1111-4111-8111-111111111111";
 const userB = "22222222-2222-4222-8222-222222222222";
+const salt = "AAAAAAAAAAAAAAAAAAAAAA==";
+const iv = "AAAAAAAAAAAAAAAA";
+const wrappedKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const ciphertextA = "QUFBQUFBQUFBQUFBQUFBQUFB";
+const ciphertextB = "QkJCQkJCQkJCQkJCQkJCQkJC";
 
 describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
   let db: PGlite;
@@ -44,6 +49,7 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
       reset role;
       delete from public.dear_dumbass_encrypted_records;
       delete from public.dear_dumbass_key_envelopes;
+      delete from dear_dumbass_private.change_counters;
     `);
   });
 
@@ -57,15 +63,15 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
     await db.query(
       `insert into public.dear_dumbass_key_envelopes
        (owner_id, salt, wrap_iv, encrypted_master_key)
-       values ($1, 'saltA', 'ivA', 'encryptedKeyA')`,
-      [userA],
+       values ($1, $2, $3, $4)`,
+      [userA, salt, iv, wrappedKey],
     );
 
     const userARead = await db.query<{ encrypted_master_key: string }>(
       "select * from public.dear_dumbass_key_envelopes",
     );
     expect(userARead.rows).toHaveLength(1);
-    expect(userARead.rows[0].encrypted_master_key).toBe("encryptedKeyA");
+    expect(userARead.rows[0].encrypted_master_key).toBe(wrappedKey);
 
     // Authenticate as User B
     await db.exec(`
@@ -79,13 +85,14 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
     expect(userBRead.rows).toHaveLength(0);
 
     // User B cannot update User A's envelope
-    const userBUpdate = await db.query(
-      `update public.dear_dumbass_key_envelopes
-       set encrypted_master_key = 'hacked'
-       where owner_id = $1`,
-      [userA],
-    );
-    expect(userBUpdate.affectedRows).toBe(0);
+    await expect(
+      db.query(
+        `update public.dear_dumbass_key_envelopes
+         set encrypted_master_key = $2
+         where owner_id = $1`,
+        [userA, wrappedKey],
+      ),
+    ).rejects.toThrow("permission denied");
 
     // Switch back to User A to verify no tampering
     await db.exec(`
@@ -95,7 +102,7 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
     const recheckA = await db.query<{ encrypted_master_key: string }>(
       "select * from public.dear_dumbass_key_envelopes",
     );
-    expect(recheckA.rows[0].encrypted_master_key).toBe("encryptedKeyA");
+    expect(recheckA.rows[0].encrypted_master_key).toBe(wrappedKey);
   });
 
   it("enforces RLS on dear_dumbass_encrypted_records: user isolation for records", async () => {
@@ -106,17 +113,17 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
     `);
 
     await db.query(
-      `insert into public.dear_dumbass_encrypted_records
-       (owner_id, record_id, ciphertext, iv)
-       values ($1, 'rec-1', 'ciphertextA', 'ivA')`,
-      [userA],
+       `insert into public.dear_dumbass_encrypted_records
+       (owner_id, record_id, ciphertext, iv, server_change_sequence)
+       values ($1, 'rec-1', $2, $3, 1)`,
+      [userA, ciphertextA, iv],
     );
 
     const userARead = await db.query<{ ciphertext: string }>(
       "select * from public.dear_dumbass_encrypted_records",
     );
     expect(userARead.rows).toHaveLength(1);
-    expect(userARead.rows[0].ciphertext).toBe("ciphertextA");
+    expect(userARead.rows[0].ciphertext).toBe(ciphertextA);
 
     // Authenticate as User B
     await db.exec(`
@@ -130,10 +137,9 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
     expect(userBRead.rows).toHaveLength(0);
 
     // User B cannot delete User A's record
-    const userBDelete = await db.query(
-      "delete from public.dear_dumbass_encrypted_records where record_id = 'rec-1'",
-    );
-    expect(userBDelete.affectedRows).toBe(0);
+    await expect(
+      db.query("delete from public.dear_dumbass_encrypted_records where record_id = 'rec-1'"),
+    ).rejects.toThrow("permission denied");
   });
 
   it("blocks anonymous role from reading or writing cloud data", async () => {
@@ -144,14 +150,14 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
     await db.query(
       `insert into public.dear_dumbass_key_envelopes
        (owner_id, salt, wrap_iv, encrypted_master_key)
-       values ($1, 'saltA', 'ivA', 'encryptedKeyA')`,
-      [userA],
+       values ($1, $2, $3, $4)`,
+      [userA, salt, iv, wrappedKey],
     );
     await db.query(
       `insert into public.dear_dumbass_encrypted_records
-       (owner_id, record_id, ciphertext, iv)
-       values ($1, 'rec-anon', 'cipherA', 'ivA')`,
-      [userA],
+       (owner_id, record_id, ciphertext, iv, server_change_sequence)
+       values ($1, 'rec-anon', $2, $3, 1)`,
+      [userA, ciphertextA, iv],
     );
 
     // Switch to anon role - anon has no table access or returns permission denied
@@ -170,8 +176,10 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
 
     // RPC fails for unauthenticated
     await expect(
-      db.query("select public.upsert_dear_dumbass_record('rec-anon', 0, 1, 'c', 'iv', 1)"),
-    ).rejects.toThrow("Not authenticated");
+      db.query(
+        `select public.upsert_dear_dumbass_record('rec-anon', 0, 1, '${ciphertextA}', '${iv}', 1)`,
+      ),
+    ).rejects.toThrow("permission denied");
   });
 
   it("upsert_dear_dumbass_record performs atomic CAS insert and updates", async () => {
@@ -186,8 +194,8 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
         'rec-cas-1',
         0,
         1,
-        'cipher_v1',
-        'iv_v1',
+        '${ciphertextA}',
+        '${iv}',
         1
       ) as result`,
     );
@@ -202,8 +210,8 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
         'rec-cas-1',
         1,
         1,
-        'cipher_v2',
-        'iv_v2',
+        '${ciphertextB}',
+        '${iv}',
         1
       ) as result`,
     );
@@ -217,8 +225,8 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
         'rec-cas-1',
         1,
         1,
-        'cipher_stale',
-        'iv_stale',
+        '${wrappedKey.slice(0, 24)}',
+        '${iv}',
         1
       ) as result`,
     );
@@ -229,7 +237,7 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
     const rowCheck = await db.query<{ ciphertext: string; sync_version: number }>(
       "select ciphertext, sync_version from public.dear_dumbass_encrypted_records where record_id = 'rec-cas-1'",
     );
-    expect(rowCheck.rows[0].ciphertext).toBe("cipher_v2");
+    expect(rowCheck.rows[0].ciphertext).toBe(ciphertextB);
     expect(rowCheck.rows[0].sync_version).toBe(2);
   });
 
@@ -241,13 +249,13 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
 
     // Insert 3 records
     const r1 = await db.query<{ result: { server_change_sequence: number } }>(
-      `select public.upsert_dear_dumbass_record('p1', 0, 1, 'c1', 'iv1', 1) as result`,
+      `select public.upsert_dear_dumbass_record('p1', 0, 1, '${ciphertextA}', '${iv}', 1) as result`,
     );
     const r2 = await db.query<{ result: { server_change_sequence: number } }>(
-      `select public.upsert_dear_dumbass_record('p2', 0, 1, 'c2', 'iv2', 1) as result`,
+      `select public.upsert_dear_dumbass_record('p2', 0, 1, '${ciphertextB}', '${iv}', 1) as result`,
     );
     const r3 = await db.query<{ result: { server_change_sequence: number } }>(
-      `select public.upsert_dear_dumbass_record('p3', 0, 1, 'c3', 'iv3', 1) as result`,
+      `select public.upsert_dear_dumbass_record('p3', 0, 1, '${wrappedKey.slice(0, 24)}', '${iv}', 1) as result`,
     );
 
     const s1 = Number(r1.rows[0].result.server_change_sequence);
@@ -266,7 +274,7 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
 
     // Update p1: its server_change_sequence advances beyond s3
     const updateP1 = await db.query<{ result: { server_change_sequence: number } }>(
-      `select public.upsert_dear_dumbass_record('p1', 1, 1, 'c1_updated', 'iv1_new', 1) as result`,
+      `select public.upsert_dear_dumbass_record('p1', 1, 1, '${ciphertextB}', '${iv}', 1) as result`,
     );
     const s1Updated = Number(updateP1.rows[0].result.server_change_sequence);
     expect(s1Updated).toBeGreaterThan(s3);
@@ -282,6 +290,31 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
     expect(pullIncremental.rows[0].record_id).toBe("p1");
   });
 
+  it("allocates independent per-owner cursors without cross-user activity gaps", async () => {
+    await db.exec(`
+      set role authenticated;
+      set "request.jwt.claim.sub" = '${userA}';
+    `);
+    const userAFirst = await db.query<{ result: { server_change_sequence: number } }>(
+      `select public.upsert_dear_dumbass_record('a-1', 0, 1, '${ciphertextA}', '${iv}', 1) as result`,
+    );
+    const userASecond = await db.query<{ result: { server_change_sequence: number } }>(
+      `select public.upsert_dear_dumbass_record('a-2', 0, 1, '${ciphertextA}', '${iv}', 1) as result`,
+    );
+
+    await db.exec(`
+      set role authenticated;
+      set "request.jwt.claim.sub" = '${userB}';
+    `);
+    const userBFirst = await db.query<{ result: { server_change_sequence: number } }>(
+      `select public.upsert_dear_dumbass_record('b-1', 0, 1, '${ciphertextB}', '${iv}', 1) as result`,
+    );
+
+    expect(Number(userAFirst.rows[0].result.server_change_sequence)).toBe(1);
+    expect(Number(userASecond.rows[0].result.server_change_sequence)).toBe(2);
+    expect(Number(userBFirst.rows[0].result.server_change_sequence)).toBe(1);
+  });
+
   it("upsert_dear_dumbass_record isolates records between users", async () => {
     // User A inserts rec-1
     await db.exec(`
@@ -289,7 +322,7 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
       set "request.jwt.claim.sub" = '${userA}';
     `);
     await db.query(
-      `select public.upsert_dear_dumbass_record('rec-1', 0, 1, 'cipherA', 'ivA', 1)`,
+      `select public.upsert_dear_dumbass_record('rec-1', 0, 1, '${ciphertextA}', '${iv}', 1)`,
     );
 
     // User B inserts rec-1 in their own workspace
@@ -298,7 +331,7 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
       set "request.jwt.claim.sub" = '${userB}';
     `);
     const userBInsert = await db.query<{ result: { status: string; sync_version: number } }>(
-      `select public.upsert_dear_dumbass_record('rec-1', 0, 1, 'cipherB', 'ivB', 1) as result`,
+      `select public.upsert_dear_dumbass_record('rec-1', 0, 1, '${ciphertextB}', '${iv}', 1) as result`,
     );
     expect(userBInsert.rows[0].result.status).toBe("ok");
     expect(userBInsert.rows[0].result.sync_version).toBe(1);
@@ -311,6 +344,6 @@ describe("Dear Dumbass E2EE Sync Cloud Schema & RPC Contract", () => {
     const userARead = await db.query<{ ciphertext: string }>(
       "select ciphertext from public.dear_dumbass_encrypted_records where record_id = 'rec-1'",
     );
-    expect(userARead.rows[0].ciphertext).toBe("cipherA");
+    expect(userARead.rows[0].ciphertext).toBe(ciphertextA);
   });
 });

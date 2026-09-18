@@ -3,12 +3,18 @@ import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { isActiveRoute, mobileNavigation, primaryNavigation, secondaryNavigation } from "@/lib/navigation";
+import {
+  desktopNavigationGroups,
+  isActiveRoute,
+  mobileNavigation,
+  plannedAreaRoutes,
+} from "@/lib/navigation";
 import { DesktopNavigation, MobileTabBar } from "./app-navigation";
 
-// Mock next/navigation
+// Mock next/navigation with dynamic pathname support
+const mockUsePathname = vi.fn(() => "/tasks");
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/tasks",
+  usePathname: () => mockUsePathname(),
 }));
 
 describe("S7C Navigation Architecture", () => {
@@ -50,6 +56,18 @@ describe("S7C Navigation Architecture", () => {
       expect(isActiveRoute("/schoolyard", "/school")).toBe(false);
     });
 
+    it("differentiates desktop context where planned areas have direct sidebar links", () => {
+      for (const route of plannedAreaRoutes) {
+        expect(isActiveRoute(route, "/more", false, { isDesktop: true })).toBe(false);
+        expect(isActiveRoute(route, route, false, { isDesktop: true })).toBe(true);
+      }
+      expect(isActiveRoute("/settings/ai", "/more", false, { isDesktop: true })).toBe(true);
+      expect(isActiveRoute("/settings/notifications", "/more", false, { isDesktop: true })).toBe(true);
+      expect(isActiveRoute("/integrations/calendars", "/more", false, { isDesktop: true })).toBe(true);
+      expect(isActiveRoute("/integrations/blackboard", "/more", false, { isDesktop: true })).toBe(true);
+      expect(isActiveRoute("/more", "/more", false, { isDesktop: true })).toBe(true);
+    });
+
     it("ignores query strings and hash anchors", () => {
       expect(isActiveRoute("/tasks?view=today", "/tasks")).toBe(true);
       expect(isActiveRoute("/more#appearance", "/more")).toBe(true);
@@ -58,40 +76,118 @@ describe("S7C Navigation Architecture", () => {
   });
 
   describe("DesktopNavigation", () => {
-    it("renders all primary destinations", () => {
+    it("renders all 4 desktop navigation groups with section titles", () => {
+      mockUsePathname.mockReturnValue("/tasks");
       const html = renderToStaticMarkup(<DesktopNavigation />);
-      for (const item of primaryNavigation) {
-        expect(html).toContain(item.label);
-        expect(html).toContain(`href="${item.href}"`);
+      expect(html).toContain("Core");
+      expect(html).toContain("My Stuff");
+      expect(html).toContain("Life, Apparently");
+      expect(html).toContain("Other Shit");
+    });
+
+    it("ensures every desktop item in navigation groups has correct href and label", () => {
+      mockUsePathname.mockReturnValue("/tasks");
+      const html = renderToStaticMarkup(<DesktopNavigation />);
+      for (const group of desktopNavigationGroups) {
+        for (const item of group.items) {
+          expect(html).toContain(`href="${item.href}"`);
+          expect(html).toContain(item.label);
+        }
       }
     });
 
-    it("renders secondary workspace destinations and section title", () => {
+    it("exposes /focus directly on desktop as 'Lock In mofo'", () => {
+      mockUsePathname.mockReturnValue("/tasks");
       const html = renderToStaticMarkup(<DesktopNavigation />);
-      expect(html).toContain("Workspace");
-      for (const item of secondaryNavigation) {
-        expect(html).toContain(item.label);
-        expect(html).toContain(`href="${item.href}"`);
+      expect(html).toContain('href="/focus"');
+      expect(html).toContain("Lock In mofo");
+    });
+
+    it("renders every planned area route on desktop with correct href and label", () => {
+      mockUsePathname.mockReturnValue("/tasks");
+      const html = renderToStaticMarkup(<DesktopNavigation />);
+      const expectedPlanned = [
+        { href: "/anti-gastador", label: "Anti-Gastador" },
+        { href: "/soon", label: "Soon™" },
+        { href: "/consume", label: "Things to Consume Before I Die" },
+        { href: "/dear-dumbass", label: "Dear Dumbass" },
+        { href: "/lore", label: "Lore" },
+        { href: "/people", label: "These Mfs" },
+        { href: "/gala", label: "Gala" },
+        { href: "/football", label: "Football" },
+        { href: "/skills", label: "Skills" },
+        { href: "/private", label: "None of Your Business" },
+      ];
+
+      for (const planned of expectedPlanned) {
+        expect(html).toContain(`href="${planned.href}"`);
+        expect(html).toContain(planned.label);
       }
     });
 
-    it("renders More destination", () => {
+    it("exposes WIP indicator and accessible description for planned items only", () => {
+      mockUsePathname.mockReturnValue("/tasks");
+      const html = renderToStaticMarkup(<DesktopNavigation />);
+
+      // Planned items have WIP text and accessible indicator
+      expect(html).toContain("WIP");
+      expect(html).toContain("Work in progress");
+
+      // Count WIP indicators matches planned item count (10)
+      const wipOccurrences = (html.match(/title="Work in progress \(planned\)"/g) || []).length;
+      expect(wipOccurrences).toBe(10);
+      expect(plannedAreaRoutes).toHaveLength(10);
+    });
+
+    it("renders More destination in desktop navigation footer", () => {
+      mockUsePathname.mockReturnValue("/tasks");
       const html = renderToStaticMarkup(<DesktopNavigation />);
       expect(html).toContain("More");
       expect(html).toContain('href="/more"');
     });
 
-    it("marks the active route with aria-current='page' and data-active", () => {
-      // Mocked path is "/tasks"
+    it("marks the active route with aria-current='page' and data-active for planned routes", () => {
+      mockUsePathname.mockReturnValue("/soon");
       const html = renderToStaticMarkup(<DesktopNavigation />);
-      expect(html).toContain('aria-current="page"');
-      expect(html).toContain('data-active="true"');
-      expect(html).toContain('href="/tasks"');
+      const soonTag = html.match(/<a[^>]*href="\/soon"[^>]*>/)?.[0] ?? "";
+      expect(soonTag).toContain('data-active="true"');
+      expect(soonTag).toContain('aria-current="page"');
+
+      // On desktop, More should NOT be active when on /soon
+      const moreTag = html.match(/<a[^>]*href="\/more"[^>]*>/)?.[0] ?? "";
+      expect(moreTag).not.toContain('data-active="true"');
+    });
+
+    it("marks the active route for /focus on desktop", () => {
+      mockUsePathname.mockReturnValue("/focus");
+      const html = renderToStaticMarkup(<DesktopNavigation />);
+      const focusTag = html.match(/<a[^>]*href="\/focus"[^>]*>/)?.[0] ?? "";
+      expect(focusTag).toContain('data-active="true"');
+      expect(focusTag).toContain('aria-current="page"');
+    });
+
+    it("keeps More active for settings and integrations destinations on desktop", () => {
+      mockUsePathname.mockReturnValue("/settings/ai");
+      let html = renderToStaticMarkup(<DesktopNavigation />);
+      let moreTag = html.match(/<a[^>]*href="\/more"[^>]*>/)?.[0] ?? "";
+      expect(moreTag).toContain('data-active="true"');
+
+      mockUsePathname.mockReturnValue("/integrations/blackboard");
+      html = renderToStaticMarkup(<DesktopNavigation />);
+      moreTag = html.match(/<a[^>]*href="\/more"[^>]*>/)?.[0] ?? "";
+      expect(moreTag).toContain('data-active="true"');
+
+      mockUsePathname.mockReturnValue("/more");
+      html = renderToStaticMarkup(<DesktopNavigation />);
+      moreTag = html.match(/<a[^>]*href="\/more"[^>]*>/)?.[0] ?? "";
+      expect(moreTag).toContain('data-active="true"');
+      expect(moreTag).toContain('aria-current="page"');
     });
   });
 
   describe("MobileTabBar", () => {
     it("renders the 5 mobile persistent destinations", () => {
+      mockUsePathname.mockReturnValue("/tasks");
       const html = renderToStaticMarkup(<MobileTabBar />);
       expect(mobileNavigation).toHaveLength(5);
       for (const item of mobileNavigation) {
@@ -101,12 +197,14 @@ describe("S7C Navigation Architecture", () => {
     });
 
     it("marks the active mobile tab with aria-current='page'", () => {
+      mockUsePathname.mockReturnValue("/tasks");
       const html = renderToStaticMarkup(<MobileTabBar />);
       expect(html).toContain('aria-current="page"');
       expect(html).toContain('data-active="true"');
     });
 
     it("renders active marker element with aria-hidden for visual floating indicator", () => {
+      mockUsePathname.mockReturnValue("/tasks");
       const html = renderToStaticMarkup(<MobileTabBar />);
       expect(html).toContain('aria-hidden="true"');
       expect(html).toContain('--active-index');
@@ -122,6 +220,31 @@ describe("S7C Navigation Architecture", () => {
         "Academic Suffering",
         "More",
       ]);
+    });
+
+    it("preserves strictly 5 mobile destinations and has NOT expanded to desktop routes", () => {
+      expect(mobileNavigation).toHaveLength(5);
+      const mobileHrefs = mobileNavigation.map((item) => item.href);
+      expect(mobileHrefs).toEqual([
+        "/",
+        "/tasks",
+        "/calendar",
+        "/school",
+        "/more",
+      ]);
+
+      // Verify planned routes and new desktop destinations are NOT on mobile tab bar
+      expect(mobileHrefs).not.toContain("/focus");
+      for (const route of plannedAreaRoutes) {
+        expect(mobileHrefs).not.toContain(route);
+      }
+    });
+
+    it("maintains planned route awareness under /more on mobile", () => {
+      for (const route of plannedAreaRoutes) {
+        expect(isActiveRoute(route, "/more")).toBe(true);
+        expect(isActiveRoute(route, "/more", false, { isDesktop: false })).toBe(true);
+      }
     });
   });
 

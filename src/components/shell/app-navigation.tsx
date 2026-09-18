@@ -6,8 +6,8 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useNavigationTransition } from "./navigation-transition-context";
 
 import {
+  desktopNavigationGroups,
   primaryNavigation,
-  secondaryNavigation,
   moreNavigationItem,
   mobileNavigation,
   isActiveRoute,
@@ -58,6 +58,12 @@ function NavigationLink({
       <span className={styles.linkLabel}>
         {mobile && item.shortLabel ? item.shortLabel : item.label}
       </span>
+      {!mobile && item.status === "planned" && (
+        <span className={styles.wipBadge} title="Work in progress (planned)">
+          <span className={styles.wipText}>WIP</span>
+          <span className="sr-only"> (Planned / Work in progress)</span>
+        </span>
+      )}
     </Link>
   );
 }
@@ -66,19 +72,41 @@ export function DesktopNavigation() {
   const pathname = usePathname();
   const { pendingPath } = useNavigationTransition();
   const visualPathname = pendingPath ?? pathname;
-  const navRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState({ top: 0, height: 0 });
   const [animated, setAnimated] = useState(false);
 
   useLayoutEffect(() => {
-    const activeLink = navRef.current?.querySelector<HTMLElement>(
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const activeLink = container.querySelector<HTMLElement>(
       "[data-active='true']",
     );
-    if (!activeLink) return;
+    if (!activeLink) {
+      setIndicator({ top: 0, height: 0 });
+      return;
+    }
+
+    // Ensure active element is scrolled into view within the scroll container
+    const activeRect = activeLink.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    if (
+      activeRect.top < containerRect.top ||
+      activeRect.bottom > containerRect.bottom
+    ) {
+      activeLink.scrollIntoView({ block: "nearest" });
+    }
+
+    // Re-measure after scroll adjustment
+    const updatedActiveRect = activeLink.getBoundingClientRect();
+    const updatedContainerRect = container.getBoundingClientRect();
+    const top =
+      updatedActiveRect.top - updatedContainerRect.top + container.scrollTop;
 
     setIndicator({
-      top: activeLink.offsetTop,
-      height: activeLink.offsetHeight,
+      top,
+      height: updatedActiveRect.height,
     });
     const timer = setTimeout(() => setAnimated(true), 50);
     return () => clearTimeout(timer);
@@ -90,56 +118,58 @@ export function DesktopNavigation() {
   } as CSSProperties;
 
   return (
-    <nav
-      ref={navRef}
-      className={styles.desktopNav}
-      aria-label="Primary navigation"
-      style={indicatorStyle}
-      data-indicator-ready={indicator.height > 0 || undefined}
-      data-indicator-animated={animated || undefined}
-    >
-      <span className={styles.desktopActiveIndicator} aria-hidden="true" />
-      <div className={styles.navGroup}>
-        {primaryNavigation.map((item) => (
-          <NavigationLink
-            key={item.href}
-            item={item}
-            active={isActiveRoute(visualPathname, item.href, item.exact)}
-            current={isActiveRoute(pathname, item.href, item.exact)}
-          />
+    <nav className={styles.desktopNav} aria-label="Primary navigation">
+      <div
+        ref={scrollRef}
+        className={styles.desktopNavScroll}
+        style={indicatorStyle}
+        data-indicator-ready={indicator.height > 0 || undefined}
+        data-indicator-animated={animated || undefined}
+      >
+        <span className={styles.desktopActiveIndicator} aria-hidden="true" />
+        {desktopNavigationGroups.map((group, groupIdx) => (
+          <div key={group.label} className={styles.navGroupWrapper}>
+            {groupIdx > 0 && (
+              <div className={styles.navDivider} role="separator" />
+            )}
+            <div className={styles.navGroup}>
+              <span className={styles.navSectionTitle}>{group.label}</span>
+              {group.items.map((item) => (
+                <NavigationLink
+                  key={item.href}
+                  item={item}
+                  active={isActiveRoute(visualPathname, item.href, item.exact, {
+                    isDesktop: true,
+                  })}
+                  current={isActiveRoute(pathname, item.href, item.exact, {
+                    isDesktop: true,
+                  })}
+                />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
-      <div className={styles.navDivider} role="separator" />
-
-      <div className={styles.navGroup}>
-        <span className={styles.navSectionTitle}>Workspace</span>
-        {secondaryNavigation.map((item) => (
+      <div className={styles.desktopNavFooter}>
+        <div className={styles.navDivider} role="separator" />
+        <div className={styles.navGroup}>
           <NavigationLink
-            key={item.href}
-            item={item}
-            active={isActiveRoute(visualPathname, item.href, item.exact)}
-            current={isActiveRoute(pathname, item.href, item.exact)}
+            item={moreNavigationItem}
+            active={isActiveRoute(
+              visualPathname,
+              moreNavigationItem.href,
+              moreNavigationItem.exact,
+              { isDesktop: true },
+            )}
+            current={isActiveRoute(
+              pathname,
+              moreNavigationItem.href,
+              moreNavigationItem.exact,
+              { isDesktop: true },
+            )}
           />
-        ))}
-      </div>
-
-      <div className={styles.navDivider} role="separator" />
-
-      <div className={styles.navGroup}>
-        <NavigationLink
-          item={moreNavigationItem}
-          active={isActiveRoute(
-            visualPathname,
-            moreNavigationItem.href,
-            moreNavigationItem.exact,
-          )}
-          current={isActiveRoute(
-            pathname,
-            moreNavigationItem.href,
-            moreNavigationItem.exact,
-          )}
-        />
+        </div>
       </div>
     </nav>
   );

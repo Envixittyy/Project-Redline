@@ -331,6 +331,7 @@
   display: flex;
   align-items: center;
   padding-inline: 0.25rem;
+  flex-shrink: 0;
 }
 
 .identityLink {
@@ -384,15 +385,47 @@
   flex-direction: column;
   gap: 0.4rem;
   margin-top: 1.15rem;
+  flex-shrink: 0;
 }
 
 .desktopNav {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  flex-direction: column;
+  margin-top: 1rem;
+  overflow: hidden;
+}
+
+.desktopNavScroll {
   position: relative;
   display: flex;
+  flex: 1 1 0;
+  min-height: 0;
   flex-direction: column;
-  gap: 0.2rem;
-  margin-top: 1.15rem;
+  gap: 0.15rem;
   overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.15rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--border-subtle) 60%, transparent) transparent;
+}
+
+.desktopNavScroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.desktopNavScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.desktopNavScroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--border-subtle) 60%, transparent);
+  border-radius: var(--radius-pill);
+}
+
+.desktopNavScroll::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
 }
 
 .desktopActiveIndicator {
@@ -417,8 +450,8 @@
 
 .desktopActiveIndicator::before {
   position: absolute;
-  top: 0.55rem;
-  bottom: 0.55rem;
+  top: 0.45rem;
+  bottom: 0.45rem;
   left: 0;
   width: 2px;
   border-radius: var(--radius-pill);
@@ -427,15 +460,48 @@
   content: "";
 }
 
-.desktopNav[data-indicator-ready] .desktopActiveIndicator {
+.desktopNavScroll[data-indicator-ready] .desktopActiveIndicator {
   opacity: 1;
 }
 
-.desktopNav[data-indicator-animated] .desktopActiveIndicator {
+.desktopNavScroll[data-indicator-animated] .desktopActiveIndicator {
   transition:
     transform var(--motion-control) var(--ease-standard),
     height var(--motion-control) var(--ease-standard),
     opacity var(--motion-fast) var(--ease-standard);
+}
+
+.desktopNavFooter {
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.desktopNavFooter .desktopLink[data-active] {
+  border-color: color-mix(in oklch, var(--accent) 18%, var(--border-hairline));
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--accent-muted) 78%, transparent),
+    color-mix(in oklch, var(--accent-muted) 22%, transparent) 72%,
+    transparent
+  );
+  box-shadow: 1px 0 0 color-mix(in oklch, var(--accent) 12%, transparent) inset;
+}
+
+.desktopNavFooter .desktopLink[data-active]::before {
+  position: absolute;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  left: 0;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: var(--glow-blue);
+  content: "";
+}
+
+.navGroupWrapper {
+  display: flex;
+  flex-direction: column;
 }
 
 .navGroup {
@@ -445,10 +511,10 @@
 }
 
 .navSectionTitle {
-  padding: 0.4rem 0.75rem 0.2rem;
+  padding: 0.4rem 0.65rem 0.15rem;
   color: var(--text-tertiary);
   font-family: var(--font-sans);
-  font-size: 0.6875rem;
+  font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -456,7 +522,7 @@
 
 .navDivider {
   height: 1px;
-  margin: 0.55rem 0.5rem;
+  margin: 0.45rem 0.5rem;
   background: var(--border-subtle);
 }
 
@@ -464,14 +530,14 @@
 .appearanceLink {
   position: relative;
   display: flex;
-  min-height: 2.5rem;
+  min-height: 2.35rem;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.45rem 0.75rem;
+  gap: 0.65rem;
+  padding: 0.35rem 0.65rem;
   border: 1px solid transparent;
   border-radius: var(--radius-control, var(--radius-md));
   color: var(--text-secondary);
-  font-size: 0.875rem;
+  font-size: 0.84rem;
   font-weight: 600;
   text-decoration: none;
   transition:
@@ -488,18 +554,53 @@
 .desktopLink .iconFrame,
 .appearanceLink .iconFrame {
   display: grid;
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
   place-items: center;
   transition: transform var(--motion-control) var(--ease-standard);
 }
 
-.linkLabel {
+.desktopLink .linkLabel {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.wipBadge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 75%, transparent);
+  background: color-mix(in oklch, var(--surface-hover) 60%, transparent);
+  color: var(--text-tertiary);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+  margin-left: 0.35rem;
+  transition:
+    color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
+}
+
+.desktopLink:hover .wipBadge {
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+  background: var(--surface-hover);
+}
+
+.desktopLink[data-active] .wipBadge {
+  color: var(--accent-text);
+  border-color: color-mix(in oklch, var(--accent) 30%, var(--border-subtle));
+  background: color-mix(in oklch, var(--accent-muted) 40%, transparent);
 }
 
 .desktopLink[data-active] {
@@ -520,7 +621,8 @@
 }
 
 .sidebarFooter {
-  margin-top: auto;
+  flex-shrink: 0;
+  margin-top: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border-subtle);
 }

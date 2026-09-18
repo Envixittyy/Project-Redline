@@ -7,35 +7,12 @@ vi.mock("@/services/supabase/request", () => ({
   requireAuthenticatedSupabase: () => mockRequireAuthenticatedSupabase(),
 }));
 
-const mockListBlackboardCalendarProjectionsInRange = vi.fn();
-vi.mock("@/services/integrations/blackboard/blackboard-repository", () => ({
-  listBlackboardCalendarProjectionsInRange: (...args: unknown[]) =>
-    mockListBlackboardCalendarProjectionsInRange(...args),
-}));
-
 import { listExternalCalendarEventsInRange } from "./external-calendar-repository";
-import type { ExternalCalendarProjection } from "@/types/external-calendar";
 
-describe("listExternalCalendarEventsInRange provider aggregation and isolation", () => {
+describe("listExternalCalendarEventsInRange generic external calendar events", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-
-  const blackboardEvent: ExternalCalendarProjection = {
-    id: "bb-1",
-    provider: "blackboard",
-    calendarId: "blackboard",
-    externalCalendarId: "blackboard",
-    calendarName: "Blackboard",
-    access: "read_only",
-    externalEventId: "bb-evt-1",
-    revision: "bb-rev-1",
-    title: "CS101 Problem Set",
-    startsAt: "2030-01-15T23:59:00.000Z",
-    endsAt: "2030-01-16T00:59:00.000Z",
-    allDay: false,
-    status: "confirmed",
-  };
 
   function setupGenericEvents(events: unknown[] | null, error: unknown = null) {
     const mockSelect = vi.fn().mockReturnThis();
@@ -66,7 +43,7 @@ describe("listExternalCalendarEventsInRange provider aggregation and isolation",
     });
   }
 
-  it("aggregates events when both generic external calendars and Blackboard succeed", async () => {
+  it("returns mapped events when generic external calendar query succeeds", async () => {
     const dbGenericRows = [
       {
         id: "gen-1",
@@ -92,70 +69,24 @@ describe("listExternalCalendarEventsInRange provider aggregation and isolation",
     ];
 
     setupGenericEvents(dbGenericRows);
-    mockListBlackboardCalendarProjectionsInRange.mockResolvedValue([blackboardEvent]);
 
     const results = await listExternalCalendarEventsInRange(
       "2030-01-01T00:00:00.000Z",
       "2030-01-31T23:59:59.000Z",
     );
 
-    expect(results).toHaveLength(2);
-    expect(results).toEqual([
-      expect.objectContaining({ id: "gen-1", provider: "google" }),
-      expect.objectContaining({ id: "bb-1", provider: "blackboard" }),
-    ]);
-  });
-
-  it("gracefully isolates Blackboard failure: returns generic events and logs diagnostic error", async () => {
-    const dbGenericRows = [
-      {
-        id: "gen-1",
-        external_event_id: "evt-1",
-        revision: "rev-1",
-        title: "Team Meeting",
-        starts_at: "2030-01-15T14:00:00.000Z",
-        ends_at: "2030-01-15T15:00:00.000Z",
-        all_day: false,
-        status: "confirmed",
-        external_calendars: {
-          id: "cal-1",
-          external_calendar_id: "ext-cal-1",
-          name: "Google Primary",
-          access: "read_only",
-          selected: true,
-          external_calendar_accounts: {
-            provider: "google",
-            status: "connected",
-          },
-        },
-      },
-    ];
-
-    setupGenericEvents(dbGenericRows);
-    const blackboardDatabaseError = new Error("column external_records.school_item_id does not exist");
-    mockListBlackboardCalendarProjectionsInRange.mockRejectedValue(blackboardDatabaseError);
-
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    const results = await listExternalCalendarEventsInRange(
-      "2030-01-01T00:00:00.000Z",
-      "2030-01-31T23:59:59.000Z",
-    );
-
-    // Generic events still return intact so Home page remains functional
     expect(results).toHaveLength(1);
-    expect(results[0]).toMatchObject({ id: "gen-1", provider: "google" });
-
-    // Blackboard failure is logged and not silently swallowed
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "[external-calendar] Blackboard calendar provider failed to load events:",
-      blackboardDatabaseError,
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        id: "gen-1",
+        provider: "google",
+        title: "Team Meeting",
+        calendarName: "Google Primary",
+      }),
     );
-
-    consoleErrorSpy.mockRestore();
   });
 
-  it("gracefully isolates generic calendar failure: returns Blackboard events and logs diagnostic error", async () => {
+  it("gracefully returns empty array and logs diagnostic error when generic calendar query fails", async () => {
     const genericDbError = {
       code: "50000",
       message: "External calendar connection timeout",
@@ -164,7 +95,6 @@ describe("listExternalCalendarEventsInRange provider aggregation and isolation",
     };
 
     setupGenericEvents(null, genericDbError);
-    mockListBlackboardCalendarProjectionsInRange.mockResolvedValue([blackboardEvent]);
 
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -173,16 +103,21 @@ describe("listExternalCalendarEventsInRange provider aggregation and isolation",
       "2030-01-31T23:59:59.000Z",
     );
 
-    // Blackboard events still return intact
-    expect(results).toHaveLength(1);
-    expect(results[0]).toMatchObject({ id: "bb-1", provider: "blackboard" });
-
-    // Generic calendar failure is logged
+    expect(results).toEqual([]);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       expect.stringContaining("[external-calendar] Generic external calendars provider failed to load events:"),
       expect.anything(),
     );
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it("re-throws dynamic server errors", async () => {
+    const dynamicError = { digest: "DYNAMIC_SERVER_USAGE" };
+    mockRequireAuthenticatedSupabase.mockRejectedValue(dynamicError);
+
+    await expect(
+      listExternalCalendarEventsInRange("2030-01-01T00:00:00.000Z", "2030-01-31T23:59:59.000Z"),
+    ).rejects.toEqual(dynamicError);
   });
 });

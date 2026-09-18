@@ -7,6 +7,7 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type ReactElement,
@@ -16,6 +17,7 @@ import { createPortal } from "react-dom";
 
 import { useFloatingPresence } from "./use-floating-presence";
 import { useAnchoredFloating } from "./use-anchored-floating";
+import { useFloatingPortalRoot } from "./floating-portal-root";
 import styles from "./popover.module.css";
 
 export type PopoverPlacement =
@@ -57,6 +59,7 @@ export function Popover({
   panelId: customPanelId,
 }: PopoverProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const autoId = useId();
   const panelId = customPanelId ?? `popover-${autoId.replace(/:/g, "")}`;
@@ -76,6 +79,7 @@ export function Popover({
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
+        e.stopPropagation();
         onClose();
         const triggerEl = containerRef.current?.querySelector<HTMLElement>(
           'button, [href], input, [tabindex]:not([tabindex="-1"])',
@@ -96,6 +100,7 @@ export function Popover({
   }, [isOpen, onClose]);
 
   const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
+  const portalRoot = useFloatingPortalRoot(anchorEl, isMounted);
   const { refs, floatingStyles, placement: resolvedPlacement } = useAnchoredFloating({
     open: isMounted,
     placement,
@@ -149,11 +154,14 @@ export function Popover({
         ref={(node) => {
           containerRef.current = node;
           refs.setReference(node);
+          setAnchorEl(node);
         }}
         className={`${styles.wrapper} ${className}`}
       >
         {renderedTrigger}
-        {panel && typeof document !== "undefined" ? createPortal(panel, document.body) : panel}
+        {panel && typeof document !== "undefined"
+          ? createPortal(panel, portalRoot ?? document.body)
+          : panel}
       </div>
     </PopoverContext.Provider>
   );

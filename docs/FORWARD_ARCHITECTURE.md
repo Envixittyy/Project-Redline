@@ -1,15 +1,8 @@
 # Forward Architecture & Design System
 
-**Phase S2 override (2026-09-10):** Blackboard Calendar returns only as an
-additive current-state observer and deterministic reconciliation source for the
-same canonical School items and Tasks created by S1. This supersedes the S1
-statement that Calendar is globally removed, but does not change any S1 code or
-make Calendar an S1 dependency. Accounts default off, configuration enters
-observe, apply activation is operator/service-role-only, and scheduled apply is
-absent. Provider UID identifies observations; exact shared source/course keys
-identify canonical work; titles alone never do. Calendar absence is not deletion,
-unchanged observations cannot roll back newer email state, and deleted Tasks are
-not recreated. See `docs/BLACKBOARD_CALENDAR_S2.md`.
+**Blackboard Architecture (Email-Only):** Blackboard integration is strictly email-driven
+(Outlook forwarding -> Resend inbound webhook -> Blackboard email parser -> school_items / Tasks).
+All legacy Blackboard Calendar / iCal / S2 components have been retired and removed.
 
 **Phase S1 override (2026-09-08):** The user's current School automation decision
 supersedes the calendar ingestion contracts in sections 7 and 12 below. Blackboard

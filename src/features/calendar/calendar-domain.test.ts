@@ -344,42 +344,36 @@ describe("course meetings", () => {
     });
   });
 
-  describe("Blackboard external event calendar projection", () => {
-    const blackboardProjection: ExternalCalendarProjection = {
-      id: "rec-bb-1",
-      provider: "blackboard",
-      calendarId: "acc-1",
-      externalCalendarId: "CS101",
-      calendarName: "Blackboard",
+  describe("Generic external event calendar projection", () => {
+    const googleProjection: ExternalCalendarProjection = {
+      id: "rec-gcal-1",
+      provider: "google",
+      calendarId: "primary",
+      externalCalendarId: "primary",
+      calendarName: "Google Calendar",
       access: "read_only",
-      externalEventId: "item-bb-1",
+      externalEventId: "item-gcal-1",
       revision: "rev1",
-      title: "Problem Set 1",
+      title: "Team Meeting",
       startsAt: "2026-08-29T14:00:00.000Z",
       endsAt: "2026-08-29T15:00:00.000Z",
       allDay: false,
       status: "confirmed",
-      courseCode: "CS101",
-      courseId: "course-uuid-cs101",
-      courseColor: "#2563eb",
     };
 
-    it("converts Blackboard external calendar projection to ExternalCalendarEntry with course metadata", () => {
-      const entry = externalCalendarEventToEntry(blackboardProjection, MANILA);
+    it("converts external calendar projection to ExternalCalendarEntry", () => {
+      const entry = externalCalendarEventToEntry(googleProjection, MANILA);
       expect(entry).not.toBeNull();
       expect(entry).toMatchObject({
-        key: "external-calendar-event:blackboard:CS101:item-bb-1",
+        key: "external-calendar-event:google:primary:item-gcal-1",
         kind: "external_calendar_event",
-        title: "Problem Set 1",
+        title: "Team Meeting",
         date: "2026-08-29",
-        courseKey: "course-uuid-cs101",
-        courseLabel: "CS101",
-        courseColor: "#2563eb",
         allDay: false,
       });
     });
 
-    it("projects Blackboard external event into buildCalendarItems as an external_event", () => {
+    it("projects external event into buildCalendarItems as an external_event", () => {
       const items = buildCalendarItems(
         [],
         [],
@@ -390,17 +384,16 @@ describe("course meetings", () => {
         "2026-08-30",
         [],
         [],
-        [blackboardProjection],
+        [googleProjection],
       );
 
       expect(items).toHaveLength(1);
       const [item] = items;
       expect(item.kind).toBe("external_event");
       expect(item.date).toBe("2026-08-29");
-      expect(item.key).toBe("external-calendar-event:blackboard:CS101:item-bb-1:2026-08-29");
+      expect(item.key).toBe("external-calendar-event:google:primary:item-gcal-1:2026-08-29");
       if (item.kind === "external_event") {
-        expect(item.externalEvent.provider).toBe("blackboard");
-        expect(item.entry.courseLabel).toBe("CS101");
+        expect(item.externalEvent.provider).toBe("google");
       }
     });
 
@@ -415,80 +408,11 @@ describe("course meetings", () => {
         "2026-08-30",
         [],
         [],
-        [blackboardProjection, blackboardProjection], // duplicate in array
+        [googleProjection, googleProjection],
       );
 
-      // Distinct keys in occupied dates
       const keys = items.map((i) => i.key);
       expect(new Set(keys).size).toBe(keys.length);
-    });
-
-    it("filters Blackboard events by courseKeys filter", () => {
-      const entry = externalCalendarEventToEntry(blackboardProjection, MANILA)!;
-
-      // Matching course filter
-      expect(
-        filterCalendarEntries([entry], {
-          ...defaultCalendarFilters,
-          courseKeys: ["course-uuid-cs101"],
-        }),
-      ).toHaveLength(1);
-
-      // Non-matching course filter
-      expect(
-        filterCalendarEntries([entry], {
-          ...defaultCalendarFilters,
-          courseKeys: ["other-course"],
-        }),
-      ).toHaveLength(0);
-    });
-
-    it("coexists seamlessly with generic external events, native events, tasks, course meetings, and work sessions", () => {
-      const googleEvent: ExternalCalendarProjection = {
-        id: "rec-gcal-1",
-        provider: "google",
-        calendarId: "primary",
-        externalCalendarId: "primary",
-        calendarName: "Google Personal",
-        access: "read_only",
-        externalEventId: "gcal-evt-1",
-        revision: "etag1",
-        title: "Dentist Appointment",
-        startsAt: "2026-08-29T02:00:00.000Z",
-        endsAt: "2026-08-29T03:00:00.000Z",
-        allDay: false,
-        status: "confirmed",
-      };
-
-      const nativeTask = task({
-        id: "task-homework",
-        title: "Finish Math HW",
-        dueDate: "2026-08-29",
-      });
-
-      const items = buildCalendarItems(
-        [],
-        [],
-        [nativeTask],
-        MANILA,
-        [],
-        "2026-08-29",
-        "2026-08-30",
-        [],
-        [],
-        [blackboardProjection, googleEvent],
-      );
-
-      expect(items).toHaveLength(3);
-      const kinds = items.map((i) => i.kind);
-      expect(kinds).toContain("external_event");
-      expect(kinds).toContain("deadline");
-
-      const externalProviders = items
-        .filter((i): i is Extract<typeof i, { kind: "external_event" }> => i.kind === "external_event")
-        .map((i) => i.externalEvent.provider);
-      expect(externalProviders).toContain("blackboard");
-      expect(externalProviders).toContain("google");
     });
   });
 });

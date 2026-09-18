@@ -11,7 +11,7 @@ export const calendarProviderCapabilities = [
 export type CalendarProviderCapability = (typeof calendarProviderCapabilities)[number];
 export type CalendarAccessMode = "read_only" | "read_write";
 
-export type ExternalCalendarProviderId = "google" | "microsoft" | "icloud" | "caldav" | "ics" | "blackboard";
+export type ExternalCalendarProviderId = "google" | "microsoft" | "icloud" | "caldav" | "ics";
 export type ExternalCalendarConnectionStatus = "pending" | "connected" | "error" | "disconnected";
 
 export type ExternalCalendarConnection = {

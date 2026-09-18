@@ -133,7 +133,7 @@ export default function MorePage() {
               </div>
               <div className={styles.rowContent}>
                 <h3 className={styles.rowTitle}>Blackboard</h3>
-                <p className={styles.rowDetail}>School email ingestion & observation</p>
+                <p className={styles.rowDetail}>Automatic school updates from notification emails</p>
               </div>
               <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
             </Link>

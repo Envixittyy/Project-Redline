@@ -7,16 +7,17 @@ import { getBlackboardStatus } from "@/services/integrations/blackboard/blackboa
 import { isSupabaseConfigured } from "@/services/supabase/public-config";
 
 export const metadata: Metadata = { title: "Blackboard integration" };
+
 export default async function BlackboardPage() {
   if (!isSupabaseConfigured()) {
     return (
       <>
         <PageHeader
           title="Blackboard"
-          description="S1 notification-email ingestion with optional S2 current-state observation."
+          description="Automatic school updates from Blackboard notification emails."
         />
         <Surface variant="glass" style={{ padding: "1rem" }}>
-          Configure Supabase before connecting Blackboard.
+          Configure Supabase before viewing Blackboard status.
         </Surface>
       </>
     );
@@ -28,14 +29,9 @@ export default async function BlackboardPage() {
     <>
       <PageHeader
         title="Blackboard"
-        description="S1 notification-email ingestion plus fail-closed S2 calendar observation and reconciliation."
+        description="Automatic school updates from Blackboard notification emails."
       />
-      <BlackboardPanel
-        status={status}
-        pushConfigured={Boolean(
-          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY,
-        )}
-      />
+      <BlackboardPanel status={status} />
     </>
   );
 }

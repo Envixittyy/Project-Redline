@@ -27,20 +27,11 @@ export type CalendarSourceItem =
       startsAt: string;
       endsAt: string;
       readOnly: boolean;
-    }
-  | {
-      kind: "blackboard_event";
-      id: string;
-      externalUid: string;
-      startsAt: string | null;
-      endsAt: string | null;
-      dueAt: string | null;
     };
 
 export function isFixedCommitment(item: CalendarSourceItem): boolean {
   return item.kind === "forward_native_event"
-    || item.kind === "external_fixed_event"
-    || item.kind === "blackboard_event";
+    || item.kind === "external_fixed_event";
 }
 
 export function isTaskOwnedCalendarItem(item: CalendarSourceItem): boolean {

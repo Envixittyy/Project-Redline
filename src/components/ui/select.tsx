@@ -12,6 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { useFloatingPresence } from "./use-floating-presence";
 import { useAnchoredFloating } from "./use-anchored-floating";
+import { useFloatingPortalRoot } from "./floating-portal-root";
 import styles from "./select.module.css";
 
 export type SelectOption = {
@@ -56,6 +57,7 @@ export function Select({
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const listboxRef = useRef<HTMLUListElement>(null);
 
   const selectedIndex = options.findIndex((opt) => opt.value === value);
@@ -67,6 +69,7 @@ export function Select({
     matchReferenceWidth: true,
   });
   const { floating, setFloating, setReference } = refs;
+  const portalRoot = useFloatingPortalRoot(anchorEl, isMounted);
 
   // Close dropdown if clicking outside
   useEffect(() => {
@@ -147,6 +150,7 @@ export function Select({
     switch (e.key) {
       case "Escape": {
         e.preventDefault();
+        e.stopPropagation();
         closeDropdown();
         break;
       }
@@ -240,6 +244,7 @@ export function Select({
         ref={(node) => {
           triggerRef.current = node;
           setReference(node);
+          setAnchorEl(node);
         }}
         type="button"
         id={baseId}
@@ -324,7 +329,7 @@ export function Select({
             );
           })}
         </ul>,
-        document.body,
+        portalRoot ?? document.body,
       ) : null}
     </div>
   );

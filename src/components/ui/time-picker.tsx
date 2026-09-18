@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 
 import { useFloatingPresence } from "./use-floating-presence";
 import { useAnchoredFloating } from "./use-anchored-floating";
+import { useFloatingPortalRoot } from "./floating-portal-root";
 import styles from "./time-picker.module.css";
 
 export type TimePickerProps = {
@@ -82,12 +83,14 @@ export function TimePicker({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
   const { refs, floatingStyles, placement: resolvedPlacement } = useAnchoredFloating({
     open: isMounted,
     placement: `${placement}-start`,
   });
   const { floating, setFloating, setReference } = refs;
+  const portalRoot = useFloatingPortalRoot(anchorEl, isMounted);
 
   // Parse hour (0-23) and minute (0-59)
   const [parsedHour, parsedMinute] = (selectedTime || "09:00")
@@ -185,6 +188,7 @@ export function TimePicker({
 
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       closePicker();
     }
   }
@@ -210,6 +214,7 @@ export function TimePicker({
         ref={(node) => {
           triggerRef.current = node;
           setReference(node);
+          setAnchorEl(node);
         }}
         type="button"
         id={baseId}
@@ -337,7 +342,7 @@ export function TimePicker({
             </div>
           </div>
         </div>,
-        document.body,
+        portalRoot ?? document.body,
       ) : null}
     </div>
   );

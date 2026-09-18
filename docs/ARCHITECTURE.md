@@ -1,40 +1,13 @@
 # Architecture
 
-## Phase S2 Blackboard current-state reconciliation (2026-09-10)
+## Blackboard Architecture: Email-Only Ingestion
 
-S2 restores a narrowly scoped Blackboard Calendar path as a secondary
-current-state observer. It does not change the S1 webhook, email parser,
-`ingest_school_email`, security checks, identity rules, or notification-email
-ownership of S1. The apparent conflict with the S1 removal language below is
-resolved by phase boundary: Calendar remains absent from S1, while S2 is a new
-additive source feeding the same School records.
+Blackboard integration in Project Redline is exclusively email-driven. Notification emails
+received via school Outlook forwarding and Resend (with Postmark support) are parsed
+deterministically into `school_items` and linked Tasks.
 
-The runtime boundary is
-`BlackboardCurrentStateAdapter`: the current implementation performs a
-DNS-pinned, exact-host-allowlisted HTTPS fetch, parses already-fetched ICS with
-`node-ical`, and returns a bounded complete snapshot. It does not use
-`node-ical` URL/file helpers. Raw credentials are encrypted with the existing
-AES-256-GCM envelope; raw feeds, bearer URL values, UIDs, titles, descriptions,
-and locations are never emitted by the characterization report.
-
-`reconcile_blackboard_calendar_snapshot` is service-role-only and acquires the
-exact S1 advisory transaction lock before touching shared School state. It
-stores source observations in `external_records`, resolves courses and item
-identity deterministically, records every result in `sync_runs` and
-`sync_changes`, and mutates `school_items`/Tasks only in apply mode. Observe mode
-persists proposed outcomes but cannot mutate canonical work. New accounts default
-off; successful configuration selects observe; only a service-role operator may
-activate apply. There is no scheduled apply runner.
-
-Canonical linkage is many observations to one optional School item, not a new
-canonical model. Provider UID identifies an observation. Exact S1 source/course
-keys have precedence for shared identity; compatible title alone is only an
-ambiguity guard. First calendar sighting cannot overwrite an existing
-email-owned deadline, unchanged calendar data cannot roll it back, and later
-material calendar state may converge it. Snapshot absence marks the observation
-missing only after a successful complete transaction; it never deletes canonical
-data. A missing user-deleted linked Task remains deleted. See
-`docs/BLACKBOARD_CALENDAR_S2.md` for operations and acceptance gates.
+All legacy Blackboard Calendar / iCal / S2 synchronization components, snapshot reconciliation RPCs,
+and external calendar projections have been completely removed and retired.
 
 ## Phase S1 School email automation (2026-09-08)
 

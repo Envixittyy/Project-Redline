@@ -7,7 +7,6 @@ and existing components reused for this implementation.
 | Component | Version | License | Source and purpose | Selection |
 | --- | --- | --- | --- | --- |
 | html-to-text | 10.0.1 | MIT | https://github.com/html-to-text/node-html-to-text — HTML DOM conversion, entity decoding, text/link extraction | Maintained Node converter with bounded traversal; avoids a custom HTML parser. Node >=20.19 is required. |
-| node-ical | 0.27.1 | Apache-2.0 | https://github.com/jens-maus/node-ical — RFC 5545 parsing from already-fetched calendar text | Maintained Node 22+ parser with bundled TypeScript declarations, timezone metadata, and recurrence support. Its URL/file fetch helpers are not used; Redline retains DNS pinning, redirect, timeout, and response-size controls. |
 | @types/html-to-text | 9.0.4 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/html-to-text — converter declarations | Maintained typings; used APIs validated by typecheck and runtime fixtures. |
 | Zod | 4.4.3 | MIT | https://github.com/colinhacks/zod — webhook shape and input validation | Already present transitively; declared directly without upgrading it. |
 | Supabase JS / SSR | Existing lockfile versions | MIT | https://github.com/supabase/supabase-js and https://github.com/supabase/ssr — existing authenticated and maintenance clients | Reuses Redline's database and auth boundaries. |

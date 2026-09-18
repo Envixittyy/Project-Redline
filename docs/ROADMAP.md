@@ -3,17 +3,10 @@
 Last updated: August 2026.
 Authoritative source of truth for Project Redline / Forward product direction, feature status, dependency ordering, and architectural gates.
 
-**Phase S2 override (2026-09-10):** The explicit S2 assignment adds Blackboard
-Calendar as a secondary, fail-closed current-state source without replacing or
-modifying S1 email ingestion. S2 is implemented behind per-account
-`off`/`observe`/`apply` modes; existing and newly migrated accounts default off,
-configuration enters observe, and apply activation is service-role/operator-only.
-Calendar observations reconcile to the same `school_items` and linked Tasks under
-the exact S1 owner lock. They never create parallel canonical entities, infer
-identity from title alone, delete work because it disappeared from a snapshot, or
-recreate a user-deleted Task. No scheduled apply sync exists. Live provider
-characterization and the S1 acceptance gate remain deployment prerequisites
-before apply mode. See `docs/BLACKBOARD_CALENDAR_S2.md`.
+**Blackboard Architecture (Email-Only):** Blackboard synchronization is strictly
+notification-email based (Outlook forwarding -> Resend inbound webhook -> Blackboard
+email parser -> school_items / Tasks). Legacy Blackboard Calendar / iCal / S2 synchronization
+has been completely removed and retired.
 
 **Phase S1 override (2026-09-08):** The current explicit assignment replaces
 Blackboard Calendar synchronization with deterministic notification-email

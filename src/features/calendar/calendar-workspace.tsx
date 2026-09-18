@@ -130,11 +130,9 @@ function itemContext(item: CalendarItem): string {
     const provider =
       item.externalEvent.provider === "microsoft"
         ? "Outlook"
-        : item.externalEvent.provider === "blackboard"
-          ? "Blackboard"
-          : item.externalEvent.provider === "google"
-            ? "Google Calendar"
-            : item.externalEvent.provider;
+        : item.externalEvent.provider === "google"
+          ? "Google Calendar"
+          : item.externalEvent.provider;
     return item.entry.courseLabel ? `${provider} · ${item.entry.courseLabel}` : provider;
   }
   if (item.kind === "deadline") {
@@ -167,8 +165,8 @@ function itemMeta(item: CalendarItem, timeZone: string): string {
     const provider =
       item.externalEvent.provider === "microsoft"
         ? "Outlook"
-        : item.externalEvent.provider === "blackboard"
-          ? (item.entry.courseLabel ? `Blackboard · ${item.entry.courseLabel}` : "Blackboard")
+        : item.externalEvent.provider === "google"
+          ? "Google Calendar"
           : item.externalEvent.provider;
     if (item.externalEvent.allDay) return `All day · ${provider}`;
     return `${formatTime(item.externalEvent.startsAt, timeZone)}–${formatTime(item.externalEvent.endsAt, timeZone)} · ${provider}`;

@@ -20,6 +20,7 @@ import { addDays, isIsoDate } from "@/lib/date/day";
 import { addMonths, startOfMonth, startOfWeek } from "@/features/calendar/calendar-date";
 import { useFloatingPresence } from "./use-floating-presence";
 import { useAnchoredFloating } from "./use-anchored-floating";
+import { useFloatingPortalRoot } from "./floating-portal-root";
 import styles from "./date-picker.module.css";
 
 export type DatePickerProps = {
@@ -97,12 +98,14 @@ export function DatePicker({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const { isMounted, isExiting } = useFloatingPresence(isOpen, 110);
   const { refs, floatingStyles, placement: resolvedPlacement } = useAnchoredFloating({
     open: isMounted,
     placement: `${placement}-start`,
   });
   const { floating, setFloating, setReference } = refs;
+  const portalRoot = useFloatingPortalRoot(anchorEl, isMounted);
 
   // Synchronize viewMonth when selectedDate changes externally
   const [prevSelectedDate, setPrevSelectedDate] = useState(selectedDate);
@@ -194,6 +197,7 @@ export function DatePicker({
     switch (e.key) {
       case "Escape": {
         e.preventDefault();
+        e.stopPropagation();
         closePicker();
         break;
       }
@@ -285,6 +289,7 @@ export function DatePicker({
         ref={(node) => {
           triggerRef.current = node;
           setReference(node);
+          setAnchorEl(node);
         }}
         type="button"
         id={baseId}
@@ -419,7 +424,7 @@ export function DatePicker({
             })}
           </div>
         </div>,
-        document.body,
+        portalRoot ?? document.body,
       ) : null}
     </div>
   );

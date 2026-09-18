@@ -44,7 +44,7 @@ function occupiedDates(start: string, end: string | null, timeZone: string): str
 }
 
 /**
- * Builds projection items for external calendar events and Blackboard feeds.
+ * Builds projection items for external calendar events.
  */
 export function buildExternalCalendarItems(
   externalEvents: ExternalCalendarProjection[],

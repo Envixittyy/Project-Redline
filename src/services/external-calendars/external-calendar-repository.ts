@@ -10,7 +10,7 @@ import type {
 } from "@/types/external-calendar";
 import { formatPostgrestErrorDiagnostic } from "@/services/supabase/errors";
 import { requireAuthenticatedSupabase } from "@/services/supabase/request";
-import { listBlackboardCalendarProjectionsInRange } from "@/services/integrations/blackboard/blackboard-repository";
+
 
 type ConnectionRow = {
   id: string;
@@ -123,44 +123,23 @@ function isDynamicServerError(err: unknown): boolean {
   );
 }
 
-/** Read-only mirror projection for the visible half-open Calendar range across external calendars and Blackboard. */
+/** Read-only mirror projection for the visible half-open Calendar range across external calendars. */
 export async function listExternalCalendarEventsInRange(
   start: string,
   end: string,
 ): Promise<ExternalCalendarProjection[]> {
-  const [genericResult, blackboardResult] = await Promise.allSettled([
-    listGenericExternalCalendarEventsInRange(start, end),
-    listBlackboardCalendarProjectionsInRange(start, end),
-  ]);
-
-  if (genericResult.status === "rejected" && isDynamicServerError(genericResult.reason)) {
-    throw genericResult.reason;
-  }
-  if (blackboardResult.status === "rejected" && isDynamicServerError(blackboardResult.reason)) {
-    throw blackboardResult.reason;
-  }
-
-  const projections: ExternalCalendarProjection[] = [];
-
-  if (genericResult.status === "fulfilled") {
-    projections.push(...genericResult.value);
-  } else {
+  try {
+    return await listGenericExternalCalendarEventsInRange(start, end);
+  } catch (error) {
+    if (isDynamicServerError(error)) {
+      throw error;
+    }
     console.error(
       "[external-calendar] Generic external calendars provider failed to load events:",
-      genericResult.reason,
+      error,
     );
+    return [];
   }
-
-  if (blackboardResult.status === "fulfilled") {
-    projections.push(...blackboardResult.value);
-  } else {
-    console.error(
-      "[external-calendar] Blackboard calendar provider failed to load events:",
-      blackboardResult.reason,
-    );
-  }
-
-  return projections;
 }
 
 async function listGenericExternalCalendarEventsInRange(

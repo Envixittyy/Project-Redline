@@ -34,32 +34,11 @@ describe("Phase 2 security contract", () => {
     expect(migration).not.toContain("feed_url");
   });
 
-  it("pins validated DNS and never exposes a generic fetch proxy", () => {
-    const source = file("src/services/integrations/blackboard/safe-fetch.ts");
-    expect(source).toContain("lookup: createPinnedLookup");
-    expect(source).toMatch(/MAX_REDIRECTS\s*=\s*3/);
-    expect(source).toMatch(/MAX_BYTES\s*=\s*2_000_000/);
-    expect(source).toContain("if (options.all)");
-    expect(source).not.toMatch(/export async function[\s\S]*\(.*url.*\)[\s\S]*fetch\(/);
-  });
-
   it("prevents concurrent account sync and deduplicates records and notifications", () => {
     expect(migration).toContain("sync_runs_one_active_per_account");
     expect(migration).toContain("external_records_account_uid unique(account_id,external_uid)");
     expect(migration).toContain(
       "notification_events_owner_dedupe unique(user_id,dedupe_key)",
     );
-  });
-
-  it("keeps Blackboard records source-aware instead of auto-creating tasks", () => {
-    const repository = file(
-      "src/services/integrations/blackboard/blackboard-repository.ts",
-    );
-    const syncDomain = file("src/services/integrations/blackboard/sync-domain.ts");
-
-    expect(repository).not.toMatch(/from\s+["']@\/services\/tasks\/task-repository["']/);
-    expect(repository).not.toContain("createTask(");
-    expect(repository).not.toContain("updateTask(");
-    expect(syncDomain).not.toContain("taskPatch");
   });
 });

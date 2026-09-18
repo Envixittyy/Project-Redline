@@ -2,58 +2,35 @@
 
 import {
   AlertTriangle,
-  Bell,
-  BookOpen,
-  CheckCircle2,
-  FileSearch,
-  Layers,
-  Plus,
+  Inbox,
+  Mail,
   RefreshCw,
   ShieldCheck,
-  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, IconButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Surface } from "@/components/ui/surface";
 import { Select } from "@/components/ui/select";
-import type { BlackboardStatus } from "@/services/integrations/blackboard/blackboard-repository";
-import type { BlackboardCalendarCharacterization } from "@/services/integrations/blackboard/characterization";
+import { Surface } from "@/components/ui/surface";
+import type { BlackboardEmailStatus } from "@/services/integrations/blackboard/blackboard-repository";
 
 import {
-  assignBlackboardRecordsAction,
-  characterizeBlackboardAction,
-  configureBlackboardAction,
-  deleteCourseMappingAction,
-  saveCourseMappingAction,
-  syncBlackboardAction,
+  mapBlackboardEmailCourseAction,
+  retryBlackboardEmailAction,
 } from "./blackboard-actions";
 import styles from "./blackboard-panel.module.css";
-import { PushStatus } from "./push-status";
 
 type BlackboardPanelProps = {
-  status: BlackboardStatus;
-  pushConfigured: boolean;
+  status: BlackboardEmailStatus;
 };
 
-export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps) {
+export function BlackboardPanel({ status }: BlackboardPanelProps) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const [characterization, setCharacterization] =
-    useState<BlackboardCalendarCharacterization | null>(null);
-
-  // Manual mapping state
-  const [newSourceCourse, setNewSourceCourse] = useState("");
-  const [newTargetCourseId, setNewTargetCourseId] = useState(status.courses[0]?.id ?? "");
-
-  // Unassigned queue selection & batch assignment
-  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
-  const [batchTargetCourseId, setBatchTargetCourseId] = useState(status.courses[0]?.id ?? "");
-  const [rememberMapping, setRememberMapping] = useState(true);
+  const [targetCourseIds, setTargetCourseIds] = useState<Record<string, string>>({});
 
   function run(action: () => Promise<{ ok: boolean; message: string }>) {
     startTransition(async () => {
@@ -62,144 +39,73 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
     });
   }
 
-  function toggleRecordSelection(id: string) {
-    setSelectedRecordIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  function handleMapCourse(sourceKey: string, eventId: string) {
+    const courseId = targetCourseIds[sourceKey] || status.courses[0]?.id;
+    if (!courseId) return;
 
-  function inspectStructure() {
-    startTransition(async () => {
-      const res = await characterizeBlackboardAction();
-      setMessage(res.message);
-      if (res.ok) setCharacterization(res.report);
-    });
-  }
-
-  function toggleSelectAll() {
-    if (selectedRecordIds.size === status.unassigned.length) {
-      setSelectedRecordIds(new Set());
-    } else {
-      setSelectedRecordIds(new Set(status.unassigned.map((r) => r.id)));
-    }
-  }
-
-  function handleSaveMapping(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newSourceCourse.trim() || !newTargetCourseId) return;
     run(async () => {
-      const res = await saveCourseMappingAction(newSourceCourse.trim(), newTargetCourseId);
-      if (res.ok) setNewSourceCourse("");
-      return res;
+      const mapRes = await mapBlackboardEmailCourseAction(sourceKey, courseId);
+      if (!mapRes.ok) return mapRes;
+      return retryBlackboardEmailAction(eventId);
     });
   }
 
-  function handleBatchAssign(e: React.FormEvent) {
-    e.preventDefault();
-    if (selectedRecordIds.size === 0 || !batchTargetCourseId) return;
-    run(async () => {
-      const res = await assignBlackboardRecordsAction(
-        Array.from(selectedRecordIds),
-        batchTargetCourseId,
-        rememberMapping,
-      );
-      if (res.ok) setSelectedRecordIds(new Set());
-      return res;
-    });
+  function handleRetry(eventId: string) {
+    run(() => retryBlackboardEmailAction(eventId));
   }
 
   return (
     <div className={styles.layout}>
-      {/* 1. Feed Configuration Card */}
+      {/* 1. Ingestion Overview Card */}
       <Surface variant="glass" className={styles.card}>
         <header>
-          <ShieldCheck size={20} />
+          <Mail size={20} />
           <div>
-            <p>Private iCalendar feed</p>
-            <h2>{status.connected ? "Connected" : "Not connected"}</h2>
+            <p>Notification Ingestion</p>
+            <h2>{status.configured ? "Ingestion active" : "Not configured"}</h2>
           </div>
-          <Badge
-            tone={
-              status.syncState === "syncing"
-                ? "warning"
-                : status.syncState === "idle"
-                  ? "neutral"
-                  : status.syncState === "failed"
-                    ? "destructive"
-                    : "success"
-            }
-            size="sm"
-          >
-            {status.syncState}
+          <Badge tone={status.configured ? "success" : "warning"} size="sm">
+            {status.configured ? "Active" : "Action required"}
           </Badge>
         </header>
-        <p className={styles.modeLine}>
-          Current mode: <strong>{status.mode}</strong>
-        </p>
+
         <p className={styles.copy}>
-          S1 email ingestion remains active. Calendar sync starts in observe mode, records
-          auditable proposals, and cannot mutate School or Tasks until an operator enables apply mode.
-          The private feed URL is encrypted server-side with AES-256-GCM.
+          Automatic school updates from Blackboard notification emails forwarded to Redline.
+          Assignments, quizzes, and exams deterministically create linked Tasks; materials and announcements appear as School activity.
         </p>
-        <form
-          className={styles.form}
-          onSubmit={(event) => {
-            event.preventDefault();
-            const data = new FormData(event.currentTarget);
-            run(() => configureBlackboardAction(data.get("feedUrl")));
-          }}
-        >
-          <label className={styles.field}>
-            Private feed URL
-            <input
-              className={styles.input}
-              name="feedUrl"
-              type="url"
-              inputMode="url"
-              autoComplete="off"
-              placeholder={
-                status.credentialHint
-                  ? `Connected to ${status.credentialHint}`
-                  : "https://…/calendar.ics"
-              }
-              required
-            />
-          </label>
-          <Button variant="primary" loading={pending} disabled={pending} type="submit">
-            {status.connected ? "Replace credential" : "Connect feed"}
-          </Button>
-        </form>
-        {status.connected ? (
-          <div className={styles.cardActions}>
-            <Button
-              variant="secondary"
-              disabled={pending || status.syncState === "syncing" || status.mode === "off"}
-              type="button"
-              icon={<RefreshCw size={16} />}
-              onClick={() => run(syncBlackboardAction)}
-            >
-              Sync now
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={pending || status.mode === "off"}
-              type="button"
-              icon={<FileSearch size={16} />}
-              onClick={inspectStructure}
-            >
-              Inspect redacted structure
-            </Button>
+
+        <div className={styles.statsRow} style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <Badge tone="neutral" size="sm">
+            Total: {status.eventCounts.total}
+          </Badge>
+          <Badge tone="success" size="sm">
+            Processed: {status.eventCounts.processed}
+          </Badge>
+          {status.eventCounts.unresolved > 0 ? (
+            <Badge tone="warning" size="sm">
+              Unresolved: {status.eventCounts.unresolved}
+            </Badge>
+          ) : null}
+          {status.eventCounts.ignored > 0 ? (
+            <Badge tone="neutral" size="sm">
+              Ignored: {status.eventCounts.ignored}
+            </Badge>
+          ) : null}
+        </div>
+
+        {status.latestEvent ? (
+          <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+            <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>Latest event:</span>
+            <span>
+              {new Date(status.latestEvent.receivedAt).toLocaleString()} —{" "}
+              {status.latestEvent.title || status.latestEvent.itemType || "School notice"}
+            </span>
+            <span>Status: <Badge tone={status.latestEvent.status === "processed" ? "success" : "neutral"} size="sm">{status.latestEvent.status}</Badge></span>
           </div>
-        ) : null}
-        {characterization ? (
-          <details className={styles.report}>
-            <summary>Redacted feed characterization</summary>
-            <pre>{JSON.stringify(characterization, null, 2)}</pre>
-          </details>
-        ) : null}
+        ) : (
+          <p className={styles.emptyState}>No school emails received yet.</p>
+        )}
+
         {message ? (
           <Callout tone="info" title="Status">
             {message}
@@ -207,247 +113,196 @@ export function BlackboardPanel({ status, pushConfigured }: BlackboardPanelProps
         ) : null}
       </Surface>
 
-      {/* 2. Manual Course Mappings Card */}
+      {/* 2. Sync / Security Architecture Card */}
       <Surface variant="glass" className={styles.card}>
         <header>
-          <BookOpen size={20} />
+          <ShieldCheck size={20} />
           <div>
-            <p>Deterministic course mapping</p>
-            <h2>{status.mappings.length} Saved {status.mappings.length === 1 ? "Mapping" : "Mappings"}</h2>
+            <p>Architecture</p>
+            <h2>Email-only security</h2>
           </div>
         </header>
+
         <p className={styles.copy}>
-          Map Blackboard source course identifiers to canonical Redline courses. Resolution is 100% deterministic with zero AI guessing.
+          Project Redline uses webhook-verified notification emails forwarded from Outlook.
+          Calendar feed polling, iCalendar credentials, and web scraping are permanently removed.
         </p>
 
-        {status.mappings.length > 0 ? (
-          <ul className={styles.mappingsList}>
-            {status.mappings.map((m) => (
-              <li key={m.id} className={styles.mappingItem}>
-                <div className={styles.mappingSource}>
-                  <strong>{m.sourceCourseName}</strong>
-                  <small>Blackboard source identifier</small>
-                </div>
-                <div className={styles.mappingTarget}>
-                  <Link href="/school" className={styles.courseBadge}>
-                    <span
-                      className={styles.courseBadgeDot}
-                      style={{ background: m.course.color ?? "var(--accent)" }}
-                      aria-hidden="true"
-                    />
-                    {m.course.code} · {m.course.name}
-                  </Link>
-                  <IconButton
-                    variant="ghost"
-                    size="sm"
-                    aria-label="Remove mapping"
-                    icon={<Trash2 size={14} />}
-                    disabled={pending}
-                    onClick={() => run(() => deleteCourseMappingAction(m.id))}
-                  />
-                </div>
-              </li>
-            ))}
+        <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.8125rem", color: "var(--text-secondary)", display: "grid", gap: "0.4rem" }}>
+          <li>No stored Blackboard feed URLs or cleartext passwords.</li>
+          <li>DNS pinning and SSRF-hardened inbound webhook verification.</li>
+          <li>Tasks created from school emails remain normal native Tasks.</li>
+          <li>Courses and schedules managed directly in <Link href="/school" style={{ color: "var(--accent-text)", textDecoration: "underline" }}>School</Link>.</li>
+        </ul>
+      </Surface>
+
+      {/* 3. Course Mapping Issues (if any) */}
+      {(status.courseMappingIssues ?? []).length > 0 ? (
+        <Surface variant="glass" className={`${styles.card} ${styles.fullWidth}`}>
+          <header>
+            <AlertTriangle size={20} />
+            <div>
+              <p>Action needed</p>
+              <h2>
+                {(status.courseMappingIssues ?? []).length} Course Mapping{" "}
+                {(status.courseMappingIssues ?? []).length === 1 ? "Issue" : "Issues"}
+              </h2>
+            </div>
+          </header>
+
+          <p className={styles.copy}>
+            These emails could not be mapped to a Redline course automatically. Map the source course identifier to resolve and process the item.
+          </p>
+
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "0.75rem" }}>
+            {(status.courseMappingIssues ?? []).map((issue) => {
+              const parsed = issue.parsedEvent as {
+                title?: string;
+                courseKey?: string;
+                baseCourseCode?: string;
+                courseHint?: string;
+                sourceCourseKey?: string;
+                courseCode?: string;
+                rawCourseHeader?: string;
+                itemType?: string;
+              };
+              const courseKey =
+                parsed.courseKey ||
+                parsed.baseCourseCode ||
+                parsed.courseHint ||
+                parsed.sourceCourseKey ||
+                parsed.rawCourseHeader ||
+                parsed.courseCode ||
+                "Unknown course";
+
+              return (
+                <li
+                  key={issue.id}
+                  style={{
+                    padding: "0.85rem",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-subtle)",
+                    background: "var(--surface-subtle)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <strong>{parsed.title || "School Notification"}</strong>
+                    <Badge tone="warning" size="sm">{issue.status}</Badge>
+                  </div>
+                  <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                    Source identifier: <code>{courseKey}</code>
+                  </div>
+
+                  {status.courses.length > 0 ? (
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", marginTop: "0.25rem" }}>
+                      <Select
+                        value={targetCourseIds[courseKey] || status.courses[0]?.id || ""}
+                        onChange={(val) => setTargetCourseIds((prev) => ({ ...prev, [courseKey]: val }))}
+                        options={status.courses.map((c) => ({
+                          value: c.id,
+                          label: `${c.code} — ${c.name}`,
+                        }))}
+                        ariaLabel={`Assign course for ${courseKey}`}
+                      />
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={pending}
+                        onClick={() => handleMapCourse(courseKey, issue.id)}
+                      >
+                        Map & Retry
+                      </Button>
+                    </div>
+                  ) : (
+                    <Callout tone="warning" title="No courses found">
+                      Add courses in <Link href="/school">School</Link> to assign this item.
+                    </Callout>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </Surface>
+      ) : null}
+
+      {/* 4. Recent Inbound Activity */}
+      <Surface variant="base" className={`${styles.card} ${styles.fullWidth}`}>
+        <header>
+          <Inbox size={20} />
+          <div>
+            <p>Activity log</p>
+            <h2>Recent school email events</h2>
+          </div>
+        </header>
+
+        {status.recentEvents.length > 0 ? (
+          <ul className={styles.runs}>
+            {status.recentEvents.map((event) => {
+              const parsed = event.parsedEvent as {
+                title?: string;
+                itemType?: string;
+                notificationType?: string;
+                dueDate?: string;
+              };
+
+              return (
+                <li
+                  key={event.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <div>
+                    <strong>{parsed.title || parsed.notificationType || "School notice"}</strong>
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: "0.2rem" }}>
+                      <span>{new Date(event.receivedAt).toLocaleString()}</span>
+                      {parsed.itemType ? <span>· {parsed.itemType}</span> : null}
+                      {parsed.dueDate ? <span>· Due {parsed.dueDate}</span> : null}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <Badge
+                      tone={
+                        event.status === "processed"
+                          ? "success"
+                          : event.status.startsWith("unresolved_")
+                            ? "warning"
+                            : event.status === "ignored"
+                              ? "neutral"
+                              : "destructive"
+                      }
+                      size="sm"
+                    >
+                      {event.status}
+                    </Badge>
+
+                    {event.status !== "processed" && event.status !== "ignored" ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={pending}
+                        icon={<RefreshCw size={12} />}
+                        onClick={() => handleRetry(event.id)}
+                      >
+                        Retry
+                      </Button>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         ) : (
-          <p className={styles.emptyState}>No course mappings saved yet.</p>
+          <p className={styles.emptyState}>No school email events recorded yet.</p>
         )}
-
-        {status.courses.length > 0 ? (
-          <form className={styles.form} onSubmit={handleSaveMapping}>
-            <div className={styles.twoCol}>
-              <label className={styles.field}>
-                Source Course String
-                <input
-                  className={styles.input}
-                  type="text"
-                  placeholder="e.g. CS101 or 2026-CS-101"
-                  value={newSourceCourse}
-                  onChange={(e) => setNewSourceCourse(e.target.value)}
-                  required
-                />
-              </label>
-              <label className={styles.field}>
-                Target Redline Course
-                <Select
-                  value={newTargetCourseId}
-                  onChange={setNewTargetCourseId}
-                  options={status.courses.map((course) => ({
-                    value: course.id,
-                    label: `${course.code} — ${course.name}`,
-                  }))}
-                />
-              </label>
-            </div>
-            <Button
-              variant="secondary"
-              type="submit"
-              icon={<Plus size={16} />}
-              disabled={pending || !newSourceCourse.trim()}
-            >
-              Save New Mapping
-            </Button>
-          </form>
-        ) : (
-          <Callout tone="warning" title="Courses Needed">
-            Add courses in <Link href="/school">School</Link> before setting up mappings.
-          </Callout>
-        )}
-      </Surface>
-
-      {/* 3. Unresolved Blackboard Queue (Full Width) */}
-      <Surface variant="glass" className={`${styles.card} ${styles.fullWidth}`}>
-        <header>
-          <Layers size={20} />
-          <div>
-            <p>Unresolved observations</p>
-            <h2>
-              {status.unassigned.length > 0
-                ? `${status.unassigned.length} Unresolved ${status.unassigned.length === 1 ? "Item" : "Items"}`
-                : "Queue Clear"}
-            </h2>
-          </div>
-        </header>
-
-        {status.unassigned.length > 0 ? (
-          <div className={styles.unassignedQueue}>
-            <p className={styles.copy}>
-              These observations do not match a single canonical course. Map them explicitly;
-              title similarity is never used as an automatic identity.
-            </p>
-
-            {status.courses.length > 0 ? (
-              <form className={styles.batchBar} onSubmit={handleBatchAssign}>
-                <Checkbox
-                  checked={
-                    selectedRecordIds.size === status.unassigned.length &&
-                    status.unassigned.length > 0
-                  }
-                  indeterminate={
-                    selectedRecordIds.size > 0 &&
-                    selectedRecordIds.size < status.unassigned.length
-                  }
-                  onChange={toggleSelectAll}
-                  label={`Select all (${status.unassigned.length})`}
-                />
-
-                <Select
-                  value={batchTargetCourseId}
-                  onChange={setBatchTargetCourseId}
-                  ariaLabel="Target course for assignment"
-                  options={status.courses.map((course) => ({
-                    value: course.id,
-                    label: `${course.code} — ${course.name}`,
-                  }))}
-                />
-
-                <Checkbox
-                  checked={rememberMapping}
-                  onChange={(e) => setRememberMapping(e.target.checked)}
-                  label="Remember mapping for future items"
-                />
-
-                <Button
-                  variant="primary"
-                  size="md"
-                  type="submit"
-                  disabled={pending || selectedRecordIds.size === 0}
-                >
-                  Assign {selectedRecordIds.size > 0 ? `(${selectedRecordIds.size})` : ""}
-                </Button>
-              </form>
-            ) : null}
-
-            <ul className={styles.unassignedList}>
-              {status.unassigned.map((rec) => {
-                const isSelected = selectedRecordIds.has(rec.id);
-                return (
-                  <li key={rec.id} className={styles.unassignedItem}>
-                    <Checkbox
-                      checked={isSelected}
-                      onChange={() => toggleRecordSelection(rec.id)}
-                      aria-label={`Select ${rec.title}`}
-                    />
-                    <div className={styles.itemDetails}>
-                      <strong>{rec.title}</strong>
-                      <div className={styles.itemMeta}>
-                        <Badge tone="neutral" size="sm">
-                          {rec.sourceCourseName ? `Source: ${rec.sourceCourseName}` : "No source course"}
-                        </Badge>
-                        {rec.dueDate ? <span>Due: {rec.dueDate}</span> : null}
-                        {rec.dueAt ? (
-                          <span>At: {new Date(rec.dueAt).toLocaleTimeString()}</span>
-                        ) : null}
-                        {rec.proposalStatus ? (
-                          <Badge tone="accent" size="sm">
-                            Proposal: {rec.proposalStatus}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ) : (
-          <p className={styles.emptyState}>
-            ✓ All synchronized Blackboard items have assigned courses.
-          </p>
-        )}
-      </Surface>
-
-      {/* 4. Sync Health */}
-      <Surface variant="base" className={styles.card}>
-        <header>
-          {status.lastErrorCode ? <AlertTriangle size={20} /> : <CheckCircle2 size={20} />}
-          <div>
-            <p>Sync health</p>
-            <h2>
-              {status.lastSuccessAt
-                ? `Last success ${new Date(status.lastSuccessAt).toLocaleString()}`
-                : "No successful sync yet"}
-            </h2>
-          </div>
-        </header>
-        {status.lastErrorCode ? (
-          <Callout tone="warning" title="Action required">
-            {status.lastErrorCode}
-          </Callout>
-        ) : null}
-        <ul className={styles.runs}>
-          {status.runs.map((run) => (
-            <li key={run.id}>
-              <strong>{run.status}</strong>
-              <span>{new Date(run.startedAt).toLocaleString()}</span>
-              <small>
-                {run.created} new · {run.updated} updated · {run.missing} missing
-              </small>
-            </li>
-          ))}
-        </ul>
-      </Surface>
-
-      {/* 5. Notifications */}
-      <Surface variant="base" className={styles.card}>
-        <header>
-          <Bell size={20} />
-          <div>
-            <p>Notifications</p>
-            <h2>{status.notifications.length} unread</h2>
-          </div>
-        </header>
-        <PushStatus configured={pushConfigured} />
-        <ul className={styles.notifications}>
-          {status.notifications.map((item) => (
-            <li key={item.id}>
-              <Link href={item.deepLink}>
-                <strong>{item.title}</strong>
-                <span>{item.body}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
       </Surface>
     </div>
   );

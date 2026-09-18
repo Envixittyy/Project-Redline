@@ -17,4 +17,5 @@ export * from "./date-picker";
 export * from "./date-time-picker";
 export * from "./time-picker";
 export * from "./use-floating-presence";
+export * from "./floating-portal-root";
 export * from "./tooltip";

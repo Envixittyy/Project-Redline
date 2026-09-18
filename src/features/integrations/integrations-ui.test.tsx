@@ -9,12 +9,8 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 vi.mock("./blackboard-actions", () => ({
-  assignBlackboardRecordsAction: vi.fn(),
-  characterizeBlackboardAction: vi.fn(),
-  configureBlackboardAction: vi.fn(),
-  deleteCourseMappingAction: vi.fn(),
-  saveCourseMappingAction: vi.fn(),
-  syncBlackboardAction: vi.fn(),
+  mapBlackboardEmailCourseAction: vi.fn(),
+  retryBlackboardEmailAction: vi.fn(),
 }));
 vi.mock("./notion-actions", () => ({
   connectNotionAction: vi.fn(),
@@ -30,77 +26,134 @@ import { NotionPanel } from "./notion-panel";
 
 describe("Integrations UI Primitives", () => {
   describe("BlackboardPanel", () => {
-    it("renders private feed configuration with S7 badges and buttons", () => {
+    it("renders active email ingestion status with counts and recent activity", () => {
       const html = renderToStaticMarkup(
         <BlackboardPanel
           status={{
-            connected: true,
-            accountId: "acc-1",
-            credentialHint: "blackboard.example.edu",
-            mode: "observe",
-            syncState: "idle",
-            lastSuccessAt: "2026-09-10T12:00:00Z",
-            lastErrorCode: null,
+            configured: true,
             courses: [{ id: "c1", code: "CS 101", name: "Intro to CS", color: "#3b82f6" }],
-            mappings: [],
-            unassigned: [],
-            runs: [],
-            changes: [],
-            notifications: [],
-          }}
-          pushConfigured={false}
-        />
-      );
-
-      expect(html).toContain("Private iCalendar feed");
-      expect(html).toContain("Connected");
-      expect(html).toContain("Sync now");
-      expect(html).toContain("Inspect redacted structure");
-      expect(html).toContain("Deterministic course mapping");
-      expect(html).toContain("All synchronized Blackboard items have assigned courses.");
-    });
-
-    it("renders unassigned queue with selection controls", () => {
-      const html = renderToStaticMarkup(
-        <BlackboardPanel
-          status={{
-            connected: true,
-            accountId: "acc-1",
-            credentialHint: "blackboard.example.edu",
-            mode: "observe",
-            syncState: "idle",
-            lastSuccessAt: null,
-            lastErrorCode: null,
-            courses: [{ id: "c1", code: "CS 101", name: "Intro to CS", color: "#3b82f6" }],
-            mappings: [],
-            unassigned: [
+            courseMappingIssues: [],
+            recentEvents: [
               {
-                id: "rec-1",
-                accountId: "acc-1",
-                externalUid: "ext-1",
-                title: "Homework 3: Graph Traversal",
-                description: null,
-                sourceCourseName: "CS101-FALL",
-                dueDate: "2026-09-15",
-                dueAt: null,
-                duePrecision: "date",
-                sourceUrl: null,
-                proposalId: null,
-                proposalStatus: "pending",
+                id: "evt-1",
+                status: "processed",
+                itemId: "item-1",
+                courseId: "c1",
+                receivedAt: "2026-09-10T12:00:00Z",
+                parsedEvent: {
+                  source: "blackboard",
+                  messageKey: "msg-1",
+                  provider: "resend",
+                  sourceMessageId: "mid-1",
+                  receivedAt: "2026-09-10T12:00:00Z",
+                  sourceAt: null,
+                  parserVersion: "blackboard-email-v1",
+                  status: "parsed",
+                  notificationType: "assignment",
+                  itemType: "assignment",
+                  courseHint: "CS 101",
+                  baseCourseCode: "CS101",
+                  courseKey: "CS101-FALL",
+                  title: "Lab 1",
+                  titleKey: "lab 1",
+                  sourceKey: "src-1",
+                  sourceUrl: null,
+                  dueDate: "2026-09-15",
+                  dueAt: null,
+                  duePrecision: "date",
+                  weight: null,
+                  evidence: null,
+                  reason: null,
+                },
               },
             ],
-            runs: [],
-            changes: [],
-            notifications: [],
+            eventCounts: {
+              total: 5,
+              processed: 5,
+              unresolved: 0,
+              ignored: 0,
+              other: 0,
+            },
+            latestEvent: {
+              receivedAt: "2026-09-10T12:00:00Z",
+              status: "processed",
+              title: "Lab 1",
+              itemType: "assignment",
+            },
           }}
-          pushConfigured={false}
         />
       );
 
-      expect(html).toContain("1 Unresolved Item");
-      expect(html).toContain("Homework 3: Graph Traversal");
-      expect(html).toContain("Source: CS101-FALL");
-      expect(html).toContain("Assign");
+      expect(html).toContain("Notification Ingestion");
+      expect(html).toContain("Ingestion active");
+      expect(html).toContain("Automatic school updates from Blackboard notification emails");
+      expect(html).toContain("Total: 5");
+      expect(html).toContain("Processed: 5");
+      expect(html).toContain("Lab 1");
+    });
+
+    it("renders unresolved events requiring course mapping resolution", () => {
+      const html = renderToStaticMarkup(
+        <BlackboardPanel
+          status={{
+            configured: true,
+            courses: [{ id: "c1", code: "CS 101", name: "Intro to CS", color: "#3b82f6" }],
+            courseMappingIssues: [
+              {
+                id: "evt-2",
+                status: "unresolved_course",
+                itemId: null,
+                courseId: null,
+                receivedAt: "2026-09-15T10:00:00Z",
+                parsedEvent: {
+                  source: "blackboard",
+                  messageKey: "msg-2",
+                  provider: "resend",
+                  sourceMessageId: "mid-2",
+                  receivedAt: "2026-09-15T10:00:00Z",
+                  sourceAt: null,
+                  parserVersion: "blackboard-email-v1",
+                  status: "parsed",
+                  notificationType: "assignment",
+                  itemType: "assignment",
+                  courseHint: "CS 101 - Intro to Programming",
+                  baseCourseCode: "CS101",
+                  courseKey: "CS101-FALL",
+                  title: "Problem Set 2",
+                  titleKey: "problem set 2",
+                  sourceKey: "src-2",
+                  sourceUrl: null,
+                  dueDate: "2026-09-20",
+                  dueAt: null,
+                  duePrecision: "date",
+                  weight: null,
+                  evidence: null,
+                  reason: null,
+                },
+              },
+            ],
+            recentEvents: [],
+            eventCounts: {
+              total: 1,
+              processed: 0,
+              unresolved: 1,
+              ignored: 0,
+              other: 0,
+            },
+            latestEvent: {
+              receivedAt: "2026-09-15T10:00:00Z",
+              status: "unresolved_course",
+              title: "Problem Set 2",
+              itemType: "assignment",
+            },
+          }}
+        />
+      );
+
+      expect(html).toContain("Course Mapping Issue");
+      expect(html).toContain("Problem Set 2");
+      expect(html).toContain("CS101-FALL");
+      expect(html).toContain("Map &amp; Retry");
     });
   });
 

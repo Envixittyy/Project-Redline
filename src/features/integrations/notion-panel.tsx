@@ -143,7 +143,7 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
             </div>
           </header>
           <p className={styles.copy}>
-            Concurrent edits occurred on both Forward and Notion. Choose which version to retain:
+            Concurrent edits occurred on both Adulting.exe and Notion. Choose which version to retain:
           </p>
 
           <div className={styles.layout}>
@@ -152,7 +152,7 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
                 <div>
                   <strong>Note: {conflict.localSnapshot.title}</strong>
                   <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
-                    Forward title: &ldquo;{conflict.localSnapshot.title}&rdquo; · Notion title: &ldquo;{conflict.remoteSnapshot.title}&rdquo;
+                    Adulting.exe title: &ldquo;{conflict.localSnapshot.title}&rdquo; · Notion title: &ldquo;{conflict.remoteSnapshot.title}&rdquo;
                   </p>
                 </div>
                 <div className={styles.actions}>
@@ -164,7 +164,7 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
                       run(() => resolveNotionConflictAction(conflict.id, "keep_redline"))
                     }
                   >
-                    Keep Forward Version
+                    Keep Adulting.exe Version
                   </Button>
                   <Button
                     variant="secondary"
@@ -252,8 +252,8 @@ export function NotionPanel({ status, links, conflicts, notes }: NotionPanelProp
                       }
                       ariaLabel={`Sync direction for ${noteTitle}`}
                       options={[
-                        { value: "forward_to_notion", label: "Export Only (Forward → Notion)" },
-                        { value: "selective_two_way", label: "Two-Way (Forward ↔ Notion)" },
+                        { value: "forward_to_notion", label: "Export Only (Adulting.exe → Notion)" },
+                        { value: "selective_two_way", label: "Two-Way (Adulting.exe ↔ Notion)" },
                       ]}
                     />
 

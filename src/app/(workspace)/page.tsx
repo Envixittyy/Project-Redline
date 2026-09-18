@@ -27,7 +27,7 @@ import {
 import { listWorkSessionsInRange } from "@/services/work-sessions/work-session-repository";
 
 export const metadata: Metadata = {
-  title: "Home",
+  title: "So, Ano Na?",
 };
 
 export default async function HomePage() {

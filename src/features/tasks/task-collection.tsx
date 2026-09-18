@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { Surface } from "@/components/ui/surface";
+import { copy } from "@/lib/copy";
 import { addDays } from "@/lib/date/day";
 import type { Task, TaskView } from "@/types/task";
 
@@ -35,50 +36,50 @@ const viewMeta: Record<
   }
 > = {
   today: {
-    title: "All clear for today",
-    description: "Nothing is scheduled or due today. Enjoy the open space or capture a next step.",
+    title: copy.emptyStates.tasks.today.title,
+    description: copy.emptyStates.tasks.today.description,
     kicker: "TODAY",
     icon: CheckCircle2,
   },
   next7: {
-    title: "Next 7 days are clear",
-    description: "No tasks due or scheduled across the upcoming week.",
+    title: copy.emptyStates.tasks.next7.title,
+    description: copy.emptyStates.tasks.next7.description,
     kicker: "UPCOMING",
     icon: CalendarDays,
   },
   overdue: {
-    title: "No overdue tasks",
-    description: "You're completely caught up on your deadlines.",
+    title: copy.emptyStates.tasks.overdue.title,
+    description: copy.emptyStates.tasks.overdue.description,
     kicker: "OVERDUE",
     icon: CheckCircle2,
   },
   inbox: {
-    title: "Inbox is clear",
-    description: "Tasks captured without a due date will wait here for triage.",
+    title: copy.emptyStates.tasks.inbox.title,
+    description: copy.emptyStates.tasks.inbox.description,
     kicker: "INBOX",
     icon: Inbox,
   },
   tomorrow: {
-    title: "Tomorrow is clear",
-    description: "No tasks scheduled or due tomorrow.",
+    title: copy.emptyStates.tasks.tomorrow.title,
+    description: copy.emptyStates.tasks.tomorrow.description,
     kicker: "TOMORROW",
     icon: CalendarDays,
   },
   someday: {
-    title: "No backlog tasks",
-    description: "Undated someday tasks will wait here.",
+    title: copy.emptyStates.tasks.someday.title,
+    description: copy.emptyStates.tasks.someday.description,
     kicker: "SOMEDAY",
     icon: Layers,
   },
   submitted: {
-    title: "No submitted tasks",
-    description: "Assignments and tasks marked submitted will appear here.",
+    title: copy.emptyStates.tasks.submitted.title,
+    description: copy.emptyStates.tasks.submitted.description,
     kicker: "SUBMITTED",
     icon: Archive,
   },
   completed: {
-    title: "No completed tasks yet",
-    description: "Tasks you complete will appear here as a record of your work.",
+    title: copy.emptyStates.tasks.completed.title,
+    description: copy.emptyStates.tasks.completed.description,
     kicker: "COMPLETED",
     icon: CheckCircle2,
   },

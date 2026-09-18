@@ -7,13 +7,13 @@ import styles from "./about-redline-modal.module.css";
 export function AboutRedlineModal({ onClose }: { onClose: () => void }) {
   return (
     <ModalFrame
-      label="About Project Redline"
+      label="About Adulting.exe"
       className={`${styles.panel} motion-enter`}
       onClose={onClose}
     >
       <div className={styles.header}>
         <div className={styles.titleGroup}>
-          <h2>PROJECT REDLINE</h2>
+          <h2>ADULTING.EXE</h2>
           <div className={styles.subtitle}>Personal build</div>
         </div>
         <button

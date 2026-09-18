@@ -2,19 +2,28 @@
 
 import {
   Bell,
+  BookOpen,
   CalendarDays,
   CalendarSync,
+  Clock,
   Compass,
   Ellipsis,
+  Film,
   GraduationCap,
   House,
   Inbox,
   ListTodo,
+  Lock,
   NotebookPen,
+  Plane,
   Search,
   Settings2,
   ShieldCheck,
   Sparkles,
+  Target,
+  Trophy,
+  Users,
+  Wallet,
   X,
   Zap,
   type LucideIcon,
@@ -53,15 +62,15 @@ type Command = {
 
 const commands: readonly Command[] = [
   {
-    label: "Focus Mode (Goldfish)",
-    description: "Distraction-free view of what matters right now",
+    label: "Lock In mofo",
+    description: "Distraction-free execution right now",
     href: "/focus",
     icon: Zap,
-    keywords: "focus goldfish mode now today distraction free timer",
+    keywords: "focus goldfish mode now today lock in distraction free timer",
   },
   {
     label: "Plan My Day",
-    description: "Review deterministic schedule suggestions for today",
+    description: "Review schedule suggestions for today",
     href: "/#planning",
     icon: Compass,
     keywords:
@@ -69,45 +78,45 @@ const commands: readonly Command[] = [
   },
   {
     label: "What Should I Do Now?",
-    description: "Check deterministic recommendation for your current focus",
+    description: "Check recommendation for your current focus",
     href: "/#planning",
     icon: Sparkles,
     keywords: "what should i do now focus next recommendation active task",
   },
   {
-    label: "Home",
+    label: "So, Ano Na?",
     description: "Return to today’s overview",
     href: "/",
     icon: House,
-    keywords: "dashboard overview today",
+    keywords: "dashboard overview today home ano na",
   },
   {
-    label: "Capture Inbox",
-    description: "Review raw captures and proposed actions",
+    label: "Unsorted Bullshit",
+    description: "Review raw captures and proposals",
     href: "/inbox",
     icon: Inbox,
-    keywords: "capture raw input review proposal",
+    keywords: "capture raw input review proposal inbox unsorted bullshit",
   },
   {
-    label: "Tasks",
-    description: "Open every task",
+    label: "Shit to Do",
+    description: "Open all tasks and priorities",
     href: "/tasks",
     icon: ListTodo,
-    keywords: "todo work inbox",
+    keywords: "todo work inbox tasks shit to do",
   },
   {
-    label: "Today’s tasks",
+    label: "Today’s Shit to Do",
     description: "See what is due or scheduled today",
     href: "/tasks?view=today",
     icon: ListTodo,
-    keywords: "now due schedule",
+    keywords: "now due schedule today tasks",
   },
   {
-    label: "Calendar",
+    label: "My Alleged Schedule",
     description: "Open the calendar workspace",
     href: "/calendar",
     icon: CalendarDays,
-    keywords: "events month week agenda",
+    keywords: "events month week agenda calendar schedule",
   },
   {
     label: "Calendar connections",
@@ -117,32 +126,32 @@ const commands: readonly Command[] = [
     keywords: "google microsoft outlook icloud caldav ics sync",
   },
   {
-    label: "School",
+    label: "Academic Suffering",
     description: "Review courses and meetings",
     href: "/school",
     icon: GraduationCap,
-    keywords: "classes courses timetable",
+    keywords: "classes courses timetable school academic suffering",
   },
   {
     label: "Notes",
     description: "Open private notes",
     href: "/notes",
     icon: NotebookPen,
-    keywords: "markdown writing attachments",
+    keywords: "markdown writing attachments notes",
   },
   {
     label: "Appearance",
     description: "Adjust mode and accent on this device",
     href: "/more#appearance",
     icon: Settings2,
-    keywords: "theme dark light color settings",
+    keywords: "theme dark light color settings appearance",
   },
   {
     label: "Blackboard",
     description: "Review secure School email ingestion",
     href: "/integrations/blackboard",
     icon: ShieldCheck,
-    keywords: "school integration email postmark outlook",
+    keywords: "school integration email postmark outlook blackboard",
   },
   {
     label: "Notification Preferences",
@@ -152,8 +161,78 @@ const commands: readonly Command[] = [
     keywords: "notifications alerts preferences quiet hours push bell",
   },
   {
+    label: "Anti-Gastador",
+    description: "Financial responsibility WIP area",
+    href: "/anti-gastador",
+    icon: Wallet,
+    keywords: "anti gastador finance money wallet expenses planned wip",
+  },
+  {
+    label: "Soon™",
+    description: "Gaming backlog and tracking WIP area",
+    href: "/soon",
+    icon: Clock,
+    keywords: "soon games gaming playtime steam launcher planned wip",
+  },
+  {
+    label: "Things to Consume Before I Die",
+    description: "Media backlog and watchlist WIP area",
+    href: "/consume",
+    icon: Film,
+    keywords: "consume media movies books shows music podcasts planned wip",
+  },
+  {
+    label: "Dear Dumbass",
+    description: "Personal journal and moments WIP area",
+    href: "/dear-dumbass",
+    icon: BookOpen,
+    keywords: "dear dumbass journal thoughts memories personal planned wip",
+  },
+  {
+    label: "Lore",
+    description: "Personal timeline and canon events WIP area",
+    href: "/lore",
+    icon: Compass,
+    keywords: "lore timeline memories history canon incident planned wip",
+  },
+  {
+    label: "These Mfs",
+    description: "People, birthdays, and connections WIP area",
+    href: "/people",
+    icon: Users,
+    keywords: "these mfs people friends family birthdays contacts planned wip",
+  },
+  {
+    label: "Gala",
+    description: "Trips, places, and travel plans WIP area",
+    href: "/gala",
+    icon: Plane,
+    keywords: "gala trips travel places itinerary destinations planned wip",
+  },
+  {
+    label: "Football (EFU)",
+    description: "Club organization and training WIP area",
+    href: "/football",
+    icon: Trophy,
+    keywords: "football efu training matches club soccer planned wip",
+  },
+  {
+    label: "Skills",
+    description: "Learning map and milestones WIP area",
+    href: "/skills",
+    icon: Target,
+    keywords: "skills learning progress practice milestones planned wip",
+  },
+  {
+    label: "None of Your Business",
+    description: "Local private vault WIP area",
+    href: "/private",
+    icon: Lock,
+    keywords: "none of your business private vault local history secret planned wip",
+  },
+  {
     label: "More",
-    description: "Access secondary areas, integrations, and preferences",
+    description: "Access secondary areas, WIP features, and preferences",
     href: "/more",
     icon: Ellipsis,
     keywords: "more settings integrations account appearance preferences",
@@ -369,7 +448,7 @@ export function CommandPalette() {
           >
             <div className={styles.heading}>
               <div>
-                <p>Forward</p>
+                <p>Adulting.exe</p>
                 <h2 id="command-palette-title">Where do you want to go?</h2>
               </div>
               <button
@@ -397,7 +476,7 @@ export function CommandPalette() {
                     ? `command-${activeIndex}`
                     : undefined
                 }
-                placeholder="Search Forward…"
+                placeholder="Search Adulting.exe…"
                 onChange={(event) => {
                   setQuery(event.target.value);
                   setActiveIndex(0);

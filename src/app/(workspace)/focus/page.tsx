@@ -22,8 +22,8 @@ import {
 import { listWorkSessionsInRange } from "@/services/work-sessions/work-session-repository";
 
 export const metadata: Metadata = {
-  title: "Focus Mode",
-  description: "Distraction-free focus presentation answering what actually matters right now.",
+  title: "Lock In mofo",
+  description: "Distraction-free execution. Gawin mo na.",
 };
 
 export default async function FocusPage() {

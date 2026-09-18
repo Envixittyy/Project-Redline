@@ -147,7 +147,7 @@ export function CaptureComposer({
         name="capture"
         rows={compact ? 4 : 3}
         maxLength={10000}
-        placeholder="Drop a thought, task, or pasted text here… (e.g. 'Submit Physics lab report by Friday 5pm')"
+        placeholder="Whatever this is, put it here. I'll sort it later… (e.g. 'Submit Physics lab report by Friday 5pm')"
         disabled={pending || aiParsing}
         className={styles.textarea}
         aria-label="Capture raw text"

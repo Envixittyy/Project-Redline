@@ -16,7 +16,7 @@ import { listWorkSessionsInRange } from "@/services/work-sessions/work-session-r
 
 import styles from "./calendar-page.module.css";
 
-export const metadata: Metadata = { title: "Calendar" };
+export const metadata: Metadata = { title: "My Alleged Schedule" };
 
 export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
   const params = await searchParams;
@@ -109,8 +109,8 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
     <>
       <div className={styles.pageHeaderWrap}>
         <PageHeader
-          title="Calendar"
-          description="Events, planned task work, and due-only deadlines in one view—without merging their underlying domains."
+          title="My Alleged Schedule"
+          description="Events, classes, and supposedly free time."
         />
       </div>
       {content}

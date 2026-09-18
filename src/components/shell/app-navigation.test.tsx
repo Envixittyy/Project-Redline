@@ -36,6 +36,16 @@ describe("S7C Navigation Architecture", () => {
       expect(isActiveRoute("/integrations/calendars", "/more")).toBe(true);
       expect(isActiveRoute("/integrations/blackboard", "/more")).toBe(true);
       expect(isActiveRoute("/integrations/notion", "/more")).toBe(true);
+      expect(isActiveRoute("/soon", "/more")).toBe(true);
+      expect(isActiveRoute("/anti-gastador", "/more")).toBe(true);
+      expect(isActiveRoute("/consume", "/more")).toBe(true);
+      expect(isActiveRoute("/dear-dumbass", "/more")).toBe(true);
+      expect(isActiveRoute("/lore", "/more")).toBe(true);
+      expect(isActiveRoute("/people", "/more")).toBe(true);
+      expect(isActiveRoute("/gala", "/more")).toBe(true);
+      expect(isActiveRoute("/football", "/more")).toBe(true);
+      expect(isActiveRoute("/skills", "/more")).toBe(true);
+      expect(isActiveRoute("/private", "/more")).toBe(true);
       expect(isActiveRoute("/tasks-archive", "/tasks")).toBe(false);
       expect(isActiveRoute("/schoolyard", "/school")).toBe(false);
     });
@@ -85,7 +95,7 @@ describe("S7C Navigation Architecture", () => {
       const html = renderToStaticMarkup(<MobileTabBar />);
       expect(mobileNavigation).toHaveLength(5);
       for (const item of mobileNavigation) {
-        expect(html).toContain(item.label);
+        expect(html).toContain(item.shortLabel ?? item.label);
         expect(html).toContain(`href="${item.href}"`);
       }
     });
@@ -105,7 +115,13 @@ describe("S7C Navigation Architecture", () => {
     it("guarantees 5 touch-target-ready destinations for the floating dock capsule", () => {
       expect(mobileNavigation).toHaveLength(5);
       const labels = mobileNavigation.map((item) => item.label);
-      expect(labels).toEqual(["Home", "Tasks", "Calendar", "School", "More"]);
+      expect(labels).toEqual([
+        "So, Ano Na?",
+        "Shit to Do",
+        "My Alleged Schedule",
+        "Academic Suffering",
+        "More",
+      ]);
     });
   });
 

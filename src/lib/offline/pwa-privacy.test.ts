@@ -47,4 +47,14 @@ describe("PWA auth-boundary cleanup", () => {
     expect(clearOfflineMutations).toHaveBeenCalledOnce();
     expect(removePreference).not.toHaveBeenCalled();
   });
+
+  it("preserves browser-local PrivateStore during sign-out cleanup", async () => {
+    const idbDeleteDatabase = vi.fn();
+    vi.stubGlobal("indexedDB", { deleteDatabase: idbDeleteDatabase });
+
+    await clearSensitivePwaState();
+
+    // Verify indexedDB.deleteDatabase is NEVER called on PrivateStore
+    expect(idbDeleteDatabase).not.toHaveBeenCalledWith("redline-private-store-v1");
+  });
 });

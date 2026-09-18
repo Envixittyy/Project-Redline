@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 
-import { PlannedAreaPage } from "@/features/planned-areas/planned-area-page";
-import { copy } from "@/lib/copy";
+import { DearDumbassFeed } from "@/features/dear-dumbass";
 
 export const metadata: Metadata = {
-  title: copy.plannedAreas.journal.name,
-  description: copy.plannedAreas.journal.description,
+  title: "Dear Dumbass",
+  description: "Private stream-of-consciousness feed. Population: 1.",
 };
 
 export default function DearDumbassPage() {
-  return <PlannedAreaPage {...copy.plannedAreas.journal} />;
+  return <DearDumbassFeed />;
 }

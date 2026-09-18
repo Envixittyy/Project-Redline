@@ -36,7 +36,6 @@ const plannedAreas = [
   { ...copy.plannedAreas.antiGastador, icon: Wallet },
   { ...copy.plannedAreas.soon, icon: Clock },
   { ...copy.plannedAreas.media, icon: Film },
-  { ...copy.plannedAreas.journal, icon: BookOpen },
   { ...copy.plannedAreas.lore, icon: Compass },
   { ...copy.plannedAreas.people, icon: Users },
   { ...copy.plannedAreas.gala, icon: Plane },
@@ -98,6 +97,17 @@ export default function MorePage() {
               <div className={styles.rowContent}>
                 <h3 className={styles.rowTitle}>Notes</h3>
                 <p className={styles.rowDetail}>Quiet Markdown notes & attachments</p>
+              </div>
+              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
+            </Link>
+
+            <Link href="/dear-dumbass" className={styles.indexRow}>
+              <div className={styles.rowIcon}>
+                <BookOpen size={18} aria-hidden="true" />
+              </div>
+              <div className={styles.rowContent}>
+                <h3 className={styles.rowTitle}>Dear Dumbass</h3>
+                <p className={styles.rowDetail}>Private stream-of-consciousness feed (local only)</p>
               </div>
               <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
             </Link>

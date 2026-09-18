@@ -425,3 +425,16 @@ External events remain source-aware so synchronization and updates can respect t
 Migration `20260831110000_ai_reviewed_course_import.sql` adds the course source table, exclusive course/checklist batch links, a `course` audit target, and signed prepare/finalize/revise/read/reject/apply operations. A partial unique index permits only one proposed review per source; older revisions stay immutable and rejected. Restrictive batch/step policies also guard the course link even if a browser claims a non-AI source. **Course source text is intentionally persisted** with the integrity-protected review audit. It is not logged and is not cleared by the legacy cloud-history button; expiry blocks execution but does not erase content. No automatic retention job is implemented. Checklist requests still store only metadata/revision, not source descriptions.
 
 Notification hardening from `1033efb` remains authoritative. The only production notification port from Gemini propagates one server evaluation instant through task/event/class planning, quiet-hours evaluation, subscription expiry, and in-app delivery timestamps. Push creation still uses `deferred` during quiet hours; Gemini’s unconditional `pending` change was rejected. Crypto, URL/SSRF checks, service-worker checks, dispatch authentication, and registry behavior are unchanged.
+
+## PrivateStore Architecture: Dear Dumbass (Local-Only Journal)
+
+Dear Dumbass (`/dear-dumbass`, with `/journal` redirect) is a local-only stream-of-consciousness feed designed for personal unedited thoughts ("Population: 1").
+
+### Core Privacy & Persistence Contracts:
+- **Zero-Cloud Guarantee**: Dear Dumbass posts and threads are stored strictly in client-side IndexedDB (`redline-private-store-v1`). They are NEVER transmitted to Supabase, cloud tables, remote servers, AI models, logs, or analytics.
+- **Offline Queue Isolation**: Dear Dumbass mutations are completely isolated from the PWA offline sync queue (`src/lib/offline/queue.ts`). They never generate pending cloud mutations or retry network jobs.
+- **Client-Only Guard**: Production `getPrivateStore()` enforces a browser environment and throws if called during SSR or Node execution without explicit dependency injection. `InMemoryPrivateStore` is reserved for tests and explicit DI.
+- **Scrubbed Deletion**: Deleting a post permanently overwrites the plaintext body (`body: ""` alongside `deletedAt: timestamp`). Deleting a root post cascades this scrubbing and tombstoning to all nested replies.
+- **Sign-Out Data Retention**: `clearSensitivePwaState()` purges cached user data and push tokens upon sign-out, but intentionally preserves `redline-private-store-v1` so the owner's private journal is not lost on logout.
+- **PWA Offline Scope**: The feed and composer operate fully offline once loaded in the browser. Cold-start offline navigation requires the workspace shell to have been previously loaded.
+

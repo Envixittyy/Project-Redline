@@ -163,16 +163,21 @@ export class IndexedDbPrivateStore implements PrivateStore {
         request.onerror = () => reject(request.error);
       });
 
-    const objectStore = (storeName: string) => tx.objectStore(storeName);
+    const objectStore = (storeName: string) => {
+      if (!tx.objectStoreNames.contains(storeName)) {
+        throw new Error(
+          `PrivateStore transaction did not declare required object store: ${storeName}`,
+        );
+      }
+      return tx.objectStore(storeName);
+    };
 
     return {
       get: async <T>(storeName: string, key: string): Promise<T | null> => {
-        if (!tx.objectStoreNames.contains(storeName)) return null;
         const result = await requestResult(objectStore(storeName).get(key));
         return (result as T | undefined) ?? null;
       },
       getAll: async <T>(storeName: string): Promise<T[]> => {
-        if (!tx.objectStoreNames.contains(storeName)) return [];
         const result = await requestResult(objectStore(storeName).getAll());
         return (result as T[]) ?? [];
       },
@@ -181,37 +186,35 @@ export class IndexedDbPrivateStore implements PrivateStore {
         indexName: string,
         value: PrivateStoreIndexValue,
       ): Promise<T[]> => {
-        if (!tx.objectStoreNames.contains(storeName)) return [];
         const result = await requestResult(
           objectStore(storeName).index(indexName).getAll(value),
         );
         return (result as T[]) ?? [];
       },
       put: async <T extends { id: string }>(storeName: string, value: T) => {
-        if (!tx.objectStoreNames.contains(storeName)) return;
         await requestResult(objectStore(storeName).put(value));
       },
       putBatch: async <T extends { id: string }>(
         storeName: string,
         values: T[],
       ) => {
-        if (!tx.objectStoreNames.contains(storeName) || values.length === 0) return;
+        const store = objectStore(storeName);
+        if (values.length === 0) return;
         await Promise.all(
-          values.map((value) => requestResult(objectStore(storeName).put(value))),
+          values.map((value) => requestResult(store.put(value))),
         );
       },
       delete: async (storeName: string, key: string) => {
-        if (!tx.objectStoreNames.contains(storeName)) return;
         await requestResult(objectStore(storeName).delete(key));
       },
       deleteBatch: async (storeName: string, keys: string[]) => {
-        if (!tx.objectStoreNames.contains(storeName) || keys.length === 0) return;
+        const store = objectStore(storeName);
+        if (keys.length === 0) return;
         await Promise.all(
-          keys.map((key) => requestResult(objectStore(storeName).delete(key))),
+          keys.map((key) => requestResult(store.delete(key))),
         );
       },
       clear: async (storeName: string) => {
-        if (!tx.objectStoreNames.contains(storeName)) return;
         await requestResult(objectStore(storeName).clear());
       },
     };
@@ -224,12 +227,13 @@ export class IndexedDbPrivateStore implements PrivateStore {
   ): Promise<R> {
     const db = await this.getDatabase();
     const rawNames = typeof storeNames === "string" ? [storeNames] : [...storeNames];
-    const names = rawNames.filter((name) => db.objectStoreNames.contains(name));
-    if (names.length === 0) {
+    const missingNames = rawNames.filter((name) => !db.objectStoreNames.contains(name));
+    if (missingNames.length > 0) {
       throw new Error(
-        `None of the requested object stores exist in database: ${rawNames.join(", ")}`,
+        `PrivateStore transaction is missing required object stores: ${missingNames.join(", ")}`,
       );
     }
+    const names = [...new Set(rawNames)];
 
     return new Promise<R>((resolve, reject) => {
       let settled = false;

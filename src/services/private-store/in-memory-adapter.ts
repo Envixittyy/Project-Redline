@@ -23,6 +23,58 @@ export class InMemoryPrivateStore implements PrivateStore {
     return store;
   }
 
+  private createScopedTransaction(
+    target: InMemoryPrivateStore,
+    allowedStoreNames: ReadonlySet<string>,
+  ): PrivateStoreTransaction {
+    const assertAllowed = (storeName: string) => {
+      if (!allowedStoreNames.has(storeName)) {
+        throw new Error(
+          `PrivateStore transaction did not declare required object store: ${storeName}`,
+        );
+      }
+    };
+
+    return {
+      get: <T>(storeName: string, key: string) => {
+        assertAllowed(storeName);
+        return target.get<T>(storeName, key);
+      },
+      getAll: <T>(storeName: string) => {
+        assertAllowed(storeName);
+        return target.getAll<T>(storeName);
+      },
+      getAllByIndex: <T>(
+        storeName: string,
+        indexName: string,
+        value: PrivateStoreIndexValue,
+      ) => {
+        assertAllowed(storeName);
+        return target.getAllByIndex<T>(storeName, indexName, value);
+      },
+      put: <T extends { id: string }>(storeName: string, value: T) => {
+        assertAllowed(storeName);
+        return target.put(storeName, value);
+      },
+      putBatch: <T extends { id: string }>(storeName: string, values: T[]) => {
+        assertAllowed(storeName);
+        return target.putBatch(storeName, values);
+      },
+      delete: (storeName: string, key: string) => {
+        assertAllowed(storeName);
+        return target.delete(storeName, key);
+      },
+      deleteBatch: (storeName: string, keys: string[]) => {
+        assertAllowed(storeName);
+        return target.deleteBatch(storeName, keys);
+      },
+      clear: (storeName: string) => {
+        assertAllowed(storeName);
+        return target.clear(storeName);
+      },
+    };
+  }
+
   async get<T>(storeName: string, key: string): Promise<T | null> {
     const store = this.getStore(storeName);
     const item = store.get(key);
@@ -92,7 +144,7 @@ export class InMemoryPrivateStore implements PrivateStore {
   }
 
   async transaction<R>(
-    _storeNames: string | readonly string[],
+    storeNames: string | readonly string[],
     mode: PrivateStoreTransactionMode,
     operation: (transaction: PrivateStoreTransaction) => Promise<R> | R,
   ): Promise<R> {
@@ -105,8 +157,11 @@ export class InMemoryPrivateStore implements PrivateStore {
     await previous;
 
     try {
+      const allowedStoreNames = new Set(
+        typeof storeNames === "string" ? [storeNames] : storeNames,
+      );
       if (mode === "readonly") {
-        return await operation(this);
+        return await operation(this.createScopedTransaction(this, allowedStoreNames));
       }
 
       const transactionStore = new InMemoryPrivateStore();
@@ -119,7 +174,9 @@ export class InMemoryPrivateStore implements PrivateStore {
         ]),
       );
 
-      const result = await operation(transactionStore);
+      const result = await operation(
+        this.createScopedTransaction(transactionStore, allowedStoreNames),
+      );
       this.stores = transactionStore.stores;
       return result;
     } finally {

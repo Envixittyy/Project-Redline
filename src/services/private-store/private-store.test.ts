@@ -295,5 +295,26 @@ describe("PrivateStore Storage Layer", () => {
 
       v2Store.close();
     });
+
+    it("aborts instead of silently dropping a write to an undeclared store", async () => {
+      const v2Store = new IndexedDbPrivateStore(`${testDbName}-undeclared-store`, 2);
+
+      await expect(
+        v2Store.transaction("dear_dumbass_posts", "readwrite", async (tx) => {
+          await tx.put("dear_dumbass_posts", {
+            id: "must-roll-back",
+            body: "journal write",
+            replyToId: null,
+          });
+          await tx.put("dear_dumbass_sync_outbox", {
+            id: "missing-operation",
+            recordId: "must-roll-back",
+          });
+        }),
+      ).rejects.toThrow("did not declare required object store");
+
+      expect(await v2Store.get("dear_dumbass_posts", "must-roll-back")).toBeNull();
+      v2Store.close();
+    });
   });
 });

@@ -16,6 +16,15 @@ const nextConfig: NextConfig = {
       ] },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: "/journal",
+        destination: "/dear-dumbass",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

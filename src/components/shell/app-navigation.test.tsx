@@ -110,7 +110,6 @@ describe("S7C Navigation Architecture", () => {
         { href: "/anti-gastador", label: "Anti-Gastador" },
         { href: "/soon", label: "Soon™" },
         { href: "/consume", label: "Things to Consume Before I Die" },
-        { href: "/dear-dumbass", label: "Dear Dumbass" },
         { href: "/lore", label: "Lore" },
         { href: "/people", label: "These Mfs" },
         { href: "/gala", label: "Gala" },
@@ -125,6 +124,15 @@ describe("S7C Navigation Architecture", () => {
       }
     });
 
+    it("renders Dear Dumbass as an active destination without WIP indicator", () => {
+      mockUsePathname.mockReturnValue("/tasks");
+      const html = renderToStaticMarkup(<DesktopNavigation />);
+      expect(html).toContain('href="/dear-dumbass"');
+      expect(html).toContain("Dear Dumbass");
+      const dearDumbassLink = html.match(/<a[^>]*href="\/dear-dumbass"[^>]*>[\s\S]*?<\/a>/)?.[0] ?? "";
+      expect(dearDumbassLink).not.toContain("WIP");
+    });
+
     it("exposes WIP indicator and accessible description for planned items only", () => {
       mockUsePathname.mockReturnValue("/tasks");
       const html = renderToStaticMarkup(<DesktopNavigation />);
@@ -133,10 +141,10 @@ describe("S7C Navigation Architecture", () => {
       expect(html).toContain("WIP");
       expect(html).toContain("Work in progress");
 
-      // Count WIP indicators matches planned item count (10)
+      // Count WIP indicators matches remaining planned item count (9)
       const wipOccurrences = (html.match(/title="Work in progress \(planned\)"/g) || []).length;
-      expect(wipOccurrences).toBe(10);
-      expect(plannedAreaRoutes).toHaveLength(10);
+      expect(wipOccurrences).toBe(9);
+      expect(plannedAreaRoutes).toHaveLength(9);
     });
 
     it("renders More destination in desktop navigation footer", () => {

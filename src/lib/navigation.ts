@@ -54,7 +54,7 @@ export const desktopNavigationGroups: readonly NavigationGroup[] = [
     items: [
       { href: "/notes", icon: NotebookPen, label: "Notes", shortLabel: "Notes" },
       { href: "/inbox", icon: Inbox, label: "Unsorted Bullshit", shortLabel: "Bullshit" },
-      { href: "/dear-dumbass", icon: BookOpen, label: "Dear Dumbass", status: "planned" },
+      { href: "/dear-dumbass", icon: BookOpen, label: "Dear Dumbass", shortLabel: "Dear Dumbass" },
       { href: "/lore", icon: Compass, label: "Lore", status: "planned" },
       { href: "/people", icon: Users, label: "These Mfs", status: "planned" },
     ],
@@ -88,6 +88,7 @@ export const primaryNavigation: readonly NavigationItem[] = [
 export const secondaryNavigation: readonly NavigationItem[] = [
   { href: "/notes", icon: NotebookPen, label: "Notes" },
   { href: "/inbox", icon: Inbox, label: "Unsorted Bullshit", shortLabel: "Bullshit" },
+  { href: "/dear-dumbass", icon: BookOpen, label: "Dear Dumbass", shortLabel: "Dear Dumbass" },
 ];
 
 export const moreNavigationItem: NavigationItem = {
@@ -106,7 +107,6 @@ export const plannedAreaRoutes: readonly string[] = [
   "/anti-gastador",
   "/soon",
   "/consume",
-  "/dear-dumbass",
   "/lore",
   "/people",
   "/gala",
@@ -152,8 +152,10 @@ export function isActiveRoute(
     const isPlannedArea = plannedAreaRoutes.some(
       (route) => cleanPath === route || cleanPath.startsWith(route + "/"),
     );
+    const isSecondaryWorkflow =
+      cleanPath === "/dear-dumbass" || cleanPath.startsWith("/dear-dumbass/");
 
-    if (isDesktop && isPlannedArea) {
+    if (isDesktop && (isPlannedArea || isSecondaryWorkflow)) {
       return false;
     }
 
@@ -162,7 +164,8 @@ export function isActiveRoute(
       cleanPath.startsWith("/more/") ||
       cleanPath.startsWith("/settings/") ||
       cleanPath.startsWith("/integrations/") ||
-      isPlannedArea
+      isPlannedArea ||
+      isSecondaryWorkflow
     );
   }
 

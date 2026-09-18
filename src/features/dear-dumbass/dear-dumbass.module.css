@@ -1,0 +1,479 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 0 0 calc(var(--mobile-nav-space, 5.75rem) + 1.5rem);
+}
+
+/* Header */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0 0.75rem;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-family: var(--font-display, inherit);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.population {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin: 0;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.privacyBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: var(--surface-glass, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.privacyDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--accent, #38bdf8);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+/* Composer */
+.composerSurface {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  padding: 1rem;
+  gap: 0.75rem;
+  box-shadow: var(--shadow-soft, 0 4px 20px rgba(0, 0, 0, 0.15));
+  transition: border-color var(--motion-fast, 140ms) ease;
+}
+
+.composerSurface:focus-within {
+  border-color: var(--accent, #38bdf8);
+}
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--danger, #ef4444);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  max-height: 24rem;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: var(--font-body, inherit);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  padding: 0;
+}
+
+.textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.composerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.75rem;
+}
+
+.shortcutHint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.postButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  min-width: 5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 0.625rem;
+  background: var(--accent);
+  color: var(--accent-text, #000);
+  border: none;
+  cursor: pointer;
+  transition: transform var(--motion-fast, 140ms) ease, opacity var(--motion-fast, 140ms) ease;
+}
+
+.postButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.postButton:not(:disabled):hover {
+  transform: scale(1.02);
+}
+
+.postButton:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* Feed List */
+.feedList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Post Card */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  padding: 1.125rem;
+  gap: 0.75rem;
+  box-shadow: var(--shadow-soft, 0 2px 10px rgba(0, 0, 0, 0.1));
+  transition: border-color var(--motion-fast, 140ms) ease;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.timestampRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.editedTag {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.postBody {
+  margin: 0;
+  font-family: var(--font-body, inherit);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Actions Row */
+.actionRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-top: 0.25rem;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all var(--motion-fast, 140ms) ease;
+}
+
+.actionButton:hover {
+  background: var(--surface-glass, rgba(255, 255, 255, 0.05));
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.actionButtonActive {
+  background: var(--surface-glass, rgba(255, 255, 255, 0.08));
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.deleteButton {
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
+.deleteButton:hover {
+  color: var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.replyBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--surface-glass, rgba(255, 255, 255, 0.1));
+  border-radius: 9999px;
+  color: var(--text-primary);
+}
+
+/* Inline Edit */
+.editContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.editTextarea {
+  width: 100%;
+  min-height: 4rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  font-family: var(--font-body, inherit);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  padding: 0.625rem;
+  outline: none;
+  resize: vertical;
+}
+
+.editTextarea:focus {
+  border-color: var(--accent);
+}
+
+.editActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.saveButton {
+  min-height: 2.75rem;
+  padding: 0.375rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--accent-text, #000);
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.cancelButton {
+  min-height: 2.75rem;
+  padding: 0.375rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.cancelButton:hover {
+  background: var(--surface-glass, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary);
+}
+
+/* Delete Confirmation */
+.deleteConfirmBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  flex-wrap: wrap;
+}
+
+.deleteConfirmText {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.deleteConfirmActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.confirmDeleteBtn {
+  min-height: 2.75rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--danger, #ef4444);
+  color: #fff;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+/* Thread / Replies Section */
+.threadSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-left: 1rem;
+  border-left: 2px solid var(--border-subtle);
+  margin-left: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.repliesList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.replyCard {
+  background: var(--surface-glass, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  padding: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.replyComposer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+}
+
+.replyComposer:focus-within {
+  border-color: var(--accent);
+}
+
+.replyTextarea {
+  width: 100%;
+  min-height: 3rem;
+  max-height: 12rem;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: var(--font-body, inherit);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  padding: 0;
+}
+
+.replyTextarea::placeholder {
+  color: var(--text-muted);
+}
+
+.replyFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Empty State */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3.5rem 1.5rem;
+  gap: 0.75rem;
+  background: var(--surface);
+  border: 1px dashed var(--border-subtle);
+  border-radius: 1rem;
+}
+
+.emptyIcon {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.emptyTitle {
+  font-family: var(--font-display, inherit);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.emptyDescription {
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 20rem;
+}

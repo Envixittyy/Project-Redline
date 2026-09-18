@@ -183,10 +183,10 @@ const commands: readonly Command[] = [
   },
   {
     label: "Dear Dumbass",
-    description: "Personal journal and moments WIP area",
+    description: "Private stream-of-consciousness feed (local only)",
     href: "/dear-dumbass",
     icon: BookOpen,
-    keywords: "dear dumbass journal thoughts memories personal planned wip",
+    keywords: "dear dumbass stream thoughts vent scream void social private local",
   },
   {
     label: "Lore",

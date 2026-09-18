@@ -5,6 +5,7 @@ import { InMemoryPrivateStore } from "@/services/private-store";
 import { DearDumbassRepository, type DearDumbassPost } from "@/services/dear-dumbass";
 import { DearDumbassCard, formatRelativeTime } from "./dear-dumbass-card";
 import { DearDumbassFeed } from "./dear-dumbass-feed";
+import { DurabilityModal } from "./durability-modal";
 
 describe("Dear Dumbass UI Components", () => {
   const store = new InMemoryPrivateStore();
@@ -110,12 +111,13 @@ describe("Dear Dumbass UI Components", () => {
   });
 
   describe("DearDumbassFeed Static Rendering", () => {
-    it("renders header, personality subtitle, privacy badge, search bar, and composer", () => {
+    it("renders header, personality subtitle, privacy badge, search bar, backup button, and composer", () => {
       const html = renderToStaticMarkup(<DearDumbassFeed repository={repo} />);
 
       expect(html).toContain("Dear Dumbass");
       expect(html).toContain("Population: 1");
       expect(html).toContain("Local Only");
+      expect(html).toContain("Backup &amp; Durability");
       expect(html).toContain("Search thoughts &amp; replies locally…");
       expect(html).toContain("Scream into the void…");
       expect(html).toContain("Ctrl+Enter to post");
@@ -124,6 +126,23 @@ describe("Dear Dumbass UI Components", () => {
 
     it("renders safely during server prerender without constructing PrivateStore", () => {
       expect(() => renderToStaticMarkup(<DearDumbassFeed />)).not.toThrow();
+    });
+  });
+
+  describe("DurabilityModal Static Rendering", () => {
+    it("renders storage durability, backup export, and backup restore sections", () => {
+      const html = renderToStaticMarkup(
+        <DurabilityModal repository={repo} onClose={() => undefined} />,
+      );
+
+      expect(html).toContain("Storage &amp; Backup");
+      expect(html).toContain("Local Durability");
+      expect(html).toContain("Export Encrypted Backup");
+      expect(html).toContain("Restore Backup");
+      expect(html).toContain("Private Data Warning");
+      expect(html).toContain("AES-GCM 256");
+      expect(html).toContain("Merge (Safe - Default)");
+      expect(html).toContain("Replace Local Archive (Destructive)");
     });
   });
 });

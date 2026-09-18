@@ -1,4 +1,12 @@
 import { getPrivateStore, type PrivateStore } from "@/services/private-store";
+import {
+  createEncryptedBackup,
+  validateArchivePayload,
+  type DearDumbassArchivePayload,
+  type DearDumbassBackupEnvelope,
+  type RestoreMode,
+  type RestoreResult,
+} from "./backup";
 import type { DearDumbassPost, DearDumbassSearchResult } from "./types";
 
 export const DEAR_DUMBASS_STORE_NAME = "dear_dumbass_posts";
@@ -419,6 +427,123 @@ export class DearDumbassRepository {
     }
 
     return deletedIds.length;
+  }
+
+  /**
+   * Export an encrypted backup envelope containing all posts and deletion tombstones.
+   * Encryption is performed via Web Crypto (PBKDF2 + AES-GCM).
+   */
+  async exportArchive(passphrase: string): Promise<DearDumbassBackupEnvelope> {
+    const all = await this.store.getAll<DearDumbassPost>(DEAR_DUMBASS_STORE_NAME);
+    return createEncryptedBackup(all, passphrase);
+  }
+
+  /**
+   * Restore an archive into the local store using an atomic transaction.
+   * - Validates schema and records before database writes are initiated.
+   * - In "merge" mode (default), preserves existing local data and tombstones.
+   * - In "replace" mode, atomically clears the store and restores all archive records.
+   * - Emits change event on success across current window and other tabs.
+   */
+  async restoreArchive(
+    payload: DearDumbassArchivePayload,
+    mode: RestoreMode = "merge",
+  ): Promise<RestoreResult> {
+    const validated = validateArchivePayload(payload);
+
+    const result = await this.store.transaction(
+      DEAR_DUMBASS_STORE_NAME,
+      "readwrite",
+      async (transaction) => {
+        if (mode === "replace") {
+          await transaction.clear(DEAR_DUMBASS_STORE_NAME);
+          if (validated.posts.length > 0) {
+            await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, validated.posts);
+          }
+          return {
+            mode,
+            restoredCount: validated.posts.length,
+            updatedCount: 0,
+            preservedCount: 0,
+            totalProcessed: validated.posts.length,
+          };
+        }
+
+        const existingList = await transaction.getAll<DearDumbassPost>(
+          DEAR_DUMBASS_STORE_NAME,
+        );
+        const existingMap = new Map(existingList.map((p) => [p.id, p]));
+
+        const toPut: DearDumbassPost[] = [];
+        let restoredCount = 0;
+        let updatedCount = 0;
+        let preservedCount = 0;
+
+        for (const incoming of validated.posts) {
+          const existing = existingMap.get(incoming.id);
+
+          if (!existing) {
+            toPut.push(incoming);
+            restoredCount += 1;
+            continue;
+          }
+
+          const existingDeleted = Boolean(existing.deletedAt);
+          const incomingDeleted = Boolean(incoming.deletedAt);
+
+          if (existingDeleted) {
+            // Local post was already deleted & scrubbed. Tombstone MUST be preserved!
+            preservedCount += 1;
+            continue;
+          }
+
+          if (incomingDeleted) {
+            // Incoming is a deletion tombstone: apply tombstone with empty body
+            toPut.push({
+              ...existing,
+              body: "",
+              deletedAt: incoming.deletedAt,
+            });
+            updatedCount += 1;
+            continue;
+          }
+
+          const existingRev = existing.revision ?? 0;
+          const incomingRev = incoming.revision ?? 0;
+
+          if (incomingRev > existingRev) {
+            toPut.push(incoming);
+            updatedCount += 1;
+          } else if (incomingRev === existingRev) {
+            const existingTime = existing.updatedAt ?? existing.createdAt;
+            const incomingTime = incoming.updatedAt ?? incoming.createdAt;
+            if (incomingTime.localeCompare(existingTime) > 0) {
+              toPut.push(incoming);
+              updatedCount += 1;
+            } else {
+              preservedCount += 1;
+            }
+          } else {
+            preservedCount += 1;
+          }
+        }
+
+        if (toPut.length > 0) {
+          await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, toPut);
+        }
+
+        return {
+          mode,
+          restoredCount,
+          updatedCount,
+          preservedCount,
+          totalProcessed: validated.posts.length,
+        };
+      },
+    );
+
+    this.emitChange();
+    return result;
   }
 }
 

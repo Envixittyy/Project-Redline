@@ -1,6 +1,6 @@
 "use client";
 
-import { Radio, Search, Send, ShieldCheck, X } from "lucide-react";
+import { HardDrive, Radio, Search, Send, ShieldCheck, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -18,6 +18,7 @@ import {
   type DearDumbassSearchResult,
 } from "@/services/dear-dumbass";
 import { DearDumbassCard } from "./dear-dumbass-card";
+import { DurabilityModal } from "./durability-modal";
 import styles from "./dear-dumbass.module.css";
 
 export type DearDumbassFeedProps = {
@@ -76,6 +77,9 @@ export function DearDumbassFeed({
   const [postError, setPostError] = useState<string | null>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const feedLoadVersionRef = useRef(0);
+
+  // Durability / Backup modal state
+  const [isDurabilityOpen, setIsDurabilityOpen] = useState(false);
 
   // Search state (strictly local in-memory, never in URL query string)
   const [searchQuery, setSearchQuery] = useState("");
@@ -201,15 +205,27 @@ export function DearDumbassFeed({
             <h1 className={styles.title}>Dear Dumbass</h1>
             <p className={styles.population}>Population: 1</p>
           </div>
-          <span
-            className={styles.privacyBadge}
-            title="PrivateStore: Stored exclusively in your browser. Never sent to any server or cloud API."
-            aria-label="Storage status: Local Only"
-          >
-            <span className={styles.privacyDot} aria-hidden="true" />
-            <ShieldCheck size={13} aria-hidden="true" />
-            <span>Local Only</span>
-          </span>
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              className={styles.durabilityButton}
+              onClick={() => setIsDurabilityOpen(true)}
+              aria-label="Manage storage durability and encrypted backup"
+              title="Storage Durability & Encrypted Backup"
+            >
+              <HardDrive size={13} aria-hidden="true" />
+              <span>Backup &amp; Durability</span>
+            </button>
+            <span
+              className={styles.privacyBadge}
+              title="PrivateStore: Stored exclusively in your browser. Never sent to any server or cloud API."
+              aria-label="Storage status: Local Only"
+            >
+              <span className={styles.privacyDot} aria-hidden="true" />
+              <ShieldCheck size={13} aria-hidden="true" />
+              <span>Local Only</span>
+            </span>
+          </div>
         </div>
       </header>
 
@@ -365,6 +381,13 @@ export function DearDumbassFeed({
           ))
         )}
       </main>
+
+      {isDurabilityOpen && repository ? (
+        <DurabilityModal
+          repository={repository}
+          onClose={() => setIsDurabilityOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

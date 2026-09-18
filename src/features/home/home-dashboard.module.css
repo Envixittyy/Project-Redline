@@ -319,6 +319,9 @@
 }
 
 .scheduleList {
+  --schedule-time-width: 8.5rem;
+  --schedule-marker-width: 0.65rem;
+  --schedule-gap: 0.75rem;
   position: relative;
 }
 
@@ -326,9 +329,13 @@
   position: absolute;
   top: 0.7rem;
   bottom: 0.7rem;
-  left: 5.4rem;
+  left: calc(
+    var(--schedule-time-width) + var(--schedule-gap) +
+      (var(--schedule-marker-width) / 2)
+  );
   width: 1px;
   background: var(--section-rule);
+  transform: translateX(-50%);
   content: "";
 }
 
@@ -337,17 +344,27 @@
   display: grid;
   min-width: 0;
   min-height: 4rem;
-  grid-template-columns: 4.45rem 0.65rem minmax(0, 1fr);
+  grid-template-columns: var(--schedule-time-width) var(--schedule-marker-width) minmax(0, 1fr);
   align-items: center;
-  gap: 0.65rem;
+  gap: var(--schedule-gap);
   border: 0;
   border-bottom: 1px solid var(--border-hairline);
   border-radius: 0;
   background: transparent;
 }
 
+.scheduleTime {
+  grid-column: 1;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 .sourceIndicator {
   grid-column: 2;
+  justify-self: center;
   width: 0.55rem;
   height: 0.55rem;
   border: 2px solid var(--background);
@@ -361,24 +378,6 @@
   min-width: 0;
   grid-column: 3;
   gap: 0.2rem;
-}
-
-.scheduleRow {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  gap: 0.75rem;
-}
-
-.scheduleTime {
-  position: absolute;
-  left: 0;
-  width: 4.45rem;
-  color: var(--text-secondary);
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
-  white-space: nowrap;
 }
 
 .scheduleMetaRow,
@@ -681,9 +680,33 @@
   .focusBand .sectionCard { min-height: 0; }
   .sectionHeader { margin-bottom: 0.85rem; }
   .sectionTitle { font-size: 1.05rem; }
-  .scheduleList::before { left: 4.35rem; }
-  .scheduleItem { grid-template-columns: 3.45rem 0.55rem minmax(0, 1fr); gap: 0.55rem; }
-  .scheduleTime { width: 3.45rem; font-size: 0.64rem; }
+  .scheduleList::before {
+    left: calc(var(--schedule-marker-width, 0.65rem) / 2);
+  }
+  .scheduleItem {
+    grid-template-columns: var(--schedule-marker-width, 0.65rem) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: start;
+    gap: 0.25rem 0.65rem;
+    padding: 0.65rem 0;
+    min-height: 3.75rem;
+  }
+  .sourceIndicator {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    margin-top: 0.25rem;
+  }
+  .scheduleTime {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    font-size: 0.7rem;
+    line-height: 1.25;
+  }
+  .scheduleContent {
+    grid-column: 2;
+    grid-row: 2;
+  }
   .notesCard { grid-template-columns: auto minmax(0, 1fr); }
   .notesAction { grid-column: 1 / -1; }
   .notesAction > * { width: 100%; justify-content: center; }

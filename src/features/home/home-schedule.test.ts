@@ -1,3 +1,5 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -5,6 +7,7 @@ import {
   sortCalendarItemsChronologically,
 } from "@/features/calendar/calendar-items";
 import {
+  HomeScheduleList,
   formatScheduleTiming,
   scheduleItemMeta,
   scheduleItemTitle,
@@ -261,5 +264,136 @@ describe("Home Schedule Projection & Ordering", () => {
     expect(scheduleItemTitle(scheduledTaskItem)).toBe("Finish problem set");
     expect(scheduleItemMeta(scheduledTaskItem)).toContain("CS 201 · Scheduled task");
     expect(formatScheduleTiming(scheduledTaskItem, TIMEZONE)).toBe("9:00 AM – 10:00 AM");
+  });
+});
+
+describe("Home Schedule Component Structure (HomeScheduleList)", () => {
+  it("renders full time ranges without truncation or overlap", () => {
+    // 7:30 PM – 8:30 PM Manila (11:30 – 12:30 UTC)
+    const therapyItem = buildCalendarItems(
+      [
+        mockNativeEvent({
+          id: "therapy-1",
+          title: "Therapy Session",
+          start: "2026-08-29T11:30:00.000Z",
+          end: "2026-08-29T12:30:00.000Z",
+        }),
+      ],
+      [],
+      [],
+      TIMEZONE,
+      [],
+      "2026-08-29",
+      "2026-08-30",
+      [],
+      [],
+      [],
+    );
+
+    const html = renderToStaticMarkup(
+      createElement(HomeScheduleList, {
+        items: therapyItem,
+        timeZone: TIMEZONE,
+      }),
+    );
+
+    expect(html).toContain("7:30 PM – 8:30 PM");
+    expect(html).toContain("Therapy Session");
+  });
+
+  it("structures schedule row so time is a direct child alongside marker and content", () => {
+    const items = buildCalendarItems(
+      [
+        mockNativeEvent({
+          id: "event-test",
+          title: "Therapy Session",
+          start: "2026-08-29T11:30:00.000Z",
+          end: "2026-08-29T12:30:00.000Z",
+        }),
+      ],
+      [],
+      [],
+      TIMEZONE,
+      [],
+      "2026-08-29",
+      "2026-08-30",
+      [],
+      [],
+      [],
+    );
+
+    const html = renderToStaticMarkup(
+      createElement(HomeScheduleList, {
+        items,
+        timeZone: TIMEZONE,
+      }),
+    );
+
+    // .scheduleTime is a direct child of .scheduleItem and precedes .sourceIndicator and .scheduleContent
+    expect(html).toMatch(
+      /<li[^>]*class="[^"]*scheduleItem[^"]*"[^>]*>[\s\S]*<span[^>]*class="[^"]*scheduleTime[^"]*"[^>]*>7:30 PM – 8:30 PM<\/span>[\s\S]*<span[^>]*class="[^"]*sourceIndicator[^"]*"[^>]*>[\s\S]*<div[^>]*class="[^"]*scheduleContent[^"]*"[^>]*>[\s\S]*<strong[^>]*class="[^"]*scheduleTitle[^"]*"[^>]*>Therapy Session<\/strong>/,
+    );
+    // .scheduleTime is NOT inside .scheduleContent
+    expect(html).not.toMatch(/scheduleContent[^>]*>[\s\S]*scheduleTime/);
+  });
+
+  it("handles all-day items, 9:00 AM – 10:00 AM, and 11:30 AM – 12:45 PM ranges", () => {
+    const allDayEvent = mockNativeEvent({
+      id: "allday-1",
+      title: "All Day Conference",
+      allDay: true,
+      start: "2026-08-28T16:00:00.000Z",
+      end: "2026-08-29T16:00:00.000Z",
+    });
+
+    // 9:00 AM – 10:00 AM Manila is 01:00 – 02:00 UTC
+    const morningEvent = mockNativeEvent({
+      id: "morning-1",
+      title: "Morning Standup",
+      start: "2026-08-29T01:00:00.000Z",
+      end: "2026-08-29T02:00:00.000Z",
+    });
+
+    // 11:30 AM – 12:45 PM Manila is 03:30 – 04:45 UTC
+    const lunchEvent = mockNativeEvent({
+      id: "lunch-1",
+      title: "Lunch Seminar",
+      start: "2026-08-29T03:30:00.000Z",
+      end: "2026-08-29T04:45:00.000Z",
+    });
+
+    const items = buildCalendarItems(
+      [allDayEvent, morningEvent, lunchEvent],
+      [],
+      [],
+      TIMEZONE,
+      [],
+      "2026-08-29",
+      "2026-08-30",
+      [],
+      [],
+      [],
+    );
+
+    const html = renderToStaticMarkup(
+      createElement(HomeScheduleList, {
+        items,
+        timeZone: TIMEZONE,
+      }),
+    );
+
+    expect(html).toContain("All day");
+    expect(html).toContain("9:00 AM – 10:00 AM");
+    expect(html).toContain("11:30 AM – 12:45 PM");
+  });
+
+  it("renders default empty state as 'Nothing planned. Nice.'", () => {
+    const html = renderToStaticMarkup(
+      createElement(HomeScheduleList, {
+        items: [],
+        timeZone: TIMEZONE,
+      }),
+    );
+    expect(html).toContain("Nothing planned. Nice.");
   });
 });

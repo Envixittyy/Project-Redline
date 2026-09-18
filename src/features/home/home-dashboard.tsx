@@ -6,7 +6,6 @@ import {
   NotebookPen,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import buttonStyles from "@/components/ui/button.module.css";
 import type { CalendarItem } from "@/features/calendar/calendar-items";
 import { WhatShouldIDoNow } from "@/features/planning/what-should-i-do-now";
@@ -33,20 +32,8 @@ function taskTiming(task: Task) {
 }
 
 function TelemetryContent({ telemetry }: { telemetry: SystemTelemetry }) {
-  const loadBadgeTone =
-    telemetry.loadLevel === "nominal"
-      ? "success"
-      : telemetry.loadLevel === "moderate"
-        ? "info"
-        : telemetry.loadLevel === "elevated"
-          ? "warning"
-          : "destructive";
-
   return (
     <div className={styles.telemetryRow}>
-      <Badge tone={loadBadgeTone} size="sm" dot>
-        {`SYSTEM LOAD: ${telemetry.loadLevel.toUpperCase()}`}
-      </Badge>
       <span className={styles.telemetryText}>
         {telemetry.telemetryText}
       </span>
@@ -228,10 +215,10 @@ export function HomeDashboard({
       <header className={styles.homeHeader}>
         <div className={styles.greetingBlock}>
           <p className={styles.greetingEyebrow}>
-            {greeting?.eyebrow ?? "YOUR SPACE"} · {formattedDate}
+            {greeting?.eyebrow ?? "SO, ANO NA?"} · {formattedDate}
           </p>
           <h1 className={styles.greetingHeading}>
-            {greeting?.greeting ?? "Welcome back, Kyle."}
+            {greeting?.greeting ?? "So… ano na, Kyle?"}
             {greeting?.subtext ? (
               <>
                 {" "}
@@ -282,22 +269,24 @@ export function HomeDashboard({
               <div className={styles.sectionHeader}>
                 <div className={styles.sectionTitleGroup}>
                   <div>
-                    <p className={styles.sectionKicker}>Today&apos;s Agenda</p>
+                    <p className={styles.sectionKicker}>WHAT’S HAPPENING TODAY</p>
                     <h3 className={styles.sectionTitle}>
-                      {schedule.length
-                        ? `${schedule.length} commitment${schedule.length === 1 ? "" : "s"}`
-                        : "Clear schedule"}
+                      {schedule.length === 0
+                        ? "Nothing planned. Nice."
+                        : schedule.length === 1
+                          ? "1 thing going on"
+                          : `${schedule.length} things going on`}
                     </h3>
                   </div>
                 </div>
                 <Link href="/calendar" className={styles.sectionAction}>
-                  Open Calendar →
+                  See calendar →
                 </Link>
               </div>
               <HomeScheduleList
                 items={schedule}
                 timeZone={timeZone}
-                empty="Nothing scheduled for today. Your day is open."
+                empty="Nothing planned. Nice."
               />
             </section>
 

@@ -110,20 +110,20 @@ function mockCalendarItem(
 }
 
 const mockGreeting: HomeGreeting = {
-  eyebrow: "YOUR SPACE",
-  greeting: "Good morning, Kyle.",
-  subtext: "Here's where things stand.",
+  eyebrow: "SO, ANO NA?",
+  greeting: "So… ano na, Kyle?",
+  subtext: "Here’s what’s up.",
   isLateNight: false,
 };
 
 const mockTelemetry: SystemTelemetry = {
   loadLevel: "moderate",
-  shortAssessment: "Manageable workload.",
-  telemetryText: "1 CLASS · 2 OPEN · SYSTEM LOAD: MODERATE",
+  shortAssessment: "Manageable naman",
+  telemetryText: "1 thing open · pretty chill",
 };
 
 describe("S7D1 Home Screen Control Surface (HomeDashboard)", () => {
-  it("renders the restrained greeting and system load telemetry badge", () => {
+  it("renders the Adulting.exe hero greeting and human workload status line without corporate badges", () => {
     const html = renderToStaticMarkup(
       <HomeDashboard
         courses={[mockCourse()]}
@@ -137,15 +137,17 @@ describe("S7D1 Home Screen Control Surface (HomeDashboard)", () => {
       />,
     );
 
-    expect(html).toContain("YOUR SPACE");
-    expect(html).toContain("Good morning, Kyle.");
-    expect(html).toContain("Here&#x27;s where things stand.");
-    expect(html).toContain("SYSTEM LOAD: MODERATE");
-    expect(html).toContain("1 CLASS · 2 OPEN · SYSTEM LOAD: MODERATE");
+    expect(html).toContain("SO, ANO NA?");
+    expect(html).toContain("So… ano na, Kyle?");
+    expect(html).toContain("Here’s what’s up.");
+    expect(html).not.toContain("SYSTEM LOAD");
+    expect(html).not.toContain("NOMINAL");
+    expect(html).not.toContain("ELEVATED");
+    expect(html).toContain("1 thing open · pretty chill");
     expect(html).toContain("Focus Mode");
   });
 
-  it("renders primary daily agenda timeline with calendar commitments", () => {
+  it("renders primary daily agenda timeline with Adulting.exe copy", () => {
     const html = renderToStaticMarkup(
       <HomeDashboard
         courses={[mockCourse()]}
@@ -159,9 +161,9 @@ describe("S7D1 Home Screen Control Surface (HomeDashboard)", () => {
       />,
     );
 
-    expect(html).toContain("Today&#x27;s Agenda");
-    expect(html).toContain("1 commitment");
-    expect(html).toContain("Open Calendar →");
+    expect(html).toContain("WHAT’S HAPPENING TODAY");
+    expect(html).toContain("1 thing going on");
+    expect(html).toContain("See calendar →");
     expect(html).toContain("Lecture");
     expect(html).toContain("CS 201");
   });
@@ -180,8 +182,53 @@ describe("S7D1 Home Screen Control Surface (HomeDashboard)", () => {
       />,
     );
 
-    expect(html).toContain("Clear schedule");
-    expect(html).toContain("Nothing scheduled for today. Your day is open.");
+    expect(html).toContain("Nothing planned. Nice.");
+  });
+
+  it("formats agenda count correctly for 0, 1, and multiple items", () => {
+    const htmlEmpty = renderToStaticMarkup(
+      <HomeDashboard
+        courses={[]}
+        greeting={mockGreeting}
+        overdue={[]}
+        schedule={[]}
+        telemetry={mockTelemetry}
+        timeZone="Asia/Manila"
+        today={[]}
+        upcoming={[]}
+      />,
+    );
+    expect(htmlEmpty).toContain("Nothing planned. Nice.");
+
+    const item1 = mockCalendarItem();
+    const htmlSingle = renderToStaticMarkup(
+      <HomeDashboard
+        courses={[]}
+        greeting={mockGreeting}
+        overdue={[]}
+        schedule={[item1]}
+        telemetry={mockTelemetry}
+        timeZone="Asia/Manila"
+        today={[]}
+        upcoming={[]}
+      />,
+    );
+    expect(htmlSingle).toContain("1 thing going on");
+
+    const item2 = mockCalendarItem({ key: "course_meeting:meeting-2:2026-09-11" });
+    const htmlMultiple = renderToStaticMarkup(
+      <HomeDashboard
+        courses={[]}
+        greeting={mockGreeting}
+        overdue={[]}
+        schedule={[item1, item2]}
+        telemetry={mockTelemetry}
+        timeZone="Asia/Manila"
+        today={[]}
+        upcoming={[]}
+      />,
+    );
+    expect(htmlMultiple).toContain("2 things going on");
   });
 
   it("renders today tasks and priority markers", () => {
@@ -360,9 +407,9 @@ describe("S7D1 Home Screen Control Surface (HomeDashboard)", () => {
     );
 
     // Primary content is immediately visible
-    expect(html).toContain("Good morning, Kyle.");
-    expect(html).toContain("Today&#x27;s Agenda");
-    expect(html).toContain("1 commitment");
+    expect(html).toContain("So… ano na, Kyle?");
+    expect(html).toContain("WHAT’S HAPPENING TODAY");
+    expect(html).toContain("1 thing going on");
     expect(html).toContain("1 task for today");
 
     // Secondary regions render stable geometry fallbacks without layout shift

@@ -91,7 +91,7 @@ type HomeScheduleProps = {
 export function HomeScheduleList({
   items,
   timeZone,
-  empty = "Nothing scheduled for today. Your day is open.",
+  empty = "Nothing planned. Nice.",
 }: HomeScheduleProps) {
   if (!items.length) {
     return <p className={styles.empty}>{empty}</p>;
@@ -107,18 +107,16 @@ export function HomeScheduleList({
 
         return (
           <li key={item.key} className={styles.scheduleItem} data-kind={item.kind}>
+            <span className={styles.scheduleTime}>
+              {formatScheduleTiming(item, timeZone)}
+            </span>
             <span
               className={styles.sourceIndicator}
               style={customColor ? { background: customColor } : undefined}
               aria-hidden="true"
             />
             <div className={styles.scheduleContent}>
-              <div className={styles.scheduleRow}>
-                <strong className={styles.scheduleTitle}>{scheduleItemTitle(item)}</strong>
-                <span className={styles.scheduleTime}>
-                  {formatScheduleTiming(item, timeZone)}
-                </span>
-              </div>
+              <strong className={styles.scheduleTitle}>{scheduleItemTitle(item)}</strong>
               <div className={styles.scheduleMetaRow}>
                 <span className={styles.scheduleIconWrapper}>
                   {scheduleItemIcon(item)}

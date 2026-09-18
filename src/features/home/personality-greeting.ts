@@ -22,9 +22,7 @@ export type SystemTelemetry = {
 
 /**
  * Returns a time-aware personal greeting for the Home dashboard.
- * Morning (05:00–11:59): "Good morning, Kyle."
- * Afternoon (12:00–16:59): "Good afternoon, Kyle."
- * Evening (17:00–23:59): "Good evening, Kyle."
+ * Daytime (05:00–23:59): "So… ano na, Kyle?" / "Here’s what’s up."
  * Late night (00:00–04:59): "You're still here, Kyle. Let's at least make this useful."
  */
 export function getTimeAwareGreeting(
@@ -52,34 +50,69 @@ export function getTimeAwareGreeting(
     };
   }
 
-  if (hour >= 5 && hour < 12) {
-    return {
-      eyebrow: "SO, ANO NA?",
-      greeting: `Good morning, ${userName}.`,
-      subtext: "Okay, what the fuck is happening today?",
-      isLateNight: false,
-    };
-  }
-
-  if (hour >= 12 && hour < 17) {
-    return {
-      eyebrow: "SO, ANO NA?",
-      greeting: `Good afternoon, ${userName}.`,
-      subtext: "Here's where things stand.",
-      isLateNight: false,
-    };
-  }
-
   return {
     eyebrow: "SO, ANO NA?",
-    greeting: `Good evening, ${userName}.`,
-    subtext: "Here's where things stand.",
+    greeting: `So… ano na, ${userName}?`,
+    subtext: "Here’s what’s up.",
     isLateNight: false,
   };
 }
 
 /**
- * Computes a deterministic workload assessment string for status/telemetry.
+ * Formats a simple human workload line for the Home dashboard.
+ * Open-task count determines primary tone, appended with due-soon/overdue details.
+ */
+export function formatWorkloadStatus(input: {
+  openTaskCount: number;
+  dueSoonCount?: number;
+  overdueCount?: number;
+}): string {
+  const { openTaskCount, dueSoonCount = 0, overdueCount = 0 } = input;
+
+  if (openTaskCount === 0 && overdueCount === 0 && dueSoonCount === 0) {
+    return "Nothing urgent. Suspiciously peaceful.";
+  }
+
+  let descriptor: string;
+  if (overdueCount >= 3) {
+    descriptor = "triage immediately";
+  } else if (overdueCount >= 1) {
+    descriptor = "handle overdue items first";
+  } else if (openTaskCount === 0) {
+    descriptor = "suspiciously peaceful";
+  } else if (openTaskCount <= 3) {
+    descriptor = "pretty chill";
+  } else if (openTaskCount <= 6) {
+    descriptor = "manageable naman";
+  } else if (openTaskCount <= 10) {
+    descriptor = "medyo marami na ’to";
+  } else {
+    descriptor = "okay, shit’s piling up";
+  }
+
+  const parts: string[] = [];
+
+  if (openTaskCount > 0) {
+    parts.push(
+      `${openTaskCount} ${openTaskCount === 1 ? "thing" : "things"} open`,
+    );
+  }
+
+  if (overdueCount > 0) {
+    parts.push(`${overdueCount} overdue`);
+  }
+
+  if (dueSoonCount > 0) {
+    parts.push(`${dueSoonCount} due soon`);
+  }
+
+  parts.push(descriptor);
+
+  return parts.join(" · ");
+}
+
+/**
+ * Computes a deterministic workload assessment for the Home status line.
  * Strict rule: Workload only. Never infer or mention health or mental state.
  */
 export function getSystemLoadTelemetry(input: {
@@ -88,46 +121,45 @@ export function getSystemLoadTelemetry(input: {
   overdueCount: number;
   todayClassCount: number;
 }): SystemTelemetry {
-  const { openTaskCount, dueSoonCount, overdueCount, todayClassCount } = input;
-  const weightedScore =
-    openTaskCount + overdueCount * 2 + dueSoonCount + todayClassCount;
+  const { openTaskCount, dueSoonCount, overdueCount } = input;
 
   let loadLevel: SystemLoadLevel = "nominal";
-  let shortAssessment = "System load nominal. Suspiciously peaceful.";
-
-  if (overdueCount >= 3 || weightedScore >= 14) {
+  if (overdueCount >= 3 || openTaskCount >= 11) {
     loadLevel = "absurd";
-    shortAssessment = "Statistically concerning. Triage immediately.";
-  } else if (overdueCount >= 2 || weightedScore >= 9) {
+  } else if (overdueCount >= 1 || openTaskCount >= 7) {
     loadLevel = "heavy";
-    shortAssessment =
-      "High load. Clear hard deadlines before opening side quests.";
-  } else if (overdueCount >= 1 || weightedScore >= 5) {
+  } else if (dueSoonCount > 0 || openTaskCount >= 4) {
     loadLevel = "elevated";
-    shortAssessment = "Elevated workload. Focus on priority commitments.";
-  } else if (weightedScore >= 2) {
+  } else if (openTaskCount >= 1) {
     loadLevel = "moderate";
-    shortAssessment = "Manageable, but don't start anything stupid.";
   }
 
-  const parts: string[] = [];
-  if (todayClassCount > 0) {
-    parts.push(
-      `${todayClassCount} ${todayClassCount === 1 ? "CLASS" : "CLASSES"}`,
-    );
+  const telemetryText = formatWorkloadStatus({
+    openTaskCount,
+    dueSoonCount,
+    overdueCount,
+  });
+
+  let shortAssessment: string;
+  if (overdueCount >= 3) {
+    shortAssessment = "Triage overdue items immediately.";
+  } else if (overdueCount >= 1) {
+    shortAssessment = "Handle overdue items first.";
+  } else if (openTaskCount === 0) {
+    shortAssessment = "Nothing urgent. Suspiciously peaceful.";
+  } else if (openTaskCount <= 3) {
+    shortAssessment = "Pretty chill";
+  } else if (openTaskCount <= 6) {
+    shortAssessment = "Manageable naman";
+  } else if (openTaskCount <= 10) {
+    shortAssessment = "Medyo marami na ’to";
+  } else {
+    shortAssessment = "Okay, shit’s piling up";
   }
-  parts.push(`${openTaskCount} OPEN`);
-  if (dueSoonCount > 0) {
-    parts.push(`${dueSoonCount} DUE SOON`);
-  }
-  if (overdueCount > 0) {
-    parts.push(`${overdueCount} OVERDUE`);
-  }
-  parts.push(`SYSTEM LOAD: ${loadLevel.toUpperCase()}`);
 
   return {
     loadLevel,
-    telemetryText: parts.join(" · "),
+    telemetryText,
     shortAssessment,
   };
 }

@@ -1,0 +1,142 @@
+.quickPostWrapper {
+  width: 100%;
+}
+
+.quickPostCard {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.75rem 1rem;
+  min-height: 3.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-embedded);
+  box-shadow: var(--shadow-card);
+  text-decoration: none;
+  color: inherit;
+  backdrop-filter: blur(var(--blur-surface, 16px));
+  -webkit-backdrop-filter: blur(var(--blur-surface, 16px));
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-spring),
+    box-shadow var(--motion-fast) var(--motion-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.quickPostCard:hover {
+  background: color-mix(in oklch, var(--surface-hover) 70%, transparent);
+  border-color: color-mix(in oklch, var(--accent-border) 60%, var(--border-subtle));
+  box-shadow: var(--shadow-elevated);
+}
+
+.quickPostCard:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.quickPostCard:active {
+  transform: scale(0.99);
+}
+
+.iconColumn {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--accent-muted);
+  color: var(--accent-text);
+  flex-shrink: 0;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.quickPostCard:hover .iconColumn {
+  transform: scale(1.04);
+}
+
+.contentColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.label {
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-text);
+  line-height: 1;
+}
+
+.badge {
+  font-size: 0.65rem;
+  font-weight: 650;
+  color: var(--text-tertiary);
+  line-height: 1;
+}
+
+.prompt {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 520;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.quickPostCard:hover .prompt {
+  color: var(--text-primary);
+}
+
+.actionColumn {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.writeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 650;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+.quickPostCard:hover .writeButton {
+  background: var(--accent-muted);
+  color: var(--accent-text);
+  border-color: var(--accent-border);
+}
+
+@media (max-width: 24rem) {
+  .writeLabel {
+    display: none;
+  }
+  .writeButton {
+    padding: 0.35rem;
+  }
+}

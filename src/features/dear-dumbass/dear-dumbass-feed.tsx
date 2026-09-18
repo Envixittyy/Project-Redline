@@ -23,6 +23,7 @@ import styles from "./dear-dumbass.module.css";
 
 export type DearDumbassFeedProps = {
   repository?: DearDumbassRepository;
+  autoFocusComposer?: boolean;
 };
 
 function subscribeToBrowserReady(): () => void {
@@ -39,6 +40,7 @@ function getServerSnapshot(): boolean {
 
 export function DearDumbassFeed({
   repository: propRepository,
+  autoFocusComposer = false,
 }: DearDumbassFeedProps) {
   const browserReady = useSyncExternalStore(
     subscribeToBrowserReady,
@@ -96,6 +98,23 @@ export function DearDumbassFeed({
       submitInFlightRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    let shouldFocus = autoFocusComposer;
+    if (!shouldFocus && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      shouldFocus = params.get("compose") === "true";
+    }
+
+    if (shouldFocus && composerTextareaRef.current) {
+      composerTextareaRef.current.focus();
+      const frame = window.requestAnimationFrame(() => {
+        composerTextareaRef.current?.focus();
+        composerTextareaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [autoFocusComposer]);
 
   const performSearch = useCallback(
     async (query: string) => {
@@ -285,6 +304,7 @@ export function DearDumbassFeed({
           disabled={!repository || isSubmitting}
           aria-label="Post content"
           rows={3}
+          autoFocus={autoFocusComposer}
         />
         <div className={styles.composerFooter}>
           <span className={styles.shortcutHint}>Ctrl+Enter to post</span>

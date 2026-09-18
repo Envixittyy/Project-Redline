@@ -5,6 +5,7 @@ import { InMemoryPrivateStore } from "@/services/private-store";
 import { DearDumbassRepository, type DearDumbassPost } from "@/services/dear-dumbass";
 import { DearDumbassCard, formatRelativeTime } from "./dear-dumbass-card";
 import { DearDumbassFeed } from "./dear-dumbass-feed";
+import { DearDumbassQuickPost } from "./dear-dumbass-quick-post";
 import { DurabilityModal } from "./durability-modal";
 
 describe("Dear Dumbass UI Components", () => {
@@ -126,6 +127,17 @@ describe("Dear Dumbass UI Components", () => {
 
     it("renders safely during server prerender without constructing PrivateStore", () => {
       expect(() => renderToStaticMarkup(<DearDumbassFeed />)).not.toThrow();
+    });
+  });
+
+  describe("DearDumbassQuickPost Component", () => {
+    it("renders prompt text and direct link to composer with autofocus", () => {
+      const html = renderToStaticMarkup(<DearDumbassQuickPost />);
+
+      expect(html).toContain("Dear Dumbass");
+      expect(html).toContain("What&#x27;s pissing you off now?");
+      expect(html).toContain("href=\"/dear-dumbass?compose=true\"");
+      expect(html).toContain("Write");
     });
   });
 

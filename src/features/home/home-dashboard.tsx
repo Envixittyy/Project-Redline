@@ -18,6 +18,7 @@ import { NextClassCard } from "./next-class-card";
 import { TodayClassesCard } from "./today-classes-card";
 import { PossibleAssessmentsCard } from "./possible-assessments-card";
 import type { HomeGreeting, SystemTelemetry } from "./personality-greeting";
+import { DearDumbassQuickPost } from "@/features/dear-dumbass";
 import styles from "./home-dashboard.module.css";
 
 function taskTiming(task: Task) {
@@ -242,7 +243,10 @@ export function HomeDashboard({
         </div>
       </header>
 
-      {/* 2. Customizable Daily Control Surface */}
+      {/* 2. Stream Quick-Post: Dear Dumbass */}
+      <DearDumbassQuickPost />
+
+      {/* 3. Customizable Daily Control Surface */}
       <DashboardCustomizer>
         <div className={styles.focusBand}>
           <div className={styles.nextClassFocus} data-dashboard-widget="next_class">

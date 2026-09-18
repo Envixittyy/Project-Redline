@@ -1,6 +1,6 @@
 "use client";
 
-import { Inbox, Plus, X } from "lucide-react";
+import { BookOpen, Inbox, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
@@ -95,6 +95,28 @@ export function CaptureLauncher() {
             <h2 id="capture-dialog-title">Unsorted Bullshit</h2>
           </div>
           <button type="button" aria-label="Close universal capture" onClick={close}><X size={18} aria-hidden="true" /></button>
+        </div>
+        <div className={styles.launcherActions}>
+          <Link
+            href="/dear-dumbass?compose=true"
+            className={styles.launcherDumbassAction}
+            onClick={close}
+            aria-label="Vent in Dear Dumbass: What's pissing you off now?"
+          >
+            <div className={styles.launcherDumbassLeft}>
+              <span className={styles.launcherDumbassIcon} aria-hidden="true">
+                <BookOpen size={16} strokeWidth={2.2} />
+              </span>
+              <div className={styles.launcherDumbassMeta}>
+                <span className={styles.launcherDumbassTitle}>Dear Dumbass</span>
+                <span className={styles.launcherDumbassSubtitle}>What&apos;s pissing you off now?</span>
+              </div>
+            </div>
+            <span className={styles.launcherDumbassBadge}>
+              <span>Vent</span>
+              <span className={styles.launcherDumbassArrow} aria-hidden="true">→</span>
+            </span>
+          </Link>
         </div>
         <CaptureComposer compact onCaptured={close} />
         <Link className={styles.inboxLink} href="/inbox" onClick={close}>Open Unsorted Bullshit →</Link>

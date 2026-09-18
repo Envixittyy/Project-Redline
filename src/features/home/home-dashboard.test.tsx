@@ -417,4 +417,22 @@ describe("S7D1 Home Screen Control Surface (HomeDashboard)", () => {
     expect(html).toContain("data-dashboard-widget=\"upcoming\"");
     expect(html).toContain("aria-hidden=\"true\"");
   });
+
+  it("renders Dear Dumbass quick-post prompt high on the page with direct compose link", () => {
+    const html = renderToStaticMarkup(
+      <HomeDashboard
+        courses={[mockCourse()]}
+        greeting={mockGreeting}
+        overdue={[]}
+        schedule={[]}
+        timeZone="Asia/Manila"
+        today={[]}
+        upcoming={[]}
+      />,
+    );
+
+    expect(html).toContain("Dear Dumbass");
+    expect(html).toContain("What&#x27;s pissing you off now?");
+    expect(html).toContain("href=\"/dear-dumbass?compose=true\"");
+  });
 });

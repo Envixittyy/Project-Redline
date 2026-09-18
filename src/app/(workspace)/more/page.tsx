@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import {
   Bell,
   BookOpen,
   CalendarSync,
-  ChevronRight,
   Clock,
   Compass,
   Film,
@@ -21,13 +19,13 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Surface } from "@/components/ui/surface";
 import { AppearanceControls } from "@/features/appearance/appearance-controls";
 import { SignOutControl } from "@/features/auth/sign-out-control";
 import { copy } from "@/lib/copy";
 
+import { MoreRow } from "./more-row";
 import styles from "./more-page.module.css";
 
 export const metadata: Metadata = { title: "More" };
@@ -79,38 +77,24 @@ export default function MorePage() {
           </div>
 
           <div className={styles.indexGroup}>
-            <Link href="/inbox" className={styles.indexRow}>
-              <div className={styles.rowIcon}>
-                <Inbox size={18} aria-hidden="true" />
-              </div>
-              <div className={styles.rowContent}>
-                <h3 className={styles.rowTitle}>Unsorted Bullshit</h3>
-                <p className={styles.rowDetail}>Raw input stays intact. Dito muna.</p>
-              </div>
-              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
-            </Link>
-
-            <Link href="/notes" className={styles.indexRow}>
-              <div className={styles.rowIcon}>
-                <NotebookPen size={18} aria-hidden="true" />
-              </div>
-              <div className={styles.rowContent}>
-                <h3 className={styles.rowTitle}>Notes</h3>
-                <p className={styles.rowDetail}>Quiet Markdown notes & attachments</p>
-              </div>
-              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
-            </Link>
-
-            <Link href="/dear-dumbass" className={styles.indexRow}>
-              <div className={styles.rowIcon}>
-                <BookOpen size={18} aria-hidden="true" />
-              </div>
-              <div className={styles.rowContent}>
-                <h3 className={styles.rowTitle}>Dear Dumbass</h3>
-                <p className={styles.rowDetail}>Private stream-of-consciousness feed (local only)</p>
-              </div>
-              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
-            </Link>
+            <MoreRow
+              href="/inbox"
+              icon={Inbox}
+              title="Unsorted Bullshit"
+              detail="Raw input stays intact. Dito muna."
+            />
+            <MoreRow
+              href="/notes"
+              icon={NotebookPen}
+              title="Notes"
+              detail="Quiet Markdown notes & attachments"
+            />
+            <MoreRow
+              href="/dear-dumbass"
+              icon={BookOpen}
+              title="Dear Dumbass"
+              detail="Private stream-of-consciousness feed (local only)"
+            />
           </div>
         </section>
 
@@ -126,38 +110,24 @@ export default function MorePage() {
           </div>
 
           <div className={styles.indexGroup}>
-            <Link href="/integrations/calendars" className={styles.indexRow}>
-              <div className={styles.rowIcon}>
-                <CalendarSync size={18} aria-hidden="true" />
-              </div>
-              <div className={styles.rowContent}>
-                <h3 className={styles.rowTitle}>Calendar Connections</h3>
-                <p className={styles.rowDetail}>Google Calendar mirrors & capabilities</p>
-              </div>
-              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
-            </Link>
-
-            <Link href="/integrations/blackboard" className={styles.indexRow}>
-              <div className={styles.rowIcon}>
-                <ShieldCheck size={18} aria-hidden="true" />
-              </div>
-              <div className={styles.rowContent}>
-                <h3 className={styles.rowTitle}>Blackboard</h3>
-                <p className={styles.rowDetail}>Automatic school updates from notification emails</p>
-              </div>
-              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
-            </Link>
-
-            <Link href="/integrations/notion" className={styles.indexRow}>
-              <div className={styles.rowIcon}>
-                <Layers size={18} aria-hidden="true" />
-              </div>
-              <div className={styles.rowContent}>
-                <h3 className={styles.rowTitle}>Notion</h3>
-                <p className={styles.rowDetail}>Selective note synchronization & export</p>
-              </div>
-              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
-            </Link>
+            <MoreRow
+              href="/integrations/calendars"
+              icon={CalendarSync}
+              title="Calendar Connections"
+              detail="Google Calendar mirrors & capabilities"
+            />
+            <MoreRow
+              href="/integrations/blackboard"
+              icon={ShieldCheck}
+              title="Blackboard"
+              detail="Automatic school updates from notification emails"
+            />
+            <MoreRow
+              href="/integrations/notion"
+              icon={Layers}
+              title="Notion"
+              detail="Selective note synchronization & export"
+            />
           </div>
         </section>
 
@@ -173,16 +143,12 @@ export default function MorePage() {
           </div>
 
           <div className={styles.indexGroup}>
-            <Link href="/settings/ai" className={styles.indexRow}>
-              <div className={styles.rowIcon}>
-                <Sparkles size={18} aria-hidden="true" />
-              </div>
-              <div className={styles.rowContent}>
-                <h3 className={styles.rowTitle}>AI Settings</h3>
-                <p className={styles.rowDetail}>Model routing, privacy gates & pairing</p>
-              </div>
-              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
-            </Link>
+            <MoreRow
+              href="/settings/ai"
+              icon={Sparkles}
+              title="AI Settings"
+              detail="Model routing, privacy gates & pairing"
+            />
           </div>
         </section>
 
@@ -198,16 +164,12 @@ export default function MorePage() {
           </div>
 
           <div className={styles.indexGroup}>
-            <Link href="/settings/notifications" className={styles.indexRow}>
-              <div className={styles.rowIcon}>
-                <Bell size={18} aria-hidden="true" />
-              </div>
-              <div className={styles.rowContent}>
-                <h3 className={styles.rowTitle}>Notification Preferences</h3>
-                <p className={styles.rowDetail}>Category toggles, quiet hours & Web Push</p>
-              </div>
-              <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
-            </Link>
+            <MoreRow
+              href="/settings/notifications"
+              icon={Bell}
+              title="Notification Preferences"
+              detail="Category toggles, quiet hours & Web Push"
+            />
           </div>
         </section>
 
@@ -223,29 +185,17 @@ export default function MorePage() {
           </div>
 
           <div className={styles.indexGroup}>
-            {plannedAreas.map((sec) => {
-              const Icon = sec.icon;
-              return (
-                <Link
-                  key={sec.route}
-                  href={sec.route}
-                  className={styles.indexRow}
-                  aria-label={`${sec.name} (Planned area - ${sec.status})`}
-                >
-                  <div className={styles.rowIcon}>
-                    <Icon size={18} aria-hidden="true" />
-                  </div>
-                  <div className={styles.rowContent}>
-                    <h3 className={styles.rowTitle}>{sec.name}</h3>
-                    <p className={styles.rowDetail}>{sec.summary}</p>
-                  </div>
-                  <Badge tone="neutral" size="sm">
-                    {sec.status}
-                  </Badge>
-                  <ChevronRight size={14} className={styles.rowTrailing} aria-hidden="true" />
-                </Link>
-              );
-            })}
+            {plannedAreas.map((sec) => (
+              <MoreRow
+                key={sec.route}
+                href={sec.route}
+                icon={sec.icon}
+                title={sec.name}
+                detail={sec.summary}
+                badge={sec.status}
+                ariaLabel={`${sec.name} (Planned area - ${sec.status})`}
+              />
+            ))}
           </div>
         </section>
 

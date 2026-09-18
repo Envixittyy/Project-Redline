@@ -24,4 +24,3 @@ export type DearDumbassSearchResult = {
   matchingReplies: DearDumbassPost[];
   rootMatches: boolean;
 };
-

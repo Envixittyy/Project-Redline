@@ -6,8 +6,12 @@ import {
   type PrivateStoreTransaction,
 } from "@/services/private-store";
 import {
+  base64ToBytes,
   createEncryptedBackup,
   decryptBackupArchive,
+  IV_BYTE_LENGTH,
+  PBKDF2_ITERATIONS,
+  SALT_BYTE_LENGTH,
   validateArchivePayload,
   type DearDumbassArchivePayload,
 } from "./backup";
@@ -64,7 +68,10 @@ describe("Dear Dumbass Encrypted Backup & Restore", () => {
       expect(envelope.version).toBe(1);
       expect(envelope.kdf.algorithm).toBe("PBKDF2");
       expect(envelope.kdf.hash).toBe("SHA-256");
+      expect(envelope.kdf.iterations).toBe(PBKDF2_ITERATIONS);
+      expect(base64ToBytes(envelope.kdf.salt)).toHaveLength(SALT_BYTE_LENGTH);
       expect(envelope.cipher.algorithm).toBe("AES-GCM");
+      expect(base64ToBytes(envelope.cipher.iv)).toHaveLength(IV_BYTE_LENGTH);
       expect(envelope.cipher.iv).toBeTruthy();
       expect(envelope.ciphertext).toBeTruthy();
 
@@ -125,7 +132,7 @@ describe("Dear Dumbass Encrypted Backup & Restore", () => {
       };
 
       expect(() => validateArchivePayload(invalidPayload)).toThrow(
-        "Invalid backup: post id must be a non-empty string.",
+        "Invalid backup: post id must be a bounded, non-empty ID.",
       );
 
       const badDatePayload = {
@@ -141,7 +148,7 @@ describe("Dear Dumbass Encrypted Backup & Restore", () => {
       };
 
       expect(() => validateArchivePayload(badDatePayload)).toThrow(
-        "Invalid backup: post createdAt must be a valid ISO date string.",
+        "Invalid backup: post createdAt must be an ISO timestamp.",
       );
     });
 
@@ -168,6 +175,88 @@ describe("Dear Dumbass Encrypted Backup & Restore", () => {
       const scrubbed = decrypted.posts.find((p) => p.id === "deleted-with-leak");
       expect(scrubbed?.body).toBe("");
       expect(scrubbed?.deletedAt).toBe("2026-09-18T10:05:00.000Z");
+    });
+
+    it("rejects unsafe cryptographic parameters before key derivation", async () => {
+      const envelope = await createEncryptedBackup(samplePosts, "secret");
+
+      await expect(
+        decryptBackupArchive(
+          { ...envelope, kdf: { ...envelope.kdf, iterations: 99_999 } },
+          "secret",
+        ),
+      ).rejects.toThrow("Unsupported or invalid key derivation parameters.");
+
+      await expect(
+        decryptBackupArchive(
+          { ...envelope, cipher: { ...envelope.cipher, tagLength: 64 } },
+          "secret",
+        ),
+      ).rejects.toThrow("Unsupported cipher algorithm.");
+
+      await expect(
+        decryptBackupArchive(
+          { ...envelope, kdf: { ...envelope.kdf, salt: "AA==" } },
+          "secret",
+        ),
+      ).rejects.toThrow("Unsupported or invalid cryptographic parameters.");
+    });
+
+    it("uses fresh random salt and IV for every backup", async () => {
+      const first = await createEncryptedBackup(samplePosts, "secret");
+      const second = await createEncryptedBackup(samplePosts, "secret");
+
+      expect(first.kdf.salt).not.toBe(second.kdf.salt);
+      expect(first.cipher.iv).not.toBe(second.cipher.iv);
+      expect(first.ciphertext).not.toBe(second.ciphertext);
+    });
+
+    it("treats passphrase whitespace as significant", async () => {
+      const envelope = await createEncryptedBackup(samplePosts, "  secret  ");
+
+      await expect(
+        decryptBackupArchive(envelope, "  secret  "),
+      ).resolves.toMatchObject({ format: "dear-dumbass-archive" });
+      await expect(decryptBackupArchive(envelope, "secret")).rejects.toThrow(
+        "Incorrect passphrase or corrupted backup file.",
+      );
+    });
+
+    it("validates unique IDs and complete root/reply relationships", () => {
+      const root = samplePosts[0];
+      const reply = samplePosts[1];
+      const payload = (posts: DearDumbassPost[]) => ({
+        format: "dear-dumbass-archive",
+        version: 1,
+        exportedAt: "2026-09-18T12:00:00.000Z",
+        posts,
+      });
+
+      expect(() => validateArchivePayload(payload([root, root]))).toThrow(
+        "Invalid backup: post IDs must be unique.",
+      );
+      expect(() => validateArchivePayload(payload([reply]))).toThrow(
+        "Invalid backup: every reply must reference an archived root post.",
+      );
+      expect(() =>
+        validateArchivePayload(
+          payload([
+            root,
+            reply,
+            { ...reply, id: "nested", replyToId: reply.id },
+          ]),
+        ),
+      ).toThrow("Invalid backup: nested replies are not supported.");
+      expect(() =>
+        validateArchivePayload(
+          payload([
+            { ...root, body: "", deletedAt: "2026-09-18T11:00:00.000Z" },
+            reply,
+          ]),
+        ),
+      ).toThrow(
+        "Invalid backup: active replies cannot belong to a deleted root post.",
+      );
     });
   });
 
@@ -402,6 +491,138 @@ describe("Dear Dumbass Encrypted Backup & Restore", () => {
       expect(feed).toHaveLength(1);
       expect(feed[0].id).toBe(localPost.id);
       expect(feed[0].body).toBe("Existing post in custom store");
+    });
+
+    it("merge applies an imported root tombstone to every local reply", async () => {
+      const root = await repo.createPost("Root secret");
+      const reply = await repo.createPost("Reply secret", root.id);
+      const payload: DearDumbassArchivePayload = {
+        format: "dear-dumbass-archive",
+        version: 1,
+        exportedAt: "2026-09-18T12:00:00.000Z",
+        posts: [
+          {
+            ...root,
+            body: "",
+            deletedAt: "2026-09-18T12:00:00.000Z",
+          },
+        ],
+      };
+
+      await repo.restoreArchive(payload, "merge");
+
+      const rawReply = await store.get<DearDumbassPost>(
+        "dear_dumbass_posts",
+        reply.id,
+      );
+      expect(rawReply?.body).toBe("");
+      expect(rawReply?.deletedAt).toBe("2026-09-18T12:00:00.000Z");
+    });
+
+    it("merge gives tombstones precedence over higher live revisions", async () => {
+      const post = await repo.createPost("Local");
+      await repo.updatePost(post.id, "Local revision one", 0);
+      await repo.updatePost(post.id, "Local revision two", 1);
+
+      await repo.restoreArchive(
+        {
+          format: "dear-dumbass-archive",
+          version: 1,
+          exportedAt: "2026-09-18T12:00:00.000Z",
+          posts: [
+            {
+              ...post,
+              body: "",
+              revision: 0,
+              deletedAt: "2026-09-18T12:00:00.000Z",
+            },
+          ],
+        },
+        "merge",
+      );
+
+      expect(await repo.getPost(post.id)).toBeNull();
+    });
+
+    it("merge ignores clock-skewed timestamps when revisions are equal", async () => {
+      const post = await repo.createPost("Original");
+      const edited = await repo.updatePost(post.id, "Local edit", 0);
+
+      await repo.restoreArchive(
+        {
+          format: "dear-dumbass-archive",
+          version: 1,
+          exportedAt: "2026-09-18T12:00:00.000Z",
+          posts: [
+            {
+              ...edited,
+              body: "Clock-skewed competing edit",
+              updatedAt: "2099-01-01T00:00:00.000Z",
+            },
+          ],
+        },
+        "merge",
+      );
+
+      expect((await repo.getPost(post.id))?.body).toBe("Local edit");
+    });
+
+    it("merge scrubs a new imported reply when the local root is tombstoned", async () => {
+      const root = await repo.createPost("Deleted locally");
+      await repo.deletePost(root.id);
+
+      await repo.restoreArchive(
+        {
+          format: "dear-dumbass-archive",
+          version: 1,
+          exportedAt: "2026-09-18T12:00:00.000Z",
+          posts: [
+            root,
+            {
+              id: "new-reply",
+              body: "Must not survive",
+              createdAt: "2026-09-18T11:00:00.000Z",
+              updatedAt: null,
+              revision: 0,
+              replyToId: root.id,
+              deletedAt: null,
+            },
+          ],
+        },
+        "merge",
+      );
+
+      const rawReply = await store.get<DearDumbassPost>(
+        "dear_dumbass_posts",
+        "new-reply",
+      );
+      expect(rawReply?.body).toBe("");
+      expect(rawReply?.deletedAt).toBeTruthy();
+    });
+
+    it("rejects immutable identity conflicts without changing local data", async () => {
+      const local = await repo.createPost("Keep me");
+
+      await expect(
+        repo.restoreArchive(
+          {
+            format: "dear-dumbass-archive",
+            version: 1,
+            exportedAt: "2026-09-18T12:00:00.000Z",
+            posts: [
+              {
+                ...local,
+                createdAt: "2020-01-01T00:00:00.000Z",
+                revision: 99,
+              },
+            ],
+          },
+          "merge",
+        ),
+      ).rejects.toThrow(
+        "Backup conflicts with immutable post identity or parent relationship.",
+      );
+      expect((await repo.getPost(local.id))?.body).toBe("Keep me");
     });
   });
 });

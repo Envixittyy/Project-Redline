@@ -5,11 +5,22 @@ export const BACKUP_FORMAT_IDENTIFIER = "dear-dumbass-encrypted-backup";
 export const ARCHIVE_FORMAT_IDENTIFIER = "dear-dumbass-archive";
 export const CURRENT_BACKUP_VERSION = 1;
 
-export const PBKDF2_ITERATIONS = 100_000;
+// New backups use OWASP's current PBKDF2-HMAC-SHA-256 work factor. Version 1
+// backups previously emitted with 100,000 iterations remain readable.
+export const PBKDF2_ITERATIONS = 600_000;
+export const MIN_SUPPORTED_PBKDF2_ITERATIONS = 100_000;
+export const MAX_SUPPORTED_PBKDF2_ITERATIONS = 2_000_000;
 export const SALT_BYTE_LENGTH = 16;
 export const IV_BYTE_LENGTH = 12;
 export const AES_KEY_LENGTH = 256;
 export const TAG_LENGTH = 128;
+export const MAX_BACKUP_FILE_BYTES = 64 * 1024 * 1024;
+const MAX_CIPHERTEXT_BYTES = 48 * 1024 * 1024 - 1_024;
+export const MAX_ARCHIVE_POSTS = 100_000;
+export const MAX_POST_BODY_CHARACTERS = 1_000_000;
+export const MAX_ARCHIVE_BODY_CHARACTERS = 32_000_000;
+const MAX_ID_CHARACTERS = 128;
+const MAX_PASSPHRASE_BYTES = 4_096;
 
 export interface DearDumbassBackupKdf {
   algorithm: "PBKDF2";
@@ -63,12 +74,63 @@ export function bytesToBase64(bytes: Uint8Array): string {
 
 /** Convert a standard Base64 string to Uint8Array */
 export function base64ToBytes(base64: string): Uint8Array {
+  if (
+    base64.length === 0 ||
+    base64.length % 4 !== 0 ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+      base64,
+    )
+  ) {
+    throw new Error("Invalid base64 encoding.");
+  }
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+}
+
+function validatePassphrase(passphrase: string): Uint8Array {
+  if (!passphrase) {
+    throw new Error("A passphrase is required for the encrypted backup.");
+  }
+
+  const encoded = new TextEncoder().encode(passphrase);
+  if (encoded.byteLength > MAX_PASSPHRASE_BYTES) {
+    throw new Error("The backup passphrase is too long.");
+  }
+  return encoded;
+}
+
+function normalizeTimestamp(value: unknown, field: string): string {
+  if (typeof value !== "string") {
+    throw new Error(`Invalid backup: ${field} must be an ISO timestamp.`);
+  }
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    throw new Error(`Invalid backup: ${field} must be an ISO timestamp.`);
+  }
+  return new Date(timestamp).toISOString();
+}
+
+function normalizeNullableTimestamp(value: unknown, field: string): string | null {
+  return value === null ? null : normalizeTimestamp(value, field);
+}
+
+function validateRecordId(value: unknown, field: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > MAX_ID_CHARACTERS ||
+    value !== value.trim() ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  ) {
+    throw new Error(
+      `Invalid backup: ${field} must be a bounded, non-empty ID.`,
+    );
+  }
+  return value;
 }
 
 /**
@@ -83,10 +145,10 @@ async function deriveAesGcmKey(
   if (typeof crypto === "undefined" || !crypto.subtle) {
     throw new Error("Web Crypto API is unavailable in the current environment.");
   }
-  const encoder = new TextEncoder();
+  const encodedPassphrase = validatePassphrase(passphrase);
   const passphraseKey = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(passphrase),
+    encodedPassphrase as unknown as BufferSource,
     "PBKDF2",
     false,
     ["deriveKey"],
@@ -115,15 +177,24 @@ async function deriveAesGcmKey(
 export function isBackupEnvelope(data: unknown): data is DearDumbassBackupEnvelope {
   if (!data || typeof data !== "object") return false;
   const env = data as Record<string, unknown>;
+  const kdf = env.kdf as Record<string, unknown> | null;
+  const cipher = env.cipher as Record<string, unknown> | null;
   return (
     env.app === BACKUP_APP_IDENTIFIER &&
     env.format === BACKUP_FORMAT_IDENTIFIER &&
-    typeof env.version === "number" &&
+    Number.isInteger(env.version) &&
     typeof env.createdAt === "string" &&
-    typeof env.kdf === "object" &&
-    env.kdf !== null &&
-    typeof env.cipher === "object" &&
-    env.cipher !== null &&
+    typeof kdf === "object" &&
+    kdf !== null &&
+    kdf.algorithm === "PBKDF2" &&
+    kdf.hash === "SHA-256" &&
+    Number.isInteger(kdf.iterations) &&
+    typeof kdf.salt === "string" &&
+    typeof cipher === "object" &&
+    cipher !== null &&
+    cipher.algorithm === "AES-GCM" &&
+    Number.isInteger(cipher.tagLength) &&
+    typeof cipher.iv === "string" &&
     typeof env.ciphertext === "string"
   );
 }
@@ -148,78 +219,92 @@ export function validateArchivePayload(data: unknown): DearDumbassArchivePayload
   if (!Array.isArray(payload.posts)) {
     throw new Error("Invalid backup: posts collection must be an array.");
   }
+  if (payload.posts.length > MAX_ARCHIVE_POSTS) {
+    throw new Error("Invalid backup: posts collection is too large.");
+  }
 
   const validPosts: DearDumbassPost[] = [];
+  const ids = new Set<string>();
+  let totalBodyCharacters = 0;
   for (const item of payload.posts) {
     if (!item || typeof item !== "object") {
       throw new Error("Invalid backup: each post entry must be an object.");
     }
     const p = item as Record<string, unknown>;
-    if (typeof p.id !== "string" || !p.id.trim()) {
-      throw new Error("Invalid backup: post id must be a non-empty string.");
+    const id = validateRecordId(p.id, "post id");
+    if (ids.has(id)) {
+      throw new Error("Invalid backup: post IDs must be unique.");
     }
-    if (typeof p.body !== "string") {
+    ids.add(id);
+
+    if (
+      typeof p.body !== "string" ||
+      p.body.length > MAX_POST_BODY_CHARACTERS
+    ) {
       throw new Error("Invalid backup: post body must be a string.");
     }
-    if (
-      typeof p.createdAt !== "string" ||
-      Number.isNaN(Date.parse(p.createdAt))
-    ) {
-      throw new Error(
-        "Invalid backup: post createdAt must be a valid ISO date string.",
-      );
+    totalBodyCharacters += p.body.length;
+    if (totalBodyCharacters > MAX_ARCHIVE_BODY_CHARACTERS) {
+      throw new Error("Invalid backup: archive content is too large.");
     }
-    if (
-      p.updatedAt !== null &&
-      (typeof p.updatedAt !== "string" || Number.isNaN(Date.parse(p.updatedAt)))
-    ) {
-      throw new Error(
-        "Invalid backup: post updatedAt must be null or a valid ISO date string.",
-      );
-    }
+
+    const createdAt = normalizeTimestamp(p.createdAt, "post createdAt");
+    const updatedAt = normalizeNullableTimestamp(p.updatedAt, "post updatedAt");
     if (
       p.revision !== undefined &&
-      (typeof p.revision !== "number" || p.revision < 0)
+      (!Number.isSafeInteger(p.revision) || (p.revision as number) < 0)
     ) {
       throw new Error(
         "Invalid backup: post revision must be a non-negative integer.",
       );
     }
-    if (p.replyToId !== null && typeof p.replyToId !== "string") {
-      throw new Error(
-        "Invalid backup: post replyToId must be null or a string ID.",
-      );
+    const replyToId =
+      p.replyToId === null ? null : validateRecordId(p.replyToId, "replyToId");
+    if (replyToId === id) {
+      throw new Error("Invalid backup: a post cannot reply to itself.");
     }
-    if (
-      p.deletedAt !== null &&
-      p.deletedAt !== undefined &&
-      (typeof p.deletedAt !== "string" || Number.isNaN(Date.parse(p.deletedAt)))
-    ) {
-      throw new Error(
-        "Invalid backup: post deletedAt must be null or a valid ISO date string.",
-      );
-    }
+    const deletedAt =
+      p.deletedAt === null || p.deletedAt === undefined
+        ? null
+        : normalizeTimestamp(p.deletedAt, "post deletedAt");
 
-    const isDeleted = Boolean(p.deletedAt);
+    const isDeleted = deletedAt !== null;
+    if (!isDeleted && !p.body.trim()) {
+      throw new Error("Invalid backup: active post body cannot be blank.");
+    }
     validPosts.push({
-      id: p.id,
+      id,
       // Enforce tombstone privacy invariant: deleted records have scrubbed body
       body: isDeleted ? "" : p.body,
-      createdAt: p.createdAt,
-      updatedAt: (p.updatedAt as string) ?? null,
+      createdAt,
+      updatedAt,
       revision: typeof p.revision === "number" ? p.revision : 0,
-      replyToId: (p.replyToId as string) ?? null,
-      deletedAt: (p.deletedAt as string) ?? null,
+      replyToId,
+      deletedAt,
     });
+  }
+
+  const postsById = new Map(validPosts.map((post) => [post.id, post]));
+  for (const post of validPosts) {
+    if (!post.replyToId) continue;
+    const parent = postsById.get(post.replyToId);
+    if (!parent) {
+      throw new Error("Invalid backup: every reply must reference an archived root post.");
+    }
+    if (parent.replyToId) {
+      throw new Error("Invalid backup: nested replies are not supported.");
+    }
+    if (parent.deletedAt && !post.deletedAt) {
+      throw new Error(
+        "Invalid backup: active replies cannot belong to a deleted root post.",
+      );
+    }
   }
 
   return {
     format: ARCHIVE_FORMAT_IDENTIFIER,
     version: CURRENT_BACKUP_VERSION,
-    exportedAt:
-      typeof payload.exportedAt === "string"
-        ? payload.exportedAt
-        : new Date().toISOString(),
+    exportedAt: normalizeTimestamp(payload.exportedAt, "exportedAt"),
     posts: validPosts,
   };
 }
@@ -231,12 +316,9 @@ export async function createEncryptedBackup(
   posts: DearDumbassPost[],
   passphrase: string,
 ): Promise<DearDumbassBackupEnvelope> {
-  const trimmed = passphrase.trim();
-  if (!trimmed) {
-    throw new Error("A passphrase is required to encrypt the backup.");
-  }
+  validatePassphrase(passphrase);
 
-  const payload: DearDumbassArchivePayload = {
+  const payload = validateArchivePayload({
     format: ARCHIVE_FORMAT_IDENTIFIER,
     version: CURRENT_BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
@@ -249,16 +331,19 @@ export async function createEncryptedBackup(
       replyToId: post.replyToId,
       deletedAt: post.deletedAt ?? null,
     })),
-  };
+  });
 
   const plaintextJson = JSON.stringify(payload);
   const encoder = new TextEncoder();
   const plaintextBytes = encoder.encode(plaintextJson);
+  if (plaintextBytes.byteLength > MAX_CIPHERTEXT_BYTES - TAG_LENGTH / 8) {
+    throw new Error("Archive is too large to encrypt safely in this browser.");
+  }
 
   const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTE_LENGTH));
 
-  const key = await deriveAesGcmKey(trimmed, salt, PBKDF2_ITERATIONS, [
+  const key = await deriveAesGcmKey(passphrase, salt, PBKDF2_ITERATIONS, [
     "encrypt",
   ]);
 
@@ -300,10 +385,7 @@ export async function decryptBackupArchive(
   rawEnvelope: unknown,
   passphrase: string,
 ): Promise<DearDumbassArchivePayload> {
-  const trimmed = passphrase.trim();
-  if (!trimmed) {
-    throw new Error("A passphrase is required to decrypt the backup.");
-  }
+  validatePassphrase(passphrase);
 
   if (!isBackupEnvelope(rawEnvelope)) {
     throw new Error("Malformed or invalid backup envelope.");
@@ -318,14 +400,24 @@ export async function decryptBackupArchive(
   if (
     rawEnvelope.kdf.algorithm !== "PBKDF2" ||
     rawEnvelope.kdf.hash !== "SHA-256" ||
-    typeof rawEnvelope.kdf.iterations !== "number" ||
-    rawEnvelope.kdf.iterations < 1000
+    !Number.isSafeInteger(rawEnvelope.kdf.iterations) ||
+    rawEnvelope.kdf.iterations < MIN_SUPPORTED_PBKDF2_ITERATIONS ||
+    rawEnvelope.kdf.iterations > MAX_SUPPORTED_PBKDF2_ITERATIONS
   ) {
     throw new Error("Unsupported or invalid key derivation parameters.");
   }
 
-  if (rawEnvelope.cipher.algorithm !== "AES-GCM") {
+  if (
+    rawEnvelope.cipher.algorithm !== "AES-GCM" ||
+    rawEnvelope.cipher.tagLength !== TAG_LENGTH
+  ) {
     throw new Error("Unsupported cipher algorithm.");
+  }
+
+  normalizeTimestamp(rawEnvelope.createdAt, "backup createdAt");
+
+  if (rawEnvelope.ciphertext.length > Math.ceil(MAX_CIPHERTEXT_BYTES / 3) * 4) {
+    throw new Error("Backup file is too large.");
   }
 
   let salt: Uint8Array;
@@ -340,8 +432,17 @@ export async function decryptBackupArchive(
     throw new Error("Malformed or invalid base64 encoding in backup envelope.");
   }
 
+  if (
+    salt.byteLength !== SALT_BYTE_LENGTH ||
+    iv.byteLength !== IV_BYTE_LENGTH ||
+    ciphertext.byteLength < TAG_LENGTH / 8 ||
+    ciphertext.byteLength > MAX_CIPHERTEXT_BYTES
+  ) {
+    throw new Error("Unsupported or invalid cryptographic parameters.");
+  }
+
   const key = await deriveAesGcmKey(
-    trimmed,
+    passphrase,
     salt,
     rawEnvelope.kdf.iterations,
     ["decrypt"],
@@ -353,7 +454,7 @@ export async function decryptBackupArchive(
       {
         name: "AES-GCM",
         iv: iv as unknown as BufferSource,
-        tagLength: rawEnvelope.cipher.tagLength ?? TAG_LENGTH,
+        tagLength: TAG_LENGTH,
       },
       key,
       ciphertext as unknown as BufferSource,
@@ -363,8 +464,12 @@ export async function decryptBackupArchive(
     throw new Error("Incorrect passphrase or corrupted backup file.");
   }
 
-  const decoder = new TextDecoder();
-  const plaintext = decoder.decode(decryptedBuffer);
+  let plaintext: string;
+  try {
+    plaintext = new TextDecoder("utf-8", { fatal: true }).decode(decryptedBuffer);
+  } catch {
+    throw new Error("Corrupted archive payload: decrypted content is not UTF-8.");
+  }
 
   let parsed: unknown;
   try {

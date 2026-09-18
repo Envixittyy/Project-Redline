@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InMemoryPrivateStore } from "@/services/private-store";
 import { DearDumbassRepository } from "./dear-dumbass-repository";
@@ -10,6 +10,10 @@ describe("DearDumbassRepository", () => {
   beforeEach(() => {
     store = new InMemoryPrivateStore();
     repo = new DearDumbassRepository(store);
+  });
+
+  afterEach(() => {
+    repo.close();
   });
 
   it("1. creates a root post and stores it", async () => {
@@ -537,6 +541,45 @@ describe("DearDumbassRepository", () => {
         vi.unstubAllGlobals();
       }
     });
+
+    it("deduplicates same-tab window and BroadcastChannel notifications", async () => {
+      vi.stubGlobal("window", new EventTarget());
+      vi.stubGlobal("BroadcastChannel", MockBroadcastChannel);
+      try {
+        const sharedStore = new InMemoryPrivateStore();
+        const repoA = new DearDumbassRepository(sharedStore);
+        const repoB = new DearDumbassRepository(sharedStore);
+        const listenerB = vi.fn();
+        repoB.subscribe(listenerB);
+
+        await repoA.createPost("One logical change");
+
+        expect(listenerB).toHaveBeenCalledTimes(1);
+        repoA.close();
+        repoB.close();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("keeps same-tab updates when BroadcastChannel is unavailable", async () => {
+      vi.stubGlobal("window", new EventTarget());
+      vi.stubGlobal("BroadcastChannel", undefined);
+      try {
+        const sharedStore = new InMemoryPrivateStore();
+        const repoA = new DearDumbassRepository(sharedStore);
+        const repoB = new DearDumbassRepository(sharedStore);
+        const listenerB = vi.fn();
+        repoB.subscribe(listenerB);
+
+        await repoA.createPost("Fallback change");
+
+        expect(listenerB).toHaveBeenCalledTimes(1);
+        repoA.close();
+        repoB.close();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
   });
 });
-

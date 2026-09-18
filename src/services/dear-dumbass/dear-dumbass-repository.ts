@@ -16,7 +16,10 @@ export const DEAR_DUMBASS_BROADCAST_CHANNEL = "redline:dear-dumbass-channel";
 export type DearDumbassBroadcastMessage = {
   type: "change";
   sourceId: string;
+  changeId: string;
 };
+
+const MAX_TRACKED_CHANGE_IDS = 100;
 
 function createPostId(): string {
   if (typeof crypto === "undefined" || typeof crypto.randomUUID !== "function") {
@@ -33,10 +36,24 @@ export class DearDumbassRepository {
       ? crypto.randomUUID()
       : `repository-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   private channel: BroadcastChannel | null = null;
+  private changeSequence = 0;
+  private readonly seenChangeIds = new Set<string>();
+  private windowHandler: EventListener | null = null;
 
   constructor(store?: PrivateStore) {
     this.store = store ?? getPrivateStore();
+    this.initWindowEvents();
     this.initBroadcastChannel();
+  }
+
+  private initWindowEvents(): void {
+    if (typeof window === "undefined") return;
+    this.windowHandler = (event) => {
+      this.handleExternalChange(
+        (event as CustomEvent<DearDumbassBroadcastMessage>).detail,
+      );
+    };
+    window.addEventListener(DEAR_DUMBASS_CHANGE_EVENT, this.windowHandler);
   }
 
   private initBroadcastChannel(): void {
@@ -46,15 +63,7 @@ export class DearDumbassRepository {
     try {
       this.channel = new BroadcastChannel(DEAR_DUMBASS_BROADCAST_CHANNEL);
       this.channel.onmessage = (event: MessageEvent<DearDumbassBroadcastMessage>) => {
-        const data = event.data;
-        if (
-          data &&
-          typeof data === "object" &&
-          data.type === "change" &&
-          data.sourceId !== this.eventSourceId
-        ) {
-          this.notifyListeners();
-        }
+        this.handleExternalChange(event.data);
       };
     } catch {
       this.channel = null;
@@ -71,23 +80,47 @@ export class DearDumbassRepository {
     }
   }
 
+  private handleExternalChange(data: unknown): void {
+    if (!data || typeof data !== "object") return;
+    const message = data as Partial<DearDumbassBroadcastMessage>;
+    if (
+      message.type !== "change" ||
+      typeof message.sourceId !== "string" ||
+      typeof message.changeId !== "string" ||
+      message.sourceId === this.eventSourceId ||
+      this.seenChangeIds.has(message.changeId)
+    ) {
+      return;
+    }
+
+    this.seenChangeIds.add(message.changeId);
+    if (this.seenChangeIds.size > MAX_TRACKED_CHANGE_IDS) {
+      const oldest = this.seenChangeIds.values().next().value;
+      if (oldest) this.seenChangeIds.delete(oldest);
+    }
+    this.notifyListeners();
+  }
+
   private emitChange(): void {
     this.notifyListeners();
+
+    const message: DearDumbassBroadcastMessage = {
+      type: "change",
+      sourceId: this.eventSourceId,
+      changeId: `${this.eventSourceId}:${++this.changeSequence}`,
+    };
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent(DEAR_DUMBASS_CHANGE_EVENT, {
-          detail: { sourceId: this.eventSourceId },
+          detail: message,
         }),
       );
     }
 
     if (this.channel) {
       try {
-        this.channel.postMessage({
-          type: "change",
-          sourceId: this.eventSourceId,
-        } satisfies DearDumbassBroadcastMessage);
+        this.channel.postMessage(message);
       } catch {
         // Channel closed or failed to post message.
       }
@@ -100,22 +133,8 @@ export class DearDumbassRepository {
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
 
-    let windowHandler: EventListener | null = null;
-    if (typeof window !== "undefined") {
-      windowHandler = (event) => {
-        const detail = (event as CustomEvent<{ sourceId?: string }>).detail;
-        if (detail?.sourceId !== this.eventSourceId) {
-          listener();
-        }
-      };
-      window.addEventListener(DEAR_DUMBASS_CHANGE_EVENT, windowHandler);
-    }
-
     return () => {
       this.listeners.delete(listener);
-      if (typeof window !== "undefined" && windowHandler) {
-        window.removeEventListener(DEAR_DUMBASS_CHANGE_EVENT, windowHandler);
-      }
     };
   }
 
@@ -123,6 +142,10 @@ export class DearDumbassRepository {
    * Close channel and clean up resources.
    */
   close(): void {
+    if (typeof window !== "undefined" && this.windowHandler) {
+      window.removeEventListener(DEAR_DUMBASS_CHANGE_EVENT, this.windowHandler);
+      this.windowHandler = null;
+    }
     if (this.channel) {
       try {
         this.channel.close();
@@ -131,6 +154,7 @@ export class DearDumbassRepository {
       }
       this.channel = null;
     }
+    this.seenChangeIds.clear();
     this.listeners.clear();
   }
 
@@ -386,8 +410,15 @@ export class DearDumbassRepository {
         if (!existing || existing.deletedAt) return false;
 
         const now = new Date().toISOString();
+        const nextRevision = (existing.revision ?? 0) + 1;
         const toUpdate: DearDumbassPost[] = [
-          { ...existing, body: "", deletedAt: now },
+          {
+            ...existing,
+            body: "",
+            updatedAt: now,
+            revision: nextRevision,
+            deletedAt: now,
+          },
         ];
 
         if (!existing.replyToId) {
@@ -398,7 +429,13 @@ export class DearDumbassRepository {
           );
           for (const reply of childReplies) {
             if (!reply.deletedAt) {
-              toUpdate.push({ ...reply, body: "", deletedAt: now });
+              toUpdate.push({
+                ...reply,
+                body: "",
+                updatedAt: now,
+                revision: (reply.revision ?? 0) + 1,
+                deletedAt: now,
+              });
             }
           }
         }
@@ -449,6 +486,9 @@ export class DearDumbassRepository {
     payload: DearDumbassArchivePayload,
     mode: RestoreMode = "merge",
   ): Promise<RestoreResult> {
+    if (mode !== "merge" && mode !== "replace") {
+      throw new Error("Unsupported restore mode.");
+    }
     const validated = validateArchivePayload(payload);
 
     const result = await this.store.transaction(
@@ -473,19 +513,24 @@ export class DearDumbassRepository {
           DEAR_DUMBASS_STORE_NAME,
         );
         const existingMap = new Map(existingList.map((p) => [p.id, p]));
-
-        const toPut: DearDumbassPost[] = [];
-        let restoredCount = 0;
-        let updatedCount = 0;
+        const mergedMap = new Map(existingMap);
         let preservedCount = 0;
 
         for (const incoming of validated.posts) {
           const existing = existingMap.get(incoming.id);
 
           if (!existing) {
-            toPut.push(incoming);
-            restoredCount += 1;
+            mergedMap.set(incoming.id, incoming);
             continue;
+          }
+
+          if (
+            existing.createdAt !== incoming.createdAt ||
+            existing.replyToId !== incoming.replyToId
+          ) {
+            throw new Error(
+              "Backup conflicts with immutable post identity or parent relationship.",
+            );
           }
 
           const existingDeleted = Boolean(existing.deletedAt);
@@ -498,13 +543,17 @@ export class DearDumbassRepository {
           }
 
           if (incomingDeleted) {
-            // Incoming is a deletion tombstone: apply tombstone with empty body
-            toPut.push({
+            // Deletion is terminal. It dominates live versions regardless of
+            // revision or clock skew and always scrubs the retained body.
+            mergedMap.set(incoming.id, {
               ...existing,
               body: "",
+              revision: Math.max(
+                existing.revision ?? 0,
+                incoming.revision ?? 0,
+              ),
               deletedAt: incoming.deletedAt,
             });
-            updatedCount += 1;
             continue;
           }
 
@@ -512,19 +561,42 @@ export class DearDumbassRepository {
           const incomingRev = incoming.revision ?? 0;
 
           if (incomingRev > existingRev) {
-            toPut.push(incoming);
-            updatedCount += 1;
-          } else if (incomingRev === existingRev) {
-            const existingTime = existing.updatedAt ?? existing.createdAt;
-            const incomingTime = incoming.updatedAt ?? incoming.createdAt;
-            if (incomingTime.localeCompare(existingTime) > 0) {
-              toPut.push(incoming);
-              updatedCount += 1;
-            } else {
-              preservedCount += 1;
-            }
+            mergedMap.set(incoming.id, incoming);
           } else {
+            // Revisions are authoritative. Timestamps are deliberately not a
+            // tie-breaker because device clock skew can make updatedAt regress.
             preservedCount += 1;
+          }
+        }
+
+        // A root tombstone is terminal for the whole thread. This also scrubs
+        // local replies omitted from an imported archive and prevents a new
+        // imported reply from retaining plaintext under a deleted local root.
+        for (const root of mergedMap.values()) {
+          if (root.replyToId || !root.deletedAt) continue;
+          for (const post of mergedMap.values()) {
+            if (post.replyToId !== root.id || post.deletedAt) continue;
+            mergedMap.set(post.id, {
+              ...post,
+              body: "",
+              updatedAt: root.deletedAt,
+              revision: (post.revision ?? 0) + 1,
+              deletedAt: root.deletedAt,
+            });
+          }
+        }
+
+        const toPut: DearDumbassPost[] = [];
+        let restoredCount = 0;
+        let updatedCount = 0;
+        for (const [id, post] of mergedMap) {
+          const existing = existingMap.get(id);
+          if (!existing) {
+            toPut.push(post);
+            restoredCount += 1;
+          } else if (JSON.stringify(existing) !== JSON.stringify(post)) {
+            toPut.push(post);
+            updatedCount += 1;
           }
         }
 

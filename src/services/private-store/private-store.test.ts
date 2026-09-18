@@ -238,5 +238,32 @@ describe("PrivateStore Storage Layer", () => {
 
       expect(await store.get("dear_dumbass_posts", "rolled-back")).toBeNull();
     });
+
+    it("rolls back clear-and-replace when a later operation fails", async () => {
+      const original = {
+        id: "original",
+        body: "must survive",
+        replyToId: null,
+      };
+      await store.put("dear_dumbass_posts", original);
+
+      await expect(
+        store.transaction("dear_dumbass_posts", "readwrite", async (transaction) => {
+          await transaction.clear("dear_dumbass_posts");
+          await transaction.put("dear_dumbass_posts", {
+            id: "replacement",
+            body: "must roll back",
+          });
+          throw new Error("stop replace");
+        }),
+      ).rejects.toThrow("stop replace");
+
+      expect(
+        await store.get<typeof original>("dear_dumbass_posts", original.id),
+      ).toEqual(original);
+      expect(
+        await store.get("dear_dumbass_posts", "replacement"),
+      ).toBeNull();
+    });
   });
 });

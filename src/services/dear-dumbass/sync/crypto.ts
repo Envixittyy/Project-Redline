@@ -13,14 +13,55 @@ import {
 } from "./types";
 
 export const PBKDF2_SYNC_ITERATIONS = 600_000;
-export const MIN_SUPPORTED_PBKDF2_ITERATIONS = 100_000;
-export const MAX_SUPPORTED_PBKDF2_ITERATIONS = 2_000_000;
 export const SALT_BYTE_LENGTH = 16;
 export const IV_BYTE_LENGTH = 12; // 96 bits for AES-GCM
 export const AES_KEY_LENGTH = 256;
 export const TAG_LENGTH = 128;
 export const MAX_PASSPHRASE_BYTES = 4_096;
 const MAX_ID_CHARACTERS = 128;
+const WRAPPED_MASTER_KEY_BYTE_LENGTH = AES_KEY_LENGTH / 8 + TAG_LENGTH / 8;
+const MAX_RECORD_CIPHERTEXT_BYTES = 4_100_000;
+
+function assertOwnerId(ownerId: string): void {
+  if (!ownerId || typeof ownerId !== "string" || ownerId.length > MAX_ID_CHARACTERS) {
+    throw new Error("A valid journal owner is required.");
+  }
+}
+
+function assertMasterKey(masterKey: CryptoKey): void {
+  const algorithm = masterKey.algorithm as AesKeyAlgorithm;
+  if (
+    masterKey.type !== "secret" ||
+    masterKey.extractable ||
+    algorithm.name !== "AES-GCM" ||
+    algorithm.length !== AES_KEY_LENGTH ||
+    !masterKey.usages.includes("encrypt") ||
+    !masterKey.usages.includes("decrypt")
+  ) {
+    throw new Error("Invalid journal master key.");
+  }
+}
+
+function expectedBase64Length(byteLength: number): number {
+  return Math.ceil(byteLength / 3) * 4;
+}
+
+function assertBoundedBase64(value: unknown, exactBytes: number, label: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length !== expectedBase64Length(exactBytes)
+  ) {
+    throw new Error(`Invalid ${label} length in key envelope.`);
+  }
+  return value;
+}
+
+function buildKeyEnvelopeAad(ownerId: string): Uint8Array {
+  assertOwnerId(ownerId);
+  return new TextEncoder().encode(
+    `dear-dumbass-key-envelope|envelope=${KEY_ENVELOPE_FORMAT_VERSION}|owner=${ownerId.length}:${ownerId}|key=${CURRENT_KEY_VERSION}|kdf=PBKDF2-SHA-256-${PBKDF2_SYNC_ITERATIONS}|cipher=AES-256-GCM-${TAG_LENGTH}`,
+  );
+}
 
 function validatePassphrase(passphrase: string): Uint8Array {
   if (!passphrase || typeof passphrase !== "string") {
@@ -31,6 +72,7 @@ function validatePassphrase(passphrase: string): Uint8Array {
     throw new Error("Passphrase cannot be empty.");
   }
   if (encoded.byteLength > MAX_PASSPHRASE_BYTES) {
+    encoded.fill(0);
     throw new Error("The sync passphrase is too long.");
   }
   return encoded;
@@ -84,62 +126,71 @@ async function deriveKek(
  */
 export async function createMasterKeyAndEnvelope(
   passphrase: string,
+  ownerId: string,
 ): Promise<{ masterKey: CryptoKey; envelope: DearDumbassKeyEnvelope }> {
   const c = getWebCrypto();
+  assertOwnerId(ownerId);
   const passphraseBytes = validatePassphrase(passphrase);
+  let masterKeyBytes: Uint8Array | null = null;
+  let salt: Uint8Array | null = null;
+  let wrapIv: Uint8Array | null = null;
 
-  // Generate 256 bits of cryptographically secure random bytes for the master key
-  const masterKeyBytes = c.getRandomValues(new Uint8Array(AES_KEY_LENGTH / 8));
-  const salt = c.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
-  const wrapIv = c.getRandomValues(new Uint8Array(IV_BYTE_LENGTH));
+  try {
+    // Generate 256 bits of cryptographically secure random bytes for the master key.
+    masterKeyBytes = c.getRandomValues(new Uint8Array(AES_KEY_LENGTH / 8));
+    salt = c.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
+    wrapIv = c.getRandomValues(new Uint8Array(IV_BYTE_LENGTH));
+    const kek = await deriveKek(passphraseBytes, salt, PBKDF2_SYNC_ITERATIONS, [
+      "encrypt",
+    ]);
 
-  const kek = await deriveKek(passphraseBytes, salt, PBKDF2_SYNC_ITERATIONS, [
-    "encrypt",
-  ]);
+    const encryptedBuffer = await c.subtle.encrypt(
+      {
+        name: "AES-GCM",
+        iv: wrapIv as unknown as BufferSource,
+        tagLength: TAG_LENGTH,
+        additionalData: buildKeyEnvelopeAad(ownerId) as unknown as BufferSource,
+      },
+      kek,
+      masterKeyBytes as unknown as BufferSource,
+    );
 
-  const encryptedBuffer = await c.subtle.encrypt(
-    {
-      name: "AES-GCM",
-      iv: wrapIv as unknown as BufferSource,
-      tagLength: TAG_LENGTH,
-    },
-    kek,
-    masterKeyBytes as unknown as BufferSource,
-  );
+    // Import the master key as NON-EXTRACTABLE only after its wrapped copy exists.
+    const masterKey = await c.subtle.importKey(
+      "raw",
+      masterKeyBytes as unknown as BufferSource,
+      { name: "AES-GCM" },
+      false,
+      ["encrypt", "decrypt"],
+    );
 
-  // Import the master key as NON-EXTRACTABLE for local use
-  const masterKey = await c.subtle.importKey(
-    "raw",
-    masterKeyBytes as unknown as BufferSource,
-    { name: "AES-GCM" },
-    false, // Non-extractable
-    ["encrypt", "decrypt"],
-  );
+    const now = new Date().toISOString();
+    const envelope: DearDumbassKeyEnvelope = {
+      envelopeVersion: KEY_ENVELOPE_FORMAT_VERSION,
+      keyVersion: CURRENT_KEY_VERSION,
+      kdf: {
+        algorithm: "PBKDF2",
+        hash: "SHA-256",
+        iterations: PBKDF2_SYNC_ITERATIONS,
+        salt: bytesToBase64(salt),
+      },
+      cipher: {
+        algorithm: "AES-GCM",
+        iv: bytesToBase64(wrapIv),
+        tagLength: TAG_LENGTH,
+      },
+      encryptedMasterKey: bytesToBase64(new Uint8Array(encryptedBuffer)),
+      createdAt: now,
+      updatedAt: now,
+    };
 
-  // Securely wipe raw master key bytes from memory buffer
-  masterKeyBytes.fill(0);
-
-  const now = new Date().toISOString();
-  const envelope: DearDumbassKeyEnvelope = {
-    envelopeVersion: KEY_ENVELOPE_FORMAT_VERSION,
-    keyVersion: CURRENT_KEY_VERSION,
-    kdf: {
-      algorithm: "PBKDF2",
-      hash: "SHA-256",
-      iterations: PBKDF2_SYNC_ITERATIONS,
-      salt: bytesToBase64(salt),
-    },
-    cipher: {
-      algorithm: "AES-GCM",
-      iv: bytesToBase64(wrapIv),
-      tagLength: TAG_LENGTH,
-    },
-    encryptedMasterKey: bytesToBase64(new Uint8Array(encryptedBuffer)),
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  return { masterKey, envelope };
+    return { masterKey, envelope };
+  } finally {
+    passphraseBytes.fill(0);
+    masterKeyBytes?.fill(0);
+    salt?.fill(0);
+    wrapIv?.fill(0);
+  }
 }
 
 /**
@@ -150,9 +201,10 @@ export async function createMasterKeyAndEnvelope(
 export async function unwrapMasterKey(
   envelope: DearDumbassKeyEnvelope,
   passphrase: string,
+  ownerId: string,
 ): Promise<CryptoKey> {
   const c = getWebCrypto();
-  const passphraseBytes = validatePassphrase(passphrase);
+  assertOwnerId(ownerId);
 
   if (!envelope || typeof envelope !== "object") {
     throw new Error("Invalid key envelope: not an object.");
@@ -169,8 +221,7 @@ export async function unwrapMasterKey(
     envelope.kdf.algorithm !== "PBKDF2" ||
     envelope.kdf.hash !== "SHA-256" ||
     !Number.isSafeInteger(envelope.kdf.iterations) ||
-    envelope.kdf.iterations < MIN_SUPPORTED_PBKDF2_ITERATIONS ||
-    envelope.kdf.iterations > MAX_SUPPORTED_PBKDF2_ITERATIONS
+    envelope.kdf.iterations !== PBKDF2_SYNC_ITERATIONS
   ) {
     throw new Error("Unsupported or invalid KDF parameters in key envelope.");
   }
@@ -182,6 +233,14 @@ export async function unwrapMasterKey(
   ) {
     throw new Error("Unsupported cipher parameters in key envelope.");
   }
+
+  assertBoundedBase64(envelope.kdf.salt, SALT_BYTE_LENGTH, "salt");
+  assertBoundedBase64(envelope.cipher.iv, IV_BYTE_LENGTH, "wrap IV");
+  assertBoundedBase64(
+    envelope.encryptedMasterKey,
+    WRAPPED_MASTER_KEY_BYTE_LENGTH,
+    "wrapped master key",
+  );
 
   let salt: Uint8Array;
   let wrapIv: Uint8Array;
@@ -198,52 +257,83 @@ export async function unwrapMasterKey(
   if (
     salt.byteLength !== SALT_BYTE_LENGTH ||
     wrapIv.byteLength !== IV_BYTE_LENGTH ||
-    ciphertext.byteLength < TAG_LENGTH / 8
+    ciphertext.byteLength !== WRAPPED_MASTER_KEY_BYTE_LENGTH
   ) {
     throw new Error("Invalid cryptographic parameter lengths in key envelope.");
   }
 
-  const kek = await deriveKek(passphraseBytes, salt, envelope.kdf.iterations, [
-    "decrypt",
-  ]);
+  if (envelope.keyVersion !== CURRENT_KEY_VERSION) {
+    throw new Error("Unsupported key version in key envelope.");
+  }
 
-  let decryptedBuffer: ArrayBuffer;
+  const passphraseBytes = validatePassphrase(passphrase);
+  let decryptedBytes: Uint8Array | null = null;
   try {
-    decryptedBuffer = await c.subtle.decrypt(
-      {
-        name: "AES-GCM",
-        iv: wrapIv as unknown as BufferSource,
-        tagLength: TAG_LENGTH,
-      },
-      kek,
-      ciphertext as unknown as BufferSource,
+    const kek = await deriveKek(passphraseBytes, salt, envelope.kdf.iterations, [
+      "decrypt",
+    ]);
+    let decryptedBuffer: ArrayBuffer;
+    try {
+      decryptedBuffer = await c.subtle.decrypt(
+        {
+          name: "AES-GCM",
+          iv: wrapIv as unknown as BufferSource,
+          tagLength: TAG_LENGTH,
+          additionalData: buildKeyEnvelopeAad(ownerId) as unknown as BufferSource,
+        },
+        kek,
+        ciphertext as unknown as BufferSource,
+      );
+    } catch {
+      throw new Error("Incorrect passphrase or corrupted key envelope.");
+    }
+
+    if (decryptedBuffer.byteLength !== AES_KEY_LENGTH / 8) {
+      throw new Error("Corrupted master key payload length.");
+    }
+
+    decryptedBytes = new Uint8Array(decryptedBuffer);
+    return await c.subtle.importKey(
+      "raw",
+      decryptedBytes as unknown as BufferSource,
+      { name: "AES-GCM" },
+      false,
+      ["encrypt", "decrypt"],
     );
-  } catch {
-    throw new Error("Incorrect passphrase or corrupted key envelope.");
+  } finally {
+    passphraseBytes.fill(0);
+    salt.fill(0);
+    wrapIv.fill(0);
+    ciphertext.fill(0);
+    decryptedBytes?.fill(0);
   }
-
-  if (decryptedBuffer.byteLength !== AES_KEY_LENGTH / 8) {
-    throw new Error("Corrupted master key payload length.");
-  }
-
-  // Import as NON-EXTRACTABLE CryptoKey
-  const masterKey = await c.subtle.importKey(
-    "raw",
-    decryptedBuffer,
-    { name: "AES-GCM" },
-    false, // Non-extractable
-    ["encrypt", "decrypt"],
-  );
-
-  return masterKey;
 }
 
 /**
  * Constructs the deterministic Authenticated Additional Data (AAD) for a record.
  * Cryptographically binds ciphertext to record ID and key version.
  */
-export function buildRecordAad(recordId: string, keyVersion: number): Uint8Array {
-  return new TextEncoder().encode(`v1:${recordId}:${keyVersion}`);
+export function buildRecordAad(
+  recordId: string,
+  keyVersion: number,
+  encryptionFormatVersion: number,
+): Uint8Array {
+  if (
+    typeof recordId !== "string" ||
+    !recordId ||
+    recordId.length > MAX_ID_CHARACTERS
+  ) {
+    throw new Error("Invalid encrypted record ID.");
+  }
+  if (keyVersion !== CURRENT_KEY_VERSION) {
+    throw new Error("Unsupported encrypted record key version.");
+  }
+  if (encryptionFormatVersion !== RECORD_ENCRYPTION_FORMAT_VERSION) {
+    throw new Error("Unsupported encrypted record format version.");
+  }
+  return new TextEncoder().encode(
+    `dear-dumbass-record|format=${encryptionFormatVersion}|id=${recordId.length}:${recordId}|key=${keyVersion}`,
+  );
 }
 
 /**
@@ -261,6 +351,7 @@ export async function encryptRecord(
   encryptionFormatVersion: number;
 }> {
   const c = getWebCrypto();
+  assertMasterKey(masterKey);
 
   const isDeleted = Boolean(post.deletedAt);
   // Ensure deleted records have their body scrubbed to empty string before encryption
@@ -279,25 +370,29 @@ export async function encryptRecord(
 
   // Generate unique random 96-bit IV for every record encryption
   const iv = c.getRandomValues(new Uint8Array(IV_BYTE_LENGTH));
-  const aad = buildRecordAad(post.id, keyVersion);
+  const aad = buildRecordAad(post.id, keyVersion, RECORD_ENCRYPTION_FORMAT_VERSION);
 
-  const encryptedBuffer = await c.subtle.encrypt(
-    {
-      name: "AES-GCM",
-      iv: iv as unknown as BufferSource,
-      tagLength: TAG_LENGTH,
-      additionalData: aad as unknown as BufferSource,
-    },
-    masterKey,
-    plaintextBytes as unknown as BufferSource,
-  );
+  try {
+    const encryptedBuffer = await c.subtle.encrypt(
+      {
+        name: "AES-GCM",
+        iv: iv as unknown as BufferSource,
+        tagLength: TAG_LENGTH,
+        additionalData: aad as unknown as BufferSource,
+      },
+      masterKey,
+      plaintextBytes as unknown as BufferSource,
+    );
 
-  return {
-    ciphertext: bytesToBase64(new Uint8Array(encryptedBuffer)),
-    iv: bytesToBase64(iv),
-    keyVersion,
-    encryptionFormatVersion: RECORD_ENCRYPTION_FORMAT_VERSION,
-  };
+    return {
+      ciphertext: bytesToBase64(new Uint8Array(encryptedBuffer)),
+      iv: bytesToBase64(iv),
+      keyVersion,
+      encryptionFormatVersion: RECORD_ENCRYPTION_FORMAT_VERSION,
+    };
+  } finally {
+    plaintextBytes.fill(0);
+  }
 }
 
 /**
@@ -310,14 +405,34 @@ export async function decryptRecord(
     ciphertext: string;
     iv: string;
     keyVersion: number;
-    encryptionFormatVersion?: number;
+    encryptionFormatVersion: number;
   },
   masterKey: CryptoKey,
 ): Promise<DearDumbassPost> {
   const c = getWebCrypto();
+  assertMasterKey(masterKey);
 
   if (!record || typeof record !== "object") {
     throw new Error("Invalid encrypted record: not an object.");
+  }
+
+  const encryptionFormatVersion = record.encryptionFormatVersion;
+  const aad = buildRecordAad(
+    record.recordId,
+    record.keyVersion,
+    encryptionFormatVersion,
+  );
+  if (
+    typeof record.iv !== "string" ||
+    record.iv.length !== expectedBase64Length(IV_BYTE_LENGTH)
+  ) {
+    throw new Error("Invalid IV length in encrypted record.");
+  }
+  if (
+    typeof record.ciphertext !== "string" ||
+    record.ciphertext.length > expectedBase64Length(MAX_RECORD_CIPHERTEXT_BYTES)
+  ) {
+    throw new Error("Invalid ciphertext length in encrypted record.");
   }
 
   let ivBytes: Uint8Array;
@@ -335,8 +450,6 @@ export async function decryptRecord(
   if (ciphertextBytes.byteLength < TAG_LENGTH / 8) {
     throw new Error("Invalid ciphertext length in encrypted record.");
   }
-
-  const aad = buildRecordAad(record.recordId, record.keyVersion);
 
   let decryptedBuffer: ArrayBuffer;
   try {
@@ -357,10 +470,13 @@ export async function decryptRecord(
   }
 
   let jsonText: string;
+  const decryptedBytes = new Uint8Array(decryptedBuffer);
   try {
-    jsonText = new TextDecoder("utf-8", { fatal: true }).decode(decryptedBuffer);
+    jsonText = new TextDecoder("utf-8", { fatal: true }).decode(decryptedBytes);
   } catch {
     throw new Error("Decrypted record payload is not valid UTF-8.");
+  } finally {
+    decryptedBytes.fill(0);
   }
 
   let parsed: unknown;
@@ -376,7 +492,24 @@ export async function decryptRecord(
 
   const p = parsed as Record<string, unknown>;
 
-  if (typeof p.id !== "string" || p.id !== record.recordId) {
+  const allowedFields = new Set([
+    "id",
+    "body",
+    "createdAt",
+    "updatedAt",
+    "revision",
+    "replyToId",
+    "deletedAt",
+  ]);
+  if (Object.keys(p).some((key) => !allowedFields.has(key))) {
+    throw new Error("Invalid unknown field in decrypted record payload.");
+  }
+
+  if (
+    typeof p.id !== "string" ||
+    p.id !== record.recordId ||
+    p.id.length > MAX_ID_CHARACTERS
+  ) {
     throw new Error("Decrypted record ID does not match envelope record ID.");
   }
 
@@ -384,40 +517,59 @@ export async function decryptRecord(
     throw new Error("Invalid post body in decrypted record.");
   }
 
-  if (typeof p.createdAt !== "string" || !Number.isFinite(Date.parse(p.createdAt))) {
+  if (
+    typeof p.createdAt !== "string" ||
+    !Number.isFinite(Date.parse(p.createdAt)) ||
+    new Date(Date.parse(p.createdAt)).toISOString() !== p.createdAt
+  ) {
     throw new Error("Invalid createdAt timestamp in decrypted record.");
   }
 
-  const updatedAt =
-    p.updatedAt === null || p.updatedAt === undefined
-      ? null
-      : String(p.updatedAt);
-  if (updatedAt && !Number.isFinite(Date.parse(updatedAt))) {
+  if (p.updatedAt !== null && typeof p.updatedAt !== "string") {
+    throw new Error("Invalid updatedAt timestamp in decrypted record.");
+  }
+  const updatedAt = p.updatedAt as string | null;
+  if (
+    updatedAt &&
+    (!Number.isFinite(Date.parse(updatedAt)) ||
+      new Date(Date.parse(updatedAt)).toISOString() !== updatedAt)
+  ) {
     throw new Error("Invalid updatedAt timestamp in decrypted record.");
   }
 
-  const revision =
-    typeof p.revision === "number" && Number.isSafeInteger(p.revision) && p.revision >= 0
-      ? p.revision
-      : 0;
+  if (
+    typeof p.revision !== "number" ||
+    !Number.isSafeInteger(p.revision) ||
+    p.revision < 0
+  ) {
+    throw new Error("Invalid revision in decrypted record.");
+  }
+  const revision = p.revision;
 
-  const replyToId =
-    p.replyToId === null || p.replyToId === undefined
-      ? null
-      : String(p.replyToId);
+  if (p.replyToId !== null && typeof p.replyToId !== "string") {
+    throw new Error("Invalid replyToId in decrypted record.");
+  }
+  const replyToId = p.replyToId as string | null;
   if (replyToId && (replyToId.length > MAX_ID_CHARACTERS || replyToId === p.id)) {
     throw new Error("Invalid replyToId in decrypted record.");
   }
 
-  const deletedAt =
-    p.deletedAt === null || p.deletedAt === undefined
-      ? null
-      : String(p.deletedAt);
-  if (deletedAt && !Number.isFinite(Date.parse(deletedAt))) {
+  if (p.deletedAt !== null && typeof p.deletedAt !== "string") {
+    throw new Error("Invalid deletedAt timestamp in decrypted record.");
+  }
+  const deletedAt = p.deletedAt as string | null;
+  if (
+    deletedAt &&
+    (!Number.isFinite(Date.parse(deletedAt)) ||
+      new Date(Date.parse(deletedAt)).toISOString() !== deletedAt)
+  ) {
     throw new Error("Invalid deletedAt timestamp in decrypted record.");
   }
 
   const isDeleted = Boolean(deletedAt);
+  if (isDeleted && p.body !== "") {
+    throw new Error("Deleted record payload retained plaintext body.");
+  }
   if (!isDeleted && !p.body.trim()) {
     throw new Error("Active decrypted post cannot have an empty body.");
   }

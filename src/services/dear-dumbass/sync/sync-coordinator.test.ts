@@ -4,10 +4,12 @@ import { InMemoryPrivateStore } from "@/services/private-store";
 import { DearDumbassRepository } from "../dear-dumbass-repository";
 import type { DearDumbassPost } from "../types";
 import type { DearDumbassCloudClient } from "./cloud-client";
+import { LOCAL_KEYS_STORE } from "./key-manager";
 import {
   DearDumbassSyncCoordinator,
   POSTS_STORE,
   SYNC_CONFLICTS_STORE,
+  SYNC_META_STORE,
   SYNC_OUTBOX_STORE,
 } from "./sync-coordinator";
 import type {
@@ -23,6 +25,12 @@ class MockDearDumbassCloudClient implements DearDumbassCloudClient {
   public records = new Map<string, DearDumbassEncryptedRecord>();
   public changeSeq = 0;
   public failNextUpload = false;
+  public beforeRecordUpload:
+    | ((params: {
+        recordId: string;
+        expectedSyncVersion: number;
+      }) => Promise<void> | void)
+    | null = null;
 
   async getAuthUserId(): Promise<string | null> {
     return this.userId;
@@ -36,6 +44,9 @@ class MockDearDumbassCloudClient implements DearDumbassCloudClient {
     if (this.failNextUpload) {
       this.failNextUpload = false;
       throw new Error("Network simulated failure on envelope upload");
+    }
+    if (this.envelope) {
+      throw new Error("Encrypted sync is already configured for this account.");
     }
     this.envelope = structuredClone(envelope);
   }
@@ -58,6 +69,13 @@ class MockDearDumbassCloudClient implements DearDumbassCloudClient {
       this.failNextUpload = false;
       throw new Error("Network simulated failure on record upload");
     }
+
+    const beforeUpload = this.beforeRecordUpload;
+    this.beforeRecordUpload = null;
+    await beforeUpload?.({
+      recordId: params.recordId,
+      expectedSyncVersion: params.expectedSyncVersion,
+    });
 
     const existing = this.records.get(params.recordId);
     if (!existing) {
@@ -483,7 +501,7 @@ describe("Dear Dumbass E2EE Sync Coordinator", () => {
     expect(coord.getState().status).toBe("synced");
   });
 
-  it("10. Lock journal on this device removes local key and makes content unavailable", async () => {
+  it("10. Removing the sync key does not misrepresent or erase local plaintext", async () => {
     const store = new InMemoryPrivateStore();
     const coord = new DearDumbassSyncCoordinator({
       store,
@@ -500,10 +518,210 @@ describe("Dear Dumbass E2EE Sync Coordinator", () => {
     expect(coord.getKeyManager().isUnlocked()).toBe(false);
     expect(coord.getState().status).toBe("locked");
     expect(() => coord.getKeyManager().getMasterKey()).toThrow("journal is locked");
+    expect((await repo.getPost((await repo.getFeed())[0].id))?.body).toBe("Secret text");
 
     // Re-initialize: remains locked until passphrase entered
     await coord.initialize();
     expect(coord.getKeyManager().isUnlocked()).toBe(false);
     expect(coord.getState().status).toBe("locked");
+  });
+
+  it("11. Does not advance the cursor or partially apply a page containing corrupt ciphertext", async () => {
+    const storeA = new InMemoryPrivateStore();
+    const coordA = new DearDumbassSyncCoordinator({
+      store: storeA,
+      cloudClient: sharedCloud,
+    });
+    const repoA = new DearDumbassRepository(storeA, coordA);
+    await coordA.enableSync(passphrase);
+
+    const storeB = new InMemoryPrivateStore();
+    const coordB = new DearDumbassSyncCoordinator({
+      store: storeB,
+      cloudClient: sharedCloud,
+    });
+    await coordB.unlockSync(passphrase);
+
+    const first = await repoA.createPost("Valid record in atomic page");
+    const second = await repoA.createPost("Record that will be corrupted");
+    await coordA.triggerSync();
+
+    const corrupt = sharedCloud.records.get(second.id);
+    expect(corrupt).toBeDefined();
+    corrupt!.ciphertext = `${corrupt!.ciphertext.slice(0, -2)}AA`;
+
+    await expect(coordB.triggerPull()).rejects.toThrow("Decryption failed");
+    expect(await storeB.get<DearDumbassPost>(POSTS_STORE, first.id)).toBeNull();
+    expect(await storeB.get<DearDumbassPost>(POSTS_STORE, second.id)).toBeNull();
+    expect(
+      await storeB.get<{ id: string; lastServerSequence: number }>(
+        SYNC_META_STORE,
+        "cursor",
+      ),
+    ).toBeNull();
+  });
+
+  it("12. Refuses to overwrite an existing cloud envelope or persist the losing key", async () => {
+    const storeA = new InMemoryPrivateStore();
+    const coordA = new DearDumbassSyncCoordinator({
+      store: storeA,
+      cloudClient: sharedCloud,
+    });
+    await coordA.enableSync(passphrase);
+    const originalEnvelope = structuredClone(sharedCloud.envelope);
+
+    const storeB = new InMemoryPrivateStore();
+    const coordB = new DearDumbassSyncCoordinator({
+      store: storeB,
+      cloudClient: sharedCloud,
+    });
+    await expect(coordB.enableSync("different-secure-passphrase")).rejects.toThrow(
+      "already configured",
+    );
+
+    expect(sharedCloud.envelope).toEqual(originalEnvelope);
+    expect(coordB.getKeyManager().isUnlocked()).toBe(false);
+    expect(await storeB.getAll(LOCAL_KEYS_STORE)).toEqual([]);
+    expect(coordB.getState().status).toBe("locked");
+  });
+
+  it("13. Leaves no local key or sync config when envelope upload fails", async () => {
+    const store = new InMemoryPrivateStore();
+    const coord = new DearDumbassSyncCoordinator({
+      store,
+      cloudClient: sharedCloud,
+    });
+    const repo = new DearDumbassRepository(store, coord);
+    await repo.createPost("Must remain local only");
+    sharedCloud.failNextUpload = true;
+
+    await expect(coord.enableSync(passphrase)).rejects.toThrow(
+      "Network simulated failure",
+    );
+    expect(coord.getKeyManager().isUnlocked()).toBe(false);
+    expect(await store.getAll(LOCAL_KEYS_STORE)).toEqual([]);
+    expect(await store.get(SYNC_META_STORE, "sync_config")).toBeNull();
+    expect((await repo.getFeed())[0].body).toBe("Must remain local only");
+  });
+
+  it("14. Preserves equal-revision pre-existing divergence as an explicit conflict", async () => {
+    const storeA = new InMemoryPrivateStore();
+    const coordA = new DearDumbassSyncCoordinator({
+      store: storeA,
+      cloudClient: sharedCloud,
+    });
+    const repoA = new DearDumbassRepository(storeA, coordA);
+    await coordA.enableSync(passphrase);
+    const cloudPost = await repoA.createPost("Cloud version");
+    await coordA.triggerSync();
+
+    const storeB = new InMemoryPrivateStore();
+    await storeB.put<DearDumbassPost>(POSTS_STORE, {
+      ...cloudPost,
+      body: "Pre-existing local version",
+    });
+    const coordB = new DearDumbassSyncCoordinator({
+      store: storeB,
+      cloudClient: sharedCloud,
+    });
+
+    await coordB.unlockSync(passphrase);
+    const conflicts = await coordB.getConflicts();
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].localPost.body).toBe("Pre-existing local version");
+    expect(conflicts[0].remotePost.body).toBe("Cloud version");
+    expect((await storeB.get<DearDumbassPost>(POSTS_STORE, cloudPost.id))?.body).toBe(
+      "Pre-existing local version",
+    );
+  });
+
+  it("15. Conflict resolution uploads from the remote CAS baseline and converges devices", async () => {
+    const storeA = new InMemoryPrivateStore();
+    const coordA = new DearDumbassSyncCoordinator({
+      store: storeA,
+      cloudClient: sharedCloud,
+    });
+    const repoA = new DearDumbassRepository(storeA, coordA);
+    await coordA.enableSync(passphrase);
+    const post = await repoA.createPost("Base");
+    await coordA.triggerSync();
+
+    const storeB = new InMemoryPrivateStore();
+    const coordB = new DearDumbassSyncCoordinator({
+      store: storeB,
+      cloudClient: sharedCloud,
+    });
+    const repoB = new DearDumbassRepository(storeB, coordB);
+    await coordB.unlockSync(passphrase);
+
+    await repoA.updatePost(post.id, "Device A edit");
+    await repoB.updatePost(post.id, "Device B chosen edit");
+    await coordA.triggerSync();
+    await coordB.triggerSync();
+    expect((await coordB.getConflicts()).length).toBe(1);
+
+    await coordB.resolveConflict(post.id, "local");
+    await coordB.triggerSync();
+    expect(sharedCloud.records.get(post.id)?.syncVersion).toBe(3);
+
+    await coordA.triggerPull();
+    expect((await repoA.getPost(post.id))?.body).toBe("Device B chosen edit");
+    expect(await coordA.getConflicts()).toEqual([]);
+  });
+
+  it("16. Preserves a mutation queued while an older snapshot is being acknowledged", async () => {
+    const storeA = new InMemoryPrivateStore();
+    const coordA = new DearDumbassSyncCoordinator({
+      store: storeA,
+      cloudClient: sharedCloud,
+    });
+    const repoA = new DearDumbassRepository(storeA, coordA);
+    await coordA.enableSync(passphrase);
+    const post = await repoA.createPost("Base");
+    await coordA.triggerSync();
+
+    sharedCloud.beforeRecordUpload = async ({ recordId }) => {
+      expect(recordId).toBe(post.id);
+      await repoA.updatePost(post.id, "Newest edit queued during upload");
+    };
+
+    await repoA.updatePost(post.id, "Older in-flight edit");
+    await coordA.triggerSync();
+    await coordA.triggerSync();
+    expect(await storeA.getAll<DearDumbassOutboxItem>(SYNC_OUTBOX_STORE)).toEqual([]);
+
+    const storeB = new InMemoryPrivateStore();
+    const coordB = new DearDumbassSyncCoordinator({
+      store: storeB,
+      cloudClient: sharedCloud,
+    });
+    const repoB = new DearDumbassRepository(storeB, coordB);
+    await coordB.unlockSync(passphrase);
+    expect((await repoB.getPost(post.id))?.body).toBe(
+      "Newest edit queued during upload",
+    );
+  });
+
+  it("17. Pulls more than one page during bootstrap", async () => {
+    const storeA = new InMemoryPrivateStore();
+    const coordA = new DearDumbassSyncCoordinator({
+      store: storeA,
+      cloudClient: sharedCloud,
+    });
+    const repoA = new DearDumbassRepository(storeA, coordA);
+    for (let index = 0; index < 105; index += 1) {
+      await repoA.createPost(`Paginated post ${index}`);
+    }
+    await coordA.enableSync(passphrase);
+    expect(sharedCloud.records.size).toBe(105);
+
+    const storeB = new InMemoryPrivateStore();
+    const coordB = new DearDumbassSyncCoordinator({
+      store: storeB,
+      cloudClient: sharedCloud,
+    });
+    const repoB = new DearDumbassRepository(storeB, coordB);
+    await coordB.unlockSync(passphrase);
+    expect(await repoB.getFeed()).toHaveLength(105);
   });
 });

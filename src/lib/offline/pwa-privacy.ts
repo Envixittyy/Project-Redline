@@ -1,6 +1,7 @@
 "use client";
 
 import { clearOfflineMutations } from "./queue";
+import { clearDearDumbassSessionKey } from "@/services/dear-dumbass";
 
 export const SAFE_STATIC_CACHE = "redline-static-v2";
 export const APP_CACHE_PREFIXES = ["life-os-", "redline-"] as const;
@@ -36,7 +37,11 @@ async function notifyServiceWorker(): Promise<void> {
 }
 
 export async function clearSensitivePwaState(): Promise<void> {
-  const operations = [clearOfflineMutations(), clearUnsafePwaCaches()];
+  const operations = [
+    clearOfflineMutations(),
+    clearUnsafePwaCaches(),
+    clearDearDumbassSessionKey(),
+  ];
   if (typeof navigator !== "undefined") operations.push(notifyServiceWorker());
   await Promise.allSettled(operations);
 }

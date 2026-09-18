@@ -12,6 +12,7 @@ import type { DearDumbassKeyEnvelope } from "./types";
 
 describe("Dear Dumbass E2EE Crypto System", () => {
   const passphrase = "correct-battery-horse-stapler";
+  const ownerId = "11111111-1111-4111-8111-111111111111";
   const samplePost: DearDumbassPost = {
     id: "post-12345",
     body: "This is a strictly private thought for population 1.",
@@ -44,7 +45,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
 
   describe("Master Key Generation & Wrapping", () => {
     it("generates a valid key envelope and non-extractable master key", async () => {
-      const { masterKey, envelope } = await createMasterKeyAndEnvelope(passphrase);
+      const { masterKey, envelope } = await createMasterKeyAndEnvelope(passphrase, ownerId);
 
       expect(masterKey).toBeDefined();
       expect(masterKey.type).toBe("secret");
@@ -63,8 +64,8 @@ describe("Dear Dumbass E2EE Crypto System", () => {
     });
 
     it("unwraps the master key with correct passphrase", async () => {
-      const { envelope } = await createMasterKeyAndEnvelope(passphrase);
-      const unwrappedKey = await unwrapMasterKey(envelope, passphrase);
+      const { envelope } = await createMasterKeyAndEnvelope(passphrase, ownerId);
+      const unwrappedKey = await unwrapMasterKey(envelope, passphrase, ownerId);
 
       expect(unwrappedKey).toBeDefined();
       expect(unwrappedKey.type).toBe("secret");
@@ -78,6 +79,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
           ciphertext: encrypted.ciphertext,
           iv: encrypted.iv,
           keyVersion: encrypted.keyVersion,
+          encryptionFormatVersion: encrypted.encryptionFormatVersion,
         },
         unwrappedKey,
       );
@@ -87,15 +89,27 @@ describe("Dear Dumbass E2EE Crypto System", () => {
     });
 
     it("rejects incorrect passphrase with clean error and zero mutation", async () => {
-      const { envelope } = await createMasterKeyAndEnvelope(passphrase);
+      const { envelope } = await createMasterKeyAndEnvelope(passphrase, ownerId);
 
       await expect(
-        unwrapMasterKey(envelope, "completely-wrong-passphrase"),
+        unwrapMasterKey(envelope, "completely-wrong-passphrase", ownerId),
+      ).rejects.toThrow("Incorrect passphrase or corrupted key envelope.");
+    });
+
+    it("binds a wrapped master key to its authenticated owner", async () => {
+      const { envelope } = await createMasterKeyAndEnvelope(passphrase, ownerId);
+
+      await expect(
+        unwrapMasterKey(
+          envelope,
+          passphrase,
+          "22222222-2222-4222-8222-222222222222",
+        ),
       ).rejects.toThrow("Incorrect passphrase or corrupted key envelope.");
     });
 
     it("rejects tampered envelope parameters", async () => {
-      const { envelope } = await createMasterKeyAndEnvelope(passphrase);
+      const { envelope } = await createMasterKeyAndEnvelope(passphrase, ownerId);
 
       // 1. Tampered ciphertext
       const tamperedCiphertext = {
@@ -103,7 +117,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
         encryptedMasterKey: envelope.encryptedMasterKey.slice(0, -4) + "AAAA",
       };
       await expect(
-        unwrapMasterKey(tamperedCiphertext, passphrase),
+        unwrapMasterKey(tamperedCiphertext, passphrase, ownerId),
       ).rejects.toThrow("Incorrect passphrase or corrupted key envelope.");
 
       // 2. Unsupported iterations (< 100,000)
@@ -112,7 +126,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
         kdf: { ...envelope.kdf, iterations: 50_000 },
       };
       await expect(
-        unwrapMasterKey(lowIterations, passphrase),
+        unwrapMasterKey(lowIterations, passphrase, ownerId),
       ).rejects.toThrow("Unsupported or invalid KDF parameters");
 
       // 3. Unsupported algorithm
@@ -121,7 +135,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
         kdf: { ...envelope.kdf, algorithm: "MD5" as unknown as DearDumbassKeyEnvelope["kdf"]["algorithm"] },
       };
       await expect(
-        unwrapMasterKey(badAlgorithm, passphrase),
+        unwrapMasterKey(badAlgorithm, passphrase, ownerId),
       ).rejects.toThrow("Unsupported or invalid KDF parameters");
 
       // 4. Corrupted salt base64
@@ -130,14 +144,22 @@ describe("Dear Dumbass E2EE Crypto System", () => {
         kdf: { ...envelope.kdf, salt: "invalid-base64!" },
       };
       await expect(
-        unwrapMasterKey(badSalt, passphrase),
+        unwrapMasterKey(badSalt, passphrase, ownerId),
       ).rejects.toThrow();
+
+      const oversizedSalt = {
+        ...envelope,
+        kdf: { ...envelope.kdf, salt: "A".repeat(1_000_000) },
+      };
+      await expect(
+        unwrapMasterKey(oversizedSalt, passphrase, ownerId),
+      ).rejects.toThrow("Invalid salt length");
     });
   });
 
   describe("Record Encryption & Decryption", () => {
     it("encrypts and decrypts active post and reply accurately", async () => {
-      const { masterKey } = await createMasterKeyAndEnvelope(passphrase);
+      const { masterKey } = await createMasterKeyAndEnvelope(passphrase, ownerId);
 
       // 1. Root post
       const encPost = await encryptRecord(samplePost, masterKey);
@@ -147,6 +169,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
           ciphertext: encPost.ciphertext,
           iv: encPost.iv,
           keyVersion: encPost.keyVersion,
+          encryptionFormatVersion: encPost.encryptionFormatVersion,
         },
         masterKey,
       );
@@ -160,6 +183,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
           ciphertext: encReply.ciphertext,
           iv: encReply.iv,
           keyVersion: encReply.keyVersion,
+          encryptionFormatVersion: encReply.encryptionFormatVersion,
         },
         masterKey,
       );
@@ -167,7 +191,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
     });
 
     it("scrubs body of tombstoned records before encryption (privacy invariant)", async () => {
-      const { masterKey } = await createMasterKeyAndEnvelope(passphrase);
+      const { masterKey } = await createMasterKeyAndEnvelope(passphrase, ownerId);
 
       const encrypted = await encryptRecord(sampleTombstone, masterKey);
       const decrypted = await decryptRecord(
@@ -176,6 +200,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
           ciphertext: encrypted.ciphertext,
           iv: encrypted.iv,
           keyVersion: encrypted.keyVersion,
+          encryptionFormatVersion: encrypted.encryptionFormatVersion,
         },
         masterKey,
       );
@@ -187,7 +212,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
     });
 
     it("generates a new unique IV for every encryption call", async () => {
-      const { masterKey } = await createMasterKeyAndEnvelope(passphrase);
+      const { masterKey } = await createMasterKeyAndEnvelope(passphrase, ownerId);
 
       const enc1 = await encryptRecord(samplePost, masterKey);
       const enc2 = await encryptRecord(samplePost, masterKey);
@@ -197,7 +222,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
     });
 
     it("rejects tampered ciphertext, tampered IV, or mismatched AAD", async () => {
-      const { masterKey } = await createMasterKeyAndEnvelope(passphrase);
+      const { masterKey } = await createMasterKeyAndEnvelope(passphrase, ownerId);
       const encrypted = await encryptRecord(samplePost, masterKey);
 
       // 1. Tampered ciphertext
@@ -210,10 +235,50 @@ describe("Dear Dumbass E2EE Crypto System", () => {
             ciphertext: tamperedCipher,
             iv: encrypted.iv,
             keyVersion: encrypted.keyVersion,
+            encryptionFormatVersion: encrypted.encryptionFormatVersion,
           },
           masterKey,
         ),
       ).rejects.toThrow("Decryption failed");
+
+      await expect(
+        decryptRecord(
+          {
+            recordId: samplePost.id,
+            ciphertext: encrypted.ciphertext,
+            iv: encrypted.iv,
+            keyVersion: encrypted.keyVersion,
+            encryptionFormatVersion: 0,
+          },
+          masterKey,
+        ),
+      ).rejects.toThrow("Unsupported encrypted record format version");
+
+      await expect(
+        decryptRecord(
+          {
+            recordId: samplePost.id,
+            ciphertext: encrypted.ciphertext,
+            iv: encrypted.iv,
+            keyVersion: encrypted.keyVersion,
+            encryptionFormatVersion: undefined as unknown as number,
+          },
+          masterKey,
+        ),
+      ).rejects.toThrow("Unsupported encrypted record format version");
+
+      await expect(
+        decryptRecord(
+          {
+            recordId: samplePost.id,
+            ciphertext: encrypted.ciphertext,
+            iv: "A".repeat(1_000_000),
+            keyVersion: encrypted.keyVersion,
+            encryptionFormatVersion: encrypted.encryptionFormatVersion,
+          },
+          masterKey,
+        ),
+      ).rejects.toThrow("Invalid IV length");
 
       // 2. Tampered IV
       const tamperedIv =
@@ -225,6 +290,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
             ciphertext: encrypted.ciphertext,
             iv: tamperedIv,
             keyVersion: encrypted.keyVersion,
+            encryptionFormatVersion: encrypted.encryptionFormatVersion,
           },
           masterKey,
         ),
@@ -238,6 +304,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
             ciphertext: encrypted.ciphertext,
             iv: encrypted.iv,
             keyVersion: encrypted.keyVersion,
+            encryptionFormatVersion: encrypted.encryptionFormatVersion,
           },
           masterKey,
         ),
@@ -251,15 +318,19 @@ describe("Dear Dumbass E2EE Crypto System", () => {
             ciphertext: encrypted.ciphertext,
             iv: encrypted.iv,
             keyVersion: 99,
+            encryptionFormatVersion: encrypted.encryptionFormatVersion,
           },
           masterKey,
         ),
-      ).rejects.toThrow("Decryption failed");
+      ).rejects.toThrow("Unsupported encrypted record key version");
     });
 
     it("fails decryption when called with a different master key", async () => {
-      const { masterKey: key1 } = await createMasterKeyAndEnvelope(passphrase);
-      const { masterKey: key2 } = await createMasterKeyAndEnvelope("different-passphrase");
+      const { masterKey: key1 } = await createMasterKeyAndEnvelope(passphrase, ownerId);
+      const { masterKey: key2 } = await createMasterKeyAndEnvelope(
+        "different-passphrase",
+        ownerId,
+      );
 
       const encrypted = await encryptRecord(samplePost, key1);
 
@@ -270,6 +341,7 @@ describe("Dear Dumbass E2EE Crypto System", () => {
             ciphertext: encrypted.ciphertext,
             iv: encrypted.iv,
             keyVersion: encrypted.keyVersion,
+            encryptionFormatVersion: encrypted.encryptionFormatVersion,
           },
           key2,
         ),

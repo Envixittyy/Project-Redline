@@ -16,6 +16,16 @@ import {
   type DearDumbassArchivePayload,
 } from "./backup";
 import { DearDumbassRepository } from "./dear-dumbass-repository";
+import {
+  POSTS_STORE,
+  SYNC_CONFLICTS_STORE,
+  SYNC_META_STORE,
+  SYNC_OUTBOX_STORE,
+} from "./sync/sync-coordinator";
+import type {
+  DearDumbassOutboxItem,
+  DearDumbassSyncConflict,
+} from "./sync/types";
 import type { DearDumbassPost } from "./types";
 
 describe("Dear Dumbass Encrypted Backup & Restore", () => {
@@ -390,6 +400,53 @@ describe("Dear Dumbass Encrypted Backup & Restore", () => {
       expect(feed).toHaveLength(1);
       expect(feed[0].id).toBe("replacement-post-1");
       expect(feed[0].body).toBe("Only this post should survive");
+    });
+
+    it("replace mode under sync turns omitted records into queued tombstones", async () => {
+      const omitted = await repo.createPost("Must not resurrect from cloud");
+      await store.put(SYNC_META_STORE, {
+        id: "sync_config",
+        enabled: true,
+        enabledAt: "2026-09-18T12:00:00.000Z",
+        ownerId: "user-test-123",
+      });
+      await store.put<DearDumbassSyncConflict>(SYNC_CONFLICTS_STORE, {
+        id: omitted.id,
+        localPost: omitted,
+        remotePost: { ...omitted, body: "Remote alternate" },
+        remoteSyncVersion: 1,
+        remoteServerChangeSequence: 1,
+        detectedAt: "2026-09-18T12:00:00.000Z",
+      });
+
+      await repo.restoreArchive(
+        {
+          format: "dear-dumbass-archive",
+          version: 1,
+          exportedAt: "2026-09-18T12:00:00.000Z",
+          posts: [
+            {
+              id: "replacement-post",
+              body: "Replacement",
+              createdAt: "2026-09-18T12:00:00.000Z",
+              updatedAt: null,
+              revision: 0,
+              replyToId: null,
+              deletedAt: null,
+            },
+          ],
+        },
+        "replace",
+      );
+
+      const tombstone = await store.get<DearDumbassPost>(POSTS_STORE, omitted.id);
+      expect(tombstone?.body).toBe("");
+      expect(tombstone?.deletedAt).toBeTruthy();
+      expect(await store.get(SYNC_CONFLICTS_STORE, omitted.id)).toBeNull();
+      const outbox = await store.getAll<DearDumbassOutboxItem>(SYNC_OUTBOX_STORE);
+      expect(outbox.map((item) => item.recordId).sort()).toEqual(
+        [omitted.id, "replacement-post"].sort(),
+      );
     });
 
     it("11. validation failure leaves database completely untouched", async () => {

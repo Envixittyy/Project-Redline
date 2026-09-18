@@ -16,7 +16,23 @@ interface StoredKeyRecord {
   id: string;
   key: CryptoKey;
   keyVersion: number;
+  ownerId: string;
   unlockedAt: string;
+}
+
+function isValidStoredKey(record: StoredKeyRecord, ownerId: string): boolean {
+  const algorithm = record.key?.algorithm as AesKeyAlgorithm | undefined;
+  return Boolean(
+    record.key &&
+      record.ownerId === ownerId &&
+      record.keyVersion === CURRENT_KEY_VERSION &&
+      record.key.type === "secret" &&
+      !record.key.extractable &&
+      algorithm?.name === "AES-GCM" &&
+      algorithm.length === 256 &&
+      record.key.usages.includes("encrypt") &&
+      record.key.usages.includes("decrypt"),
+  );
 }
 
 export class DearDumbassKeyManager {
@@ -46,13 +62,15 @@ export class DearDumbassKeyManager {
   /**
    * Load previously persisted master key from local device storage (IndexedDB).
    */
-  async loadLocalKey(): Promise<boolean> {
+  async loadLocalKey(ownerId: string): Promise<boolean> {
+    this.currentMasterKey = null;
+    this.currentKeyVersion = CURRENT_KEY_VERSION;
     try {
       const record = await this.store.get<StoredKeyRecord>(
         LOCAL_KEYS_STORE,
         MASTER_KEY_RECORD_ID,
       );
-      if (record && record.key) {
+      if (record && isValidStoredKey(record, ownerId)) {
         this.currentMasterKey = record.key;
         this.currentKeyVersion = record.keyVersion || CURRENT_KEY_VERSION;
         return true;
@@ -60,65 +78,58 @@ export class DearDumbassKeyManager {
     } catch {
       // Local storage read error; remains locked
     }
-    this.currentMasterKey = null;
     return false;
   }
 
   /**
-   * Unlock journal using a downloaded envelope and passphrase.
-   * Persists non-extractable key locally in PrivateStore.
+   * Unwrap a downloaded envelope without changing local persistence or active state.
    */
-  async unlockWithPassphrase(
+  async unwrapWithPassphrase(
     envelope: DearDumbassKeyEnvelope,
     passphrase: string,
+    ownerId: string,
   ): Promise<CryptoKey> {
-    const key = await unwrapMasterKey(envelope, passphrase);
-
-    // Save to local device store so subsequent loads stay unlocked
-    await this.store.put<StoredKeyRecord>(LOCAL_KEYS_STORE, {
-      id: MASTER_KEY_RECORD_ID,
-      key,
-      keyVersion: envelope.keyVersion || CURRENT_KEY_VERSION,
-      unlockedAt: new Date().toISOString(),
-    });
-
-    this.currentMasterKey = key;
-    this.currentKeyVersion = envelope.keyVersion || CURRENT_KEY_VERSION;
-    return key;
+    return unwrapMasterKey(envelope, passphrase, ownerId);
   }
 
   /**
    * Initialize a fresh Journal Master Key for first-time sync setup.
-   * Generates random master key, wraps envelope with passphrase, and persists locally.
+   * Generates a random master key and wraps its bytes with the passphrase.
    */
-  async setupNewMasterKey(
+  async createNewMasterKey(
     passphrase: string,
+    ownerId: string,
   ): Promise<{ masterKey: CryptoKey; envelope: DearDumbassKeyEnvelope }> {
-    const { masterKey, envelope } = await createMasterKeyAndEnvelope(passphrase);
+    return createMasterKeyAndEnvelope(passphrase, ownerId);
+  }
 
-    await this.store.put<StoredKeyRecord>(LOCAL_KEYS_STORE, {
+  createStoredKeyRecord(
+    masterKey: CryptoKey,
+    keyVersion: number,
+    ownerId: string,
+  ): StoredKeyRecord {
+    return {
       id: MASTER_KEY_RECORD_ID,
       key: masterKey,
-      keyVersion: envelope.keyVersion,
+      keyVersion,
+      ownerId,
       unlockedAt: new Date().toISOString(),
-    });
+    };
+  }
 
+  activateKey(masterKey: CryptoKey, keyVersion: number): void {
     this.currentMasterKey = masterKey;
-    this.currentKeyVersion = envelope.keyVersion;
-    return { masterKey, envelope };
+    this.currentKeyVersion = keyVersion;
   }
 
   /**
    * Lock journal on this device.
    * Clears in-memory key and wipes key record from local storage.
-   * Does NOT delete cloud data or local encrypted posts.
+   * Does NOT delete cloud ciphertext or local plaintext posts.
    */
   async lock(): Promise<void> {
     this.currentMasterKey = null;
-    try {
-      await this.store.delete(LOCAL_KEYS_STORE, MASTER_KEY_RECORD_ID);
-    } catch {
-      // Ignore if store is inaccessible
-    }
+    this.currentKeyVersion = CURRENT_KEY_VERSION;
+    await this.store.delete(LOCAL_KEYS_STORE, MASTER_KEY_RECORD_ID);
   }
 }

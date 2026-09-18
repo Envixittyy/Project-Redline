@@ -65,7 +65,9 @@ export class SupabaseDearDumbassCloudClient implements DearDumbassCloudClient {
     const client = this.getClient();
     const { data, error } = await client
       .from("dear_dumbass_key_envelopes")
-      .select("*")
+      .select(
+        "envelope_version,key_version,kdf_algorithm,kdf_hash,kdf_iterations,salt,wrap_iv,encrypted_master_key,created_at,updated_at",
+      )
       .maybeSingle();
 
     if (error) {
@@ -102,7 +104,7 @@ export class SupabaseDearDumbassCloudClient implements DearDumbassCloudClient {
       throw new Error("Must be signed in to upload key envelope.");
     }
 
-    const { error } = await client.from("dear_dumbass_key_envelopes").upsert(
+    const { error } = await client.from("dear_dumbass_key_envelopes").insert(
       {
         owner_id: userId,
         envelope_version: envelope.envelopeVersion,
@@ -115,11 +117,10 @@ export class SupabaseDearDumbassCloudClient implements DearDumbassCloudClient {
         encrypted_master_key: envelope.encryptedMasterKey,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "owner_id" },
     );
 
     if (error) {
-      throw new Error(`Failed to upload key envelope: ${error.message}`);
+      throw new Error("Failed to create key envelope. Encrypted sync may already be configured.");
     }
   }
 
@@ -175,7 +176,9 @@ export class SupabaseDearDumbassCloudClient implements DearDumbassCloudClient {
     const client = this.getClient();
     const { data, error } = await client
       .from("dear_dumbass_encrypted_records")
-      .select("*")
+      .select(
+        "record_id,key_version,sync_version,ciphertext,iv,encryption_format_version,server_change_sequence",
+      )
       .gt("server_change_sequence", afterSequence)
       .order("server_change_sequence", { ascending: true })
       .limit(limit);
@@ -185,8 +188,6 @@ export class SupabaseDearDumbassCloudClient implements DearDumbassCloudClient {
     }
 
     return (data ?? []).map((row) => ({
-      id: row.id,
-      ownerId: row.owner_id,
       recordId: row.record_id,
       keyVersion: row.key_version,
       syncVersion: row.sync_version,
@@ -194,8 +195,6 @@ export class SupabaseDearDumbassCloudClient implements DearDumbassCloudClient {
       iv: row.iv,
       encryptionFormatVersion: row.encryption_format_version,
       serverChangeSequence: Number(row.server_change_sequence),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
     }));
   }
 }

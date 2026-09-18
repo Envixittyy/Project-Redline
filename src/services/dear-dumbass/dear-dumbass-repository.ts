@@ -1,4 +1,8 @@
-import { getPrivateStore, type PrivateStore } from "@/services/private-store";
+import {
+  getPrivateStore,
+  resetDefaultPrivateStore,
+  type PrivateStore,
+} from "@/services/private-store";
 import {
   createEncryptedBackup,
   validateArchivePayload,
@@ -9,10 +13,12 @@ import {
 } from "./backup";
 import {
   DearDumbassSyncCoordinator,
+  SYNC_CONFLICTS_STORE,
   SYNC_META_STORE,
   SYNC_OUTBOX_STORE,
 } from "./sync/sync-coordinator";
 import type { DearDumbassOutboxItem } from "./sync/types";
+import { DearDumbassKeyManager } from "./sync/key-manager";
 import type { DearDumbassPost, DearDumbassSearchResult } from "./types";
 
 export const DEAR_DUMBASS_STORE_NAME = "dear_dumbass_posts";
@@ -461,7 +467,12 @@ export class DearDumbassRepository {
    */
   async deletePost(id: string): Promise<void> {
     const deleted = await this.store.transaction(
-      [DEAR_DUMBASS_STORE_NAME, SYNC_OUTBOX_STORE, SYNC_META_STORE],
+      [
+        DEAR_DUMBASS_STORE_NAME,
+        SYNC_OUTBOX_STORE,
+        SYNC_META_STORE,
+        SYNC_CONFLICTS_STORE,
+      ],
       "readwrite",
       async (transaction) => {
         const existing = await transaction.get<DearDumbassPost>(
@@ -502,6 +513,12 @@ export class DearDumbassRepository {
         }
 
         await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, toUpdate);
+        await transaction.delete(SYNC_CONFLICTS_STORE, existing.id);
+        for (const post of toUpdate) {
+          if (post.id !== existing.id) {
+            await transaction.delete(SYNC_CONFLICTS_STORE, post.id);
+          }
+        }
 
         const syncConfig = await transaction.get<{ id: string; enabled: boolean }>(
           SYNC_META_STORE,
@@ -533,17 +550,34 @@ export class DearDumbassRepository {
    * Permanently purge all deleted posts (maintenance utility).
    */
   async purgeDeleted(): Promise<number> {
-    const all = await this.store.getAll<DearDumbassPost>(
-      DEAR_DUMBASS_STORE_NAME,
+    const deletedIds = await this.store.transaction(
+      [DEAR_DUMBASS_STORE_NAME, SYNC_OUTBOX_STORE, SYNC_META_STORE],
+      "readwrite",
+      async (transaction) => {
+        const all = await transaction.getAll<DearDumbassPost>(DEAR_DUMBASS_STORE_NAME);
+        const ids = all.filter((post) => post.deletedAt).map((post) => post.id);
+        const syncConfig = await transaction.get<{ id: string; enabled: boolean }>(
+          SYNC_META_STORE,
+          "sync_config",
+        );
+        if (syncConfig?.enabled) {
+          for (const id of ids) {
+            const pending = await transaction.getAllByIndex<DearDumbassOutboxItem>(
+              SYNC_OUTBOX_STORE,
+              "by_recordId",
+              id,
+            );
+            if (pending.length > 0) {
+              throw new Error("Deleted posts cannot be purged until their tombstones sync.");
+            }
+          }
+        }
+        await transaction.deleteBatch(DEAR_DUMBASS_STORE_NAME, ids);
+        return ids;
+      },
     );
-    const deletedIds = all
-      .filter((post) => post.deletedAt)
-      .map((post) => post.id);
 
-    if (deletedIds.length > 0) {
-      await this.store.deleteBatch(DEAR_DUMBASS_STORE_NAME, deletedIds);
-      this.emitChange();
-    }
+    if (deletedIds.length > 0) this.emitChange();
 
     return deletedIds.length;
   }
@@ -574,28 +608,76 @@ export class DearDumbassRepository {
     const validated = validateArchivePayload(payload);
 
     const result = await this.store.transaction(
-      [DEAR_DUMBASS_STORE_NAME, SYNC_OUTBOX_STORE, SYNC_META_STORE],
+      [
+        DEAR_DUMBASS_STORE_NAME,
+        SYNC_OUTBOX_STORE,
+        SYNC_META_STORE,
+        SYNC_CONFLICTS_STORE,
+      ],
       "readwrite",
       async (transaction) => {
         if (mode === "replace") {
-          await transaction.clear(DEAR_DUMBASS_STORE_NAME);
-          if (validated.posts.length > 0) {
-            await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, validated.posts);
-            const syncConfig = await transaction.get<{ id: string; enabled: boolean }>(
+          const [existingPosts, syncConfig] = await Promise.all([
+            transaction.getAll<DearDumbassPost>(DEAR_DUMBASS_STORE_NAME),
+            transaction.get<{ id: string; enabled: boolean }>(
               SYNC_META_STORE,
               "sync_config",
-            );
-            if (syncConfig?.enabled) {
-              const now = new Date().toISOString();
-              const outboxItems: DearDumbassOutboxItem[] = validated.posts.map((p) => ({
+            ),
+          ]);
+          let replacementPosts = validated.posts;
+
+          if (syncConfig?.enabled) {
+            const now = new Date().toISOString();
+            const replacementMap = new Map(validated.posts.map((post) => [post.id, post]));
+
+            for (const existing of existingPosts) {
+              const incoming = replacementMap.get(existing.id);
+              if (existing.deletedAt && (!incoming || !incoming.deletedAt)) {
+                replacementMap.set(existing.id, existing);
+              } else if (!incoming) {
+                replacementMap.set(existing.id, {
+                  ...existing,
+                  body: "",
+                  updatedAt: now,
+                  revision: (existing.revision ?? 0) + 1,
+                  deletedAt: now,
+                });
+              }
+            }
+
+            for (const root of replacementMap.values()) {
+              if (root.replyToId || !root.deletedAt) continue;
+              for (const post of replacementMap.values()) {
+                if (post.replyToId !== root.id || post.deletedAt) continue;
+                replacementMap.set(post.id, {
+                  ...post,
+                  body: "",
+                  updatedAt: root.deletedAt,
+                  revision: (post.revision ?? 0) + 1,
+                  deletedAt: root.deletedAt,
+                });
+              }
+            }
+            replacementPosts = Array.from(replacementMap.values());
+          }
+
+          await transaction.clear(DEAR_DUMBASS_STORE_NAME);
+          await transaction.clear(SYNC_CONFLICTS_STORE);
+          if (replacementPosts.length > 0) {
+            await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, replacementPosts);
+          }
+          if (syncConfig?.enabled) {
+            const now = new Date().toISOString();
+            await transaction.putBatch(
+              SYNC_OUTBOX_STORE,
+              replacementPosts.map((post) => ({
                 id: createPostId(),
-                recordId: p.id,
-                action: "upsert",
+                recordId: post.id,
+                action: "upsert" as const,
                 queuedAt: now,
                 attempts: 0,
-              }));
-              await transaction.putBatch(SYNC_OUTBOX_STORE, outboxItems);
-            }
+              })),
+            );
           }
           return {
             mode,
@@ -699,6 +781,10 @@ export class DearDumbassRepository {
 
         if (toPut.length > 0) {
           await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, toPut);
+          await transaction.deleteBatch(
+            SYNC_CONFLICTS_STORE,
+            toPut.map((post) => post.id),
+          );
           const syncConfig = await transaction.get<{ id: string; enabled: boolean }>(
             SYNC_META_STORE,
             "sync_config",
@@ -735,6 +821,24 @@ export class DearDumbassRepository {
 }
 
 let defaultRepository: DearDumbassRepository | null = null;
+
+export async function clearDearDumbassSessionKey(): Promise<void> {
+  if (typeof window === "undefined" || typeof indexedDB === "undefined") return;
+
+  const repository = defaultRepository;
+  defaultRepository = null;
+  try {
+    if (repository) {
+      await repository.getSyncCoordinator().lock();
+      return;
+    }
+    const store = getPrivateStore();
+    await new DearDumbassKeyManager(store).lock();
+  } finally {
+    repository?.close();
+    resetDefaultPrivateStore();
+  }
+}
 
 export function getDearDumbassRepository(
   customStore?: PrivateStore,

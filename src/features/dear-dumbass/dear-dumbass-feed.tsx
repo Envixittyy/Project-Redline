@@ -68,7 +68,7 @@ function getSyncLabel(status: DearDumbassSyncStatus): string {
     case "waiting_to_sync":
       return "Waiting to sync";
     case "locked":
-      return "Locked";
+      return "Sync key removed";
     case "conflict":
       return "Conflict";
     case "error":
@@ -90,7 +90,7 @@ function getSyncTitle(status: DearDumbassSyncStatus): string {
     case "waiting_to_sync":
       return "Offline; waiting to sync when connected";
     case "locked":
-      return "Journal is locked on this device. Click to unlock.";
+      return "The cloud-sync key was removed. Local plaintext remains on this device.";
     case "conflict":
       return "Concurrent live edits detected. Click to resolve.";
     case "error":
@@ -211,11 +211,12 @@ export function DearDumbassFeed({
   const handleInlineUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!repository || !inlineUnlockPassphrase) return;
+    const passphrase = inlineUnlockPassphrase;
+    setInlineUnlockPassphrase("");
     setInlineUnlockError(null);
     setIsInlineUnlocking(true);
     try {
-      await repository.getSyncCoordinator().unlockSync(inlineUnlockPassphrase);
-      setInlineUnlockPassphrase("");
+      await repository.getSyncCoordinator().unlockSync(passphrase);
       await loadFeed();
     } catch (err) {
       if (mountedRef.current) {
@@ -440,16 +441,17 @@ export function DearDumbassFeed({
       {syncState.status === "locked" ? (
         <section
           className={styles.lockedSurface}
-          aria-label="Locked journal"
+          aria-label="Cloud sync key removed"
           data-testid="dear-dumbass-locked"
         >
           <div className={styles.lockedIcon}>
             <Lock size={30} aria-hidden="true" />
           </div>
-          <h2 className={styles.lockedTitle}>Journal is Locked</h2>
+          <h2 className={styles.lockedTitle}>Cloud Sync Key Removed</h2>
           <p className={styles.lockedDescription}>
-            Your thoughts are end-to-end encrypted. Enter your master passphrase to unlock and
-            synchronize this device.
+            Your local journal remains readable because its plaintext records stay in this
+            browser&apos;s PrivateStore. Enter the master passphrase only to restore the local
+            encryption key and resume cloud synchronization.
           </p>
           <form onSubmit={handleInlineUnlock} className={styles.lockedForm}>
             {inlineUnlockError ? (
@@ -473,7 +475,7 @@ export function DearDumbassFeed({
               disabled={isInlineUnlocking || !inlineUnlockPassphrase}
             >
               <Unlock size={14} aria-hidden="true" />
-              <span>{isInlineUnlocking ? "Unlocking…" : "Unlock Journal"}</span>
+              <span>{isInlineUnlocking ? "Restoring…" : "Resume Encrypted Sync"}</span>
             </button>
             <button
               type="button"
@@ -484,7 +486,8 @@ export function DearDumbassFeed({
             </button>
           </form>
         </section>
-      ) : (
+      ) : null}
+
         <>
           {/* Primary Composer */}
           <section className={styles.composerSurface} aria-label="Compose post">
@@ -640,7 +643,6 @@ export function DearDumbassFeed({
             )}
           </main>
         </>
-      )}
 
       {isDurabilityOpen && repository ? (
         <DurabilityModal

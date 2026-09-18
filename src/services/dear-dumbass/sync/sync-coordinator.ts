@@ -7,7 +7,10 @@ import {
 } from "./crypto";
 import type { DearDumbassCloudClient } from "./cloud-client";
 import { SupabaseDearDumbassCloudClient } from "./cloud-client";
-import { DearDumbassKeyManager } from "./key-manager";
+import {
+  DearDumbassKeyManager,
+  LOCAL_KEYS_STORE,
+} from "./key-manager";
 import type {
   DearDumbassOutboxItem,
   DearDumbassSyncConflict,
@@ -19,6 +22,39 @@ export const SYNC_OUTBOX_STORE = "dear_dumbass_sync_outbox";
 export const SYNC_META_STORE = "dear_dumbass_sync_meta";
 export const SYNC_CONFLICTS_STORE = "dear_dumbass_sync_conflicts";
 export const POSTS_STORE = "dear_dumbass_posts";
+const PULL_PAGE_SIZE = 100;
+
+type RecordSyncMeta = {
+  id: string;
+  recordId: string;
+  syncVersion: number;
+  lastSyncedAt: string;
+};
+
+type SyncConfig = {
+  id: "sync_config";
+  enabled: boolean;
+  enabledAt: string;
+  ownerId: string;
+};
+
+function postsAreIdentical(a: DearDumbassPost, b: DearDumbassPost): boolean {
+  return (
+    a.id === b.id &&
+    a.body === b.body &&
+    a.createdAt === b.createdAt &&
+    (a.updatedAt ?? null) === (b.updatedAt ?? null) &&
+    (a.revision ?? 0) === (b.revision ?? 0) &&
+    a.replyToId === b.replyToId &&
+    (a.deletedAt ?? null) === (b.deletedAt ?? null)
+  );
+}
+
+function assertSameRecordIdentity(a: DearDumbassPost, b: DearDumbassPost): void {
+  if (a.id !== b.id || a.createdAt !== b.createdAt || a.replyToId !== b.replyToId) {
+    throw new Error("Encrypted sync record changed immutable journal identity.");
+  }
+}
 
 export interface SyncCoordinatorOptions {
   store: PrivateStore;
@@ -40,6 +76,7 @@ export class DearDumbassSyncCoordinator {
   private queuedSyncRequested = false;
   private listeners = new Set<(state: DearDumbassSyncState) => void>();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private lifecycleGeneration = 0;
 
   constructor(options: SyncCoordinatorOptions) {
     this.store = options.store;
@@ -117,26 +154,48 @@ export class DearDumbassSyncCoordinator {
     this.notifyListeners();
   }
 
+  private async setSettledSyncStatus(): Promise<void> {
+    const [conflicts, outbox] = await Promise.all([
+      this.store.getAll<DearDumbassSyncConflict>(SYNC_CONFLICTS_STORE),
+      this.store.getAll<DearDumbassOutboxItem>(SYNC_OUTBOX_STORE),
+    ]);
+    if (conflicts.length > 0) {
+      this.setStatus("conflict");
+    } else if (outbox.length > 0) {
+      this.setStatus("saved_locally");
+    } else {
+      this.lastSyncedAt = new Date().toISOString();
+      this.setStatus("synced");
+    }
+  }
+
   /**
    * Initialize coordinator on app/feed load.
    * Checks local key, cloud key envelope, and triggers initial sync if enabled.
    */
   async initialize(): Promise<void> {
     try {
-      const isUnlocked = await this.keyManager.loadLocalKey();
-
-      // Check if sync is marked as enabled in metadata
-      const syncConfig = await this.store.get<{ id: string; enabled: boolean }>(
-        SYNC_META_STORE,
-        "sync_config",
-      );
-
       const userId = await this.cloudClient.getAuthUserId();
 
       if (!userId) {
+        this.lifecycleGeneration += 1;
+        await this.keyManager.lock().catch(() => undefined);
         this.setStatus("local_only");
         return;
       }
+
+      const syncConfig = await this.store.get<SyncConfig>(SYNC_META_STORE, "sync_config");
+      if (syncConfig?.ownerId && syncConfig.ownerId !== userId) {
+        this.lifecycleGeneration += 1;
+        await this.keyManager.lock().catch(() => undefined);
+        this.setStatus(
+          "error",
+          "This browser contains a local journal configured for a different account.",
+        );
+        return;
+      }
+
+      const isUnlocked = await this.keyManager.loadLocalKey(userId);
 
       // Check if a cloud envelope exists for this user
       const envelope = await this.cloudClient.fetchKeyEnvelope();
@@ -151,10 +210,12 @@ export class DearDumbassSyncCoordinator {
         return;
       }
 
-      if (isUnlocked) {
+      if (isUnlocked && envelope) {
         this.setStatus("synced");
         void this.triggerSync();
         this.startPeriodicSync();
+      } else if (syncConfig?.enabled) {
+        this.setStatus("error", "Encrypted sync is configured locally but its cloud envelope is missing.");
       }
     } catch (err: unknown) {
       this.setStatus(
@@ -186,29 +247,57 @@ export class DearDumbassSyncCoordinator {
    */
   async enableSync(passphrase: string): Promise<void> {
     this.setStatus("syncing");
+    let envelopeCreated = false;
+    let cloudEnvelopeAvailable = false;
     try {
       const userId = await this.cloudClient.getAuthUserId();
       if (!userId) {
         throw new Error("You must be signed in to Adulting.exe to enable encrypted sync.");
       }
 
-      // 1. Generate master key and wrap with passphrase
-      const { envelope } = await this.keyManager.setupNewMasterKey(passphrase);
+      const existingEnvelope = await this.cloudClient.fetchKeyEnvelope();
+      if (existingEnvelope) {
+        cloudEnvelopeAvailable = true;
+        throw new Error(
+          "Encrypted sync is already configured for this account. Unlock it with the existing passphrase.",
+        );
+      }
 
-      // 2. Upload key envelope to Supabase
-      await this.cloudClient.uploadKeyEnvelope(envelope);
+      // 1. Generate an extractable byte key only long enough to wrap it, then retain
+      // the non-extractable CryptoKey returned by Web Crypto.
+      const { masterKey, envelope } = await this.keyManager.createNewMasterKey(
+        passphrase,
+        userId,
+      );
 
-      // 3. Inspect existing local archive and queue in outbox atomically
-      const existingPosts = await this.store.getAll<DearDumbassPost>(POSTS_STORE);
+      // 2. Create (never overwrite) the cloud key envelope.
+      try {
+        await this.cloudClient.uploadKeyEnvelope(envelope);
+      } catch (uploadError) {
+        cloudEnvelopeAvailable = Boolean(
+          await this.cloudClient.fetchKeyEnvelope().catch(() => null),
+        );
+        throw uploadError;
+      }
+      envelopeCreated = true;
 
+      // 3. Persist the local key, enable sync, and snapshot every existing local
+      // record into the outbox in one IndexedDB transaction.
       await this.store.transaction(
-        [SYNC_OUTBOX_STORE, SYNC_META_STORE],
+        [POSTS_STORE, SYNC_OUTBOX_STORE, SYNC_META_STORE, LOCAL_KEYS_STORE],
         "readwrite",
         async (tx) => {
-          await tx.put(SYNC_META_STORE, {
+          const existingPosts = await tx.getAll<DearDumbassPost>(POSTS_STORE);
+          const now = new Date().toISOString();
+          await tx.put(LOCAL_KEYS_STORE, this.keyManager.createStoredKeyRecord(
+            masterKey,
+            envelope.keyVersion,
+            userId,
+          ));
+          await tx.put<SyncConfig>(SYNC_META_STORE, {
             id: "sync_config",
             enabled: true,
-            enabledAt: new Date().toISOString(),
+            enabledAt: now,
             ownerId: userId,
           });
 
@@ -217,19 +306,22 @@ export class DearDumbassSyncCoordinator {
               id: crypto.randomUUID(),
               recordId: post.id,
               action: "upsert",
-              queuedAt: new Date().toISOString(),
+              queuedAt: now,
               attempts: 0,
             });
           }
         },
       );
 
+      this.keyManager.activateKey(masterKey, envelope.keyVersion);
+      this.lifecycleGeneration += 1;
+
       this.startPeriodicSync();
       // 4. Trigger initial push
       await this.triggerSync();
     } catch (err: unknown) {
       this.setStatus(
-        "error",
+        envelopeCreated || cloudEnvelopeAvailable ? "locked" : "error",
         err instanceof Error ? err.message : "Failed to enable sync.",
       );
       throw err;
@@ -243,30 +335,71 @@ export class DearDumbassSyncCoordinator {
   async unlockSync(passphrase: string): Promise<void> {
     this.setStatus("syncing");
     try {
+      const userId = await this.cloudClient.getAuthUserId();
+      if (!userId) {
+        throw new Error("You must be signed in to unlock encrypted sync.");
+      }
       const envelope = await this.cloudClient.fetchKeyEnvelope();
       if (!envelope) {
         throw new Error("No encrypted Dear Dumbass envelope found for this account.");
       }
 
-      // Unwraps and persists key locally
-      await this.keyManager.unlockWithPassphrase(envelope, passphrase);
+      const masterKey = await this.keyManager.unwrapWithPassphrase(
+        envelope,
+        passphrase,
+        userId,
+      );
 
-      const userId = await this.cloudClient.getAuthUserId();
-      await this.store.put(SYNC_META_STORE, {
-        id: "sync_config",
-        enabled: true,
-        enabledAt: new Date().toISOString(),
-        ownerId: userId,
-      });
+      await this.store.transaction(
+        [POSTS_STORE, SYNC_OUTBOX_STORE, SYNC_META_STORE, LOCAL_KEYS_STORE],
+        "readwrite",
+        async (tx) => {
+          const existingConfig = await tx.get<SyncConfig>(SYNC_META_STORE, "sync_config");
+          if (existingConfig?.ownerId && existingConfig.ownerId !== userId) {
+            throw new Error("This browser contains a journal owned by a different account.");
+          }
+          const localPosts = await tx.getAll<DearDumbassPost>(POSTS_STORE);
+          const now = new Date().toISOString();
+          await tx.put(LOCAL_KEYS_STORE, this.keyManager.createStoredKeyRecord(
+            masterKey,
+            envelope.keyVersion,
+            userId,
+          ));
+          await tx.put<SyncConfig>(SYNC_META_STORE, {
+            id: "sync_config",
+            enabled: true,
+            enabledAt: existingConfig?.enabledAt ?? now,
+            ownerId: userId,
+          });
+          for (const post of localPosts) {
+            const pending = await tx.getAllByIndex<DearDumbassOutboxItem>(
+              SYNC_OUTBOX_STORE,
+              "by_recordId",
+              post.id,
+            );
+            if (pending.length === 0) {
+              await tx.put<DearDumbassOutboxItem>(SYNC_OUTBOX_STORE, {
+                id: crypto.randomUUID(),
+                recordId: post.id,
+                action: "upsert",
+                queuedAt: now,
+                attempts: 0,
+              });
+            }
+          }
+        },
+      );
+      this.keyManager.activateKey(masterKey, envelope.keyVersion);
+      this.lifecycleGeneration += 1;
 
       this.startPeriodicSync();
       // Pull all cloud records into local store
       await this.triggerPull(true);
       await this.triggerPush();
-      this.setStatus("synced");
+      await this.setSettledSyncStatus();
     } catch (err: unknown) {
       this.setStatus(
-        "locked",
+        this.keyManager.isUnlocked() ? "error" : "locked",
         err instanceof Error ? err.message : "Incorrect passphrase.",
       );
       throw err;
@@ -278,9 +411,19 @@ export class DearDumbassSyncCoordinator {
    * Removes local key material. Cloud data is unchanged.
    */
   async lock(): Promise<void> {
+    this.lifecycleGeneration += 1;
+    this.queuedSyncRequested = false;
     this.stopPeriodicSync();
-    await this.keyManager.lock();
-    this.setStatus("locked");
+    try {
+      await this.keyManager.lock();
+      this.setStatus("locked");
+    } catch (error) {
+      this.setStatus(
+        "error",
+        "The in-memory sync key was cleared, but its IndexedDB copy could not be removed.",
+      );
+      throw error;
+    }
   }
 
   /**
@@ -321,7 +464,8 @@ export class DearDumbassSyncCoordinator {
       return this.activeSyncPromise;
     }
 
-    this.activeSyncPromise = this.runSyncLoop();
+    const generation = this.lifecycleGeneration;
+    this.activeSyncPromise = this.runSyncLoop(generation);
     try {
       await this.activeSyncPromise;
     } finally {
@@ -329,8 +473,9 @@ export class DearDumbassSyncCoordinator {
     }
   }
 
-  private async runSyncLoop(): Promise<void> {
+  private async runSyncLoop(generation: number): Promise<void> {
     do {
+      if (generation !== this.lifecycleGeneration || !this.keyManager.isUnlocked()) return;
       this.queuedSyncRequested = false;
 
       if (typeof navigator !== "undefined" && typeof navigator.onLine === "boolean" && !navigator.onLine) {
@@ -343,20 +488,11 @@ export class DearDumbassSyncCoordinator {
       try {
         await this.triggerPush();
         await this.triggerPull();
+        if (generation !== this.lifecycleGeneration || !this.keyManager.isUnlocked()) return;
 
-        const conflicts = await this.store.getAll<DearDumbassSyncConflict>(SYNC_CONFLICTS_STORE);
-        if (conflicts.length > 0) {
-          this.setStatus("conflict");
-        } else {
-          const outbox = await this.store.getAll<DearDumbassOutboxItem>(SYNC_OUTBOX_STORE);
-          if (outbox.length > 0) {
-            this.setStatus("saved_locally");
-          } else {
-            this.lastSyncedAt = new Date().toISOString();
-            this.setStatus("synced");
-          }
-        }
+        await this.setSettledSyncStatus();
       } catch (err: unknown) {
+        if (generation !== this.lifecycleGeneration || !this.keyManager.isUnlocked()) return;
         if (typeof navigator !== "undefined" && typeof navigator.onLine === "boolean" && !navigator.onLine) {
           this.setStatus("waiting_to_sync");
         } else {
@@ -380,51 +516,86 @@ export class DearDumbassSyncCoordinator {
 
     const masterKey = this.keyManager.getMasterKey();
     const keyVersion = this.keyManager.getKeyVersion();
+    const generation = this.lifecycleGeneration;
+    const visitedRecords = new Set<string>();
 
     for (const item of outboxItems) {
-      const post = await this.store.get<DearDumbassPost>(POSTS_STORE, item.recordId);
-      if (!post) {
-        // Record was removed locally; discard outbox item
-        await this.store.delete(SYNC_OUTBOX_STORE, item.id);
+      if (visitedRecords.has(item.recordId)) continue;
+      visitedRecords.add(item.recordId);
+      if (generation !== this.lifecycleGeneration || !this.keyManager.isUnlocked()) return;
+
+      const snapshot = await this.store.transaction(
+        [POSTS_STORE, SYNC_OUTBOX_STORE, SYNC_META_STORE, SYNC_CONFLICTS_STORE],
+        "readonly",
+        async (tx) => ({
+          post: await tx.get<DearDumbassPost>(POSTS_STORE, item.recordId),
+          pending: await tx.getAllByIndex<DearDumbassOutboxItem>(
+            SYNC_OUTBOX_STORE,
+            "by_recordId",
+            item.recordId,
+          ),
+          meta: await tx.get<RecordSyncMeta>(SYNC_META_STORE, `rec_sync_${item.recordId}`),
+          conflict: await tx.get<DearDumbassSyncConflict>(
+            SYNC_CONFLICTS_STORE,
+            item.recordId,
+          ),
+        }),
+      );
+
+      if (snapshot.conflict) {
+        continue;
+      }
+
+      if (snapshot.pending.length === 0) continue;
+
+      if (!snapshot.post) {
+        await this.store.transaction(SYNC_OUTBOX_STORE, "readwrite", (tx) =>
+          tx.deleteBatch(
+            SYNC_OUTBOX_STORE,
+            snapshot.pending.map((pending) => pending.id),
+          ),
+        );
         continue;
       }
 
       const metaKey = `rec_sync_${item.recordId}`;
-      const meta = await this.store.get<{ id: string; syncVersion: number }>(
-        SYNC_META_STORE,
-        metaKey,
-      );
-      const expectedSyncVersion = meta ? meta.syncVersion : 0;
+      const expectedSyncVersion = snapshot.meta?.syncVersion ?? 0;
 
-      const encrypted = await encryptRecord(post, masterKey, keyVersion);
+      const encrypted = await encryptRecord(snapshot.post, masterKey, keyVersion);
+      if (generation !== this.lifecycleGeneration || !this.keyManager.isUnlocked()) return;
 
       const result = await this.cloudClient.uploadEncryptedRecord({
-        recordId: post.id,
+        recordId: snapshot.post.id,
         expectedSyncVersion,
         keyVersion: encrypted.keyVersion,
         ciphertext: encrypted.ciphertext,
         iv: encrypted.iv,
         encryptionFormatVersion: encrypted.encryptionFormatVersion,
       });
+      if (generation !== this.lifecycleGeneration || !this.keyManager.isUnlocked()) {
+        return;
+      }
 
       if (result.status === "ok") {
         await this.store.transaction(
           [SYNC_OUTBOX_STORE, SYNC_META_STORE],
           "readwrite",
           async (tx) => {
-            await tx.put(SYNC_META_STORE, {
+            const currentMeta = await tx.get<RecordSyncMeta>(SYNC_META_STORE, metaKey);
+            await tx.put<RecordSyncMeta>(SYNC_META_STORE, {
               id: metaKey,
-              recordId: post.id,
-              syncVersion: result.syncVersion,
+              recordId: snapshot.post!.id,
+              syncVersion: Math.max(currentMeta?.syncVersion ?? 0, result.syncVersion),
               lastSyncedAt: new Date().toISOString(),
             });
-            await tx.delete(SYNC_OUTBOX_STORE, item.id);
+            await tx.deleteBatch(
+              SYNC_OUTBOX_STORE,
+              snapshot.pending.map((pending) => pending.id),
+            );
           },
         );
       } else if (result.status === "conflict") {
-        // CAS conflict: remote has updated. Trigger pull to resolve!
         await this.triggerPull();
-        break;
       }
     }
   }
@@ -439,176 +610,258 @@ export class DearDumbassSyncCoordinator {
       SYNC_META_STORE,
       "cursor",
     );
-    const afterSequence = fromBeginning ? 0 : cursorRecord?.lastServerSequence ?? 0;
-
-    const remoteRecords = await this.cloudClient.pullEncryptedRecords(afterSequence, 100);
-    if (remoteRecords.length === 0) return;
-
+    let afterSequence = fromBeginning ? 0 : cursorRecord?.lastServerSequence ?? 0;
     const masterKey = this.keyManager.getMasterKey();
-    let highestSequence = afterSequence;
-    let hasStoreChanges = false;
+    const generation = this.lifecycleGeneration;
+    let anyStoreChanges = false;
 
-    for (const remote of remoteRecords) {
-      if (remote.serverChangeSequence && remote.serverChangeSequence > highestSequence) {
-        highestSequence = remote.serverChangeSequence;
-      }
+    for (;;) {
+      if (generation !== this.lifecycleGeneration || !this.keyManager.isUnlocked()) return;
+      const remoteRecords = await this.cloudClient.pullEncryptedRecords(
+        afterSequence,
+        PULL_PAGE_SIZE,
+      );
+      if (remoteRecords.length === 0) break;
 
-      let decryptedIncoming: DearDumbassPost;
-      try {
-        decryptedIncoming = await decryptRecord(
+      let previousSequence = afterSequence;
+      const decryptedPage: Array<{
+        remote: (typeof remoteRecords)[number];
+        post: DearDumbassPost;
+        sequence: number;
+      }> = [];
+
+      for (const remote of remoteRecords) {
+        const sequence = remote.serverChangeSequence;
+        if (
+          !Number.isSafeInteger(sequence) ||
+          sequence === undefined ||
+          sequence <= previousSequence ||
+          !Number.isSafeInteger(remote.syncVersion) ||
+          remote.syncVersion < 1
+        ) {
+          throw new Error("Cloud sync returned an invalid or unordered change cursor.");
+        }
+        previousSequence = sequence;
+        const post = await decryptRecord(
           {
             recordId: remote.recordId,
             ciphertext: remote.ciphertext,
             iv: remote.iv,
             keyVersion: remote.keyVersion,
+            encryptionFormatVersion: remote.encryptionFormatVersion,
           },
           masterKey,
         );
-      } catch {
-        // Decryption or invariant validation failed; skip corrupted record safely
-        continue;
+        decryptedPage.push({ remote, post, sequence });
       }
 
-      const local = await this.store.get<DearDumbassPost>(POSTS_STORE, decryptedIncoming.id);
-      const outboxForRecord = await this.store.getAllByIndex<DearDumbassOutboxItem>(
-        SYNC_OUTBOX_STORE,
-        "by_recordId",
-        decryptedIncoming.id,
-      );
-      const hasLocalPendingChanges = outboxForRecord.length > 0;
-
-      let postToSave: DearDumbassPost | null = null;
-      let shouldQueueTombstonePush = false;
-
-      if (!local) {
-        // New record from another device
-        postToSave = decryptedIncoming;
-      } else {
-        const localDeleted = Boolean(local.deletedAt);
-        const incomingDeleted = Boolean(decryptedIncoming.deletedAt);
-
-        if (incomingDeleted) {
-          // Incoming is tombstone -> tombstone dominates live versions!
-          postToSave = {
-            ...local,
-            body: "",
-            revision: Math.max(local.revision ?? 0, decryptedIncoming.revision ?? 0),
-            deletedAt: decryptedIncoming.deletedAt,
+      if (generation !== this.lifecycleGeneration || !this.keyManager.isUnlocked()) return;
+      let pageChanged = false;
+      await this.store.transaction(
+        [POSTS_STORE, SYNC_OUTBOX_STORE, SYNC_META_STORE, SYNC_CONFLICTS_STORE],
+        "readwrite",
+        async (tx) => {
+          const queueIfMissing = async (recordId: string, now: string) => {
+            const pending = await tx.getAllByIndex<DearDumbassOutboxItem>(
+              SYNC_OUTBOX_STORE,
+              "by_recordId",
+              recordId,
+            );
+            if (pending.length === 0) {
+              await tx.put<DearDumbassOutboxItem>(SYNC_OUTBOX_STORE, {
+                id: crypto.randomUUID(),
+                recordId,
+                action: "upsert",
+                queuedAt: now,
+                attempts: 0,
+              });
+            }
           };
-        } else if (localDeleted) {
-          // Local is tombstone -> local tombstone dominates!
-          // We must ensure remote gets our local tombstone
-          shouldQueueTombstonePush = true;
-        } else {
-          // Both are live records
-          const localRev = local.revision ?? 0;
-          const incomingRev = decryptedIncoming.revision ?? 0;
 
-          if (incomingRev > localRev && !hasLocalPendingChanges) {
-            postToSave = decryptedIncoming;
-          } else if (localRev > incomingRev) {
-            // Local is newer; retain local
-          } else if (local.body !== decryptedIncoming.body && hasLocalPendingChanges) {
-            // Both devices made concurrent live edits from same base version!
-            await this.store.put<DearDumbassSyncConflict>(SYNC_CONFLICTS_STORE, {
-              id: decryptedIncoming.id,
-              localPost: local,
-              remotePost: decryptedIncoming,
-              detectedAt: new Date().toISOString(),
-            });
-            this.setStatus("conflict");
-          } else {
-            // Identical
-            postToSave = decryptedIncoming;
-          }
-        }
-      }
+          for (const { remote, post: incoming, sequence } of decryptedPage) {
+            const now = new Date().toISOString();
+            const local = await tx.get<DearDumbassPost>(POSTS_STORE, incoming.id);
+            const pending = await tx.getAllByIndex<DearDumbassOutboxItem>(
+              SYNC_OUTBOX_STORE,
+              "by_recordId",
+              incoming.id,
+            );
+            const recordMeta = await tx.get<RecordSyncMeta>(
+              SYNC_META_STORE,
+              `rec_sync_${incoming.id}`,
+            );
+            let postToSave: DearDumbassPost | null = null;
+            let conflict: DearDumbassSyncConflict | null = null;
 
-      if (postToSave) {
-        hasStoreChanges = true;
-        const metaKey = `rec_sync_${postToSave.id}`;
-
-        await this.store.transaction(
-          [POSTS_STORE, SYNC_META_STORE, SYNC_CONFLICTS_STORE],
-          "readwrite",
-          async (tx) => {
-            await tx.put(POSTS_STORE, postToSave!);
-
-            // If root post is deleted, scrub all child replies locally
-            if (postToSave!.deletedAt && !postToSave!.replyToId) {
-              const replies = await tx.getAllByIndex<DearDumbassPost>(
-                POSTS_STORE,
-                "by_replyToId",
-                postToSave!.id,
-              );
-              for (const rep of replies) {
-                if (!rep.deletedAt) {
-                  await tx.put(POSTS_STORE, {
-                    ...rep,
+            if (!local) {
+              if (incoming.replyToId) {
+                const parent = await tx.get<DearDumbassPost>(POSTS_STORE, incoming.replyToId);
+                if (parent?.deletedAt && !incoming.deletedAt) {
+                  postToSave = {
+                    ...incoming,
                     body: "",
-                    updatedAt: postToSave!.deletedAt,
-                    revision: (rep.revision ?? 0) + 1,
-                    deletedAt: postToSave!.deletedAt,
-                  });
+                    updatedAt: parent.deletedAt,
+                    revision: (incoming.revision ?? 0) + 1,
+                    deletedAt: parent.deletedAt,
+                  };
+                  await queueIfMissing(incoming.id, now);
+                } else {
+                  postToSave = incoming;
+                }
+              } else {
+                postToSave = incoming;
+              }
+            } else {
+              assertSameRecordIdentity(local, incoming);
+              const localDeleted = Boolean(local.deletedAt);
+              const incomingDeleted = Boolean(incoming.deletedAt);
+
+              if (incomingDeleted) {
+                postToSave = {
+                  ...incoming,
+                  body: "",
+                  revision: Math.max(local.revision ?? 0, incoming.revision ?? 0),
+                };
+                await tx.deleteBatch(
+                  SYNC_OUTBOX_STORE,
+                  pending.map((entry) => entry.id),
+                );
+              } else if (localDeleted) {
+                await queueIfMissing(local.id, now);
+              } else if (postsAreIdentical(local, incoming)) {
+                postToSave = incoming;
+                await tx.deleteBatch(
+                  SYNC_OUTBOX_STORE,
+                  pending.map((entry) => entry.id),
+                );
+              } else if (
+                pending.length > 0 &&
+                remote.syncVersion <= (recordMeta?.syncVersion ?? 0)
+              ) {
+                // This is an already-acknowledged cloud baseline. A newer local
+                // mutation was queued while that upload was in flight, so keep
+                // the local record and let its durable outbox entry advance CAS.
+              } else if (pending.length > 0) {
+                conflict = {
+                  id: incoming.id,
+                  localPost: local,
+                  remotePost: incoming,
+                  remoteSyncVersion: remote.syncVersion,
+                  remoteServerChangeSequence: sequence,
+                  detectedAt: now,
+                };
+              } else if ((incoming.revision ?? 0) > (local.revision ?? 0)) {
+                postToSave = incoming;
+              } else if ((local.revision ?? 0) > (incoming.revision ?? 0)) {
+                await queueIfMissing(local.id, now);
+              } else {
+                conflict = {
+                  id: incoming.id,
+                  localPost: local,
+                  remotePost: incoming,
+                  remoteSyncVersion: remote.syncVersion,
+                  remoteServerChangeSequence: sequence,
+                  detectedAt: now,
+                };
+              }
+            }
+
+            if (postToSave) {
+              await tx.put(POSTS_STORE, postToSave);
+              await tx.delete(SYNC_CONFLICTS_STORE, postToSave.id);
+              pageChanged = true;
+
+              if (postToSave.deletedAt && !postToSave.replyToId) {
+                const replies = await tx.getAllByIndex<DearDumbassPost>(
+                  POSTS_STORE,
+                  "by_replyToId",
+                  postToSave.id,
+                );
+                for (const reply of replies) {
+                  await tx.delete(SYNC_CONFLICTS_STORE, reply.id);
+                  if (!reply.deletedAt) {
+                    await tx.put(POSTS_STORE, {
+                      ...reply,
+                      body: "",
+                      updatedAt: postToSave.deletedAt,
+                      revision: (reply.revision ?? 0) + 1,
+                      deletedAt: postToSave.deletedAt,
+                    });
+                    await queueIfMissing(reply.id, now);
+                    pageChanged = true;
+                  }
                 }
               }
             }
 
-            await tx.put(SYNC_META_STORE, {
-              id: metaKey,
-              recordId: postToSave!.id,
+            if (conflict) {
+              await tx.put<DearDumbassSyncConflict>(SYNC_CONFLICTS_STORE, conflict);
+            }
+
+            await tx.put<RecordSyncMeta>(SYNC_META_STORE, {
+              id: `rec_sync_${incoming.id}`,
+              recordId: incoming.id,
               syncVersion: remote.syncVersion,
-              lastSyncedAt: new Date().toISOString(),
+              lastSyncedAt: now,
             });
-            await tx.delete(SYNC_CONFLICTS_STORE, postToSave!.id);
-          },
-        );
-      }
+          }
 
-      if (shouldQueueTombstonePush) {
-        await this.queueMutation(local!.id);
-      }
+          await tx.put(SYNC_META_STORE, {
+            id: "cursor",
+            lastServerSequence: previousSequence,
+            updatedAt: new Date().toISOString(),
+          });
+        },
+      );
+
+      anyStoreChanges ||= pageChanged;
+      afterSequence = previousSequence;
+      if (remoteRecords.length < PULL_PAGE_SIZE) break;
     }
 
-    // Update cursor
-    await this.store.put(SYNC_META_STORE, {
-      id: "cursor",
-      lastServerSequence: highestSequence,
-      updatedAt: new Date().toISOString(),
-    });
-
-    if (hasStoreChanges && this.onPostStoreMutated) {
-      this.onPostStoreMutated();
-    }
+    if (anyStoreChanges && this.onPostStoreMutated) this.onPostStoreMutated();
   }
 
   /**
    * Resolve an active conflict by choosing either the local or remote version.
    */
   async resolveConflict(recordId: string, resolution: "local" | "remote"): Promise<void> {
-    const conflict = await this.store.get<DearDumbassSyncConflict>(
-      SYNC_CONFLICTS_STORE,
-      recordId,
-    );
-    if (!conflict) return;
-
-    const chosen = resolution === "local" ? conflict.localPost : conflict.remotePost;
-    const maxRev = Math.max(
-      conflict.localPost.revision ?? 0,
-      conflict.remotePost.revision ?? 0,
-    );
-
-    const resolvedPost: DearDumbassPost = {
-      ...chosen,
-      revision: maxRev + 1,
-      updatedAt: new Date().toISOString(),
-    };
-
+    let didResolve = false;
     await this.store.transaction(
-      [POSTS_STORE, SYNC_OUTBOX_STORE, SYNC_CONFLICTS_STORE],
+      [POSTS_STORE, SYNC_OUTBOX_STORE, SYNC_META_STORE, SYNC_CONFLICTS_STORE],
       "readwrite",
       async (tx) => {
+        const conflict = await tx.get<DearDumbassSyncConflict>(
+          SYNC_CONFLICTS_STORE,
+          recordId,
+        );
+        if (!conflict) return;
+        const chosen = resolution === "local" ? conflict.localPost : conflict.remotePost;
+        const resolvedPost: DearDumbassPost = {
+          ...chosen,
+          revision:
+            Math.max(
+              conflict.localPost.revision ?? 0,
+              conflict.remotePost.revision ?? 0,
+            ) + 1,
+          updatedAt: new Date().toISOString(),
+        };
+        const pending = await tx.getAllByIndex<DearDumbassOutboxItem>(
+          SYNC_OUTBOX_STORE,
+          "by_recordId",
+          recordId,
+        );
         await tx.put(POSTS_STORE, resolvedPost);
+        await tx.put<RecordSyncMeta>(SYNC_META_STORE, {
+          id: `rec_sync_${recordId}`,
+          recordId,
+          syncVersion: conflict.remoteSyncVersion,
+          lastSyncedAt: new Date().toISOString(),
+        });
+        await tx.deleteBatch(
+          SYNC_OUTBOX_STORE,
+          pending.map((entry) => entry.id),
+        );
         await tx.delete(SYNC_CONFLICTS_STORE, recordId);
         await tx.put<DearDumbassOutboxItem>(SYNC_OUTBOX_STORE, {
           id: crypto.randomUUID(),
@@ -617,13 +870,17 @@ export class DearDumbassSyncCoordinator {
           queuedAt: new Date().toISOString(),
           attempts: 0,
         });
+        didResolve = true;
       },
     );
+
+    if (!didResolve) return;
 
     if (this.onPostStoreMutated) {
       this.onPostStoreMutated();
     }
 
+    this.setStatus("saved_locally");
     void this.triggerSync();
   }
 }

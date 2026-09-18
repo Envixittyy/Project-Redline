@@ -105,11 +105,12 @@ export function SyncModal({ repository, onClose }: SyncModalProps) {
       return;
     }
 
+    const passphrase = setupPassphrase;
+    setSetupPassphrase("");
+    setConfirmSetupPassphrase("");
     setIsSettingUp(true);
     try {
-      await coordinator.enableSync(setupPassphrase);
-      setSetupPassphrase("");
-      setConfirmSetupPassphrase("");
+      await coordinator.enableSync(passphrase);
       await refreshDetailedState();
     } catch (err: unknown) {
       if (mountedRef.current) {
@@ -135,10 +136,11 @@ export function SyncModal({ repository, onClose }: SyncModalProps) {
       return;
     }
 
+    const passphrase = unlockPassphrase;
+    setUnlockPassphrase("");
     setIsUnlocking(true);
     try {
-      await coordinator.unlockSync(unlockPassphrase);
-      setUnlockPassphrase("");
+      await coordinator.unlockSync(passphrase);
       await refreshDetailedState();
     } catch (err: unknown) {
       if (mountedRef.current) {
@@ -174,6 +176,8 @@ export function SyncModal({ repository, onClose }: SyncModalProps) {
     try {
       await coordinator.lock();
       await refreshDetailedState();
+    } catch {
+      // The coordinator exposes the IndexedDB removal failure in sync state.
     } finally {
       if (mountedRef.current) {
         setIsLocking(false);
@@ -223,7 +227,7 @@ export function SyncModal({ repository, onClose }: SyncModalProps) {
         return (
           <span className={`${styles.statusBadge} ${styles.badgeLocked}`}>
             <Lock size={13} aria-hidden="true" />
-            <span>Locked</span>
+            <span>Sync key removed</span>
           </span>
         );
       case "conflict":
@@ -332,10 +336,10 @@ export function SyncModal({ repository, onClose }: SyncModalProps) {
                 className={styles.dangerButton}
                 onClick={handleLockDevice}
                 disabled={isLocking}
-                title="Remove encryption key from this device"
+                title="Remove the cloud-sync encryption key from this device"
               >
                 <Lock size={14} aria-hidden="true" />
-                <span>Lock on this Device</span>
+                <span>Remove Sync Key</span>
               </button>
             </div>
           ) : null}
@@ -422,7 +426,8 @@ export function SyncModal({ repository, onClose }: SyncModalProps) {
             </h3>
             <p className={styles.description}>
               An encrypted journal exists for your account. Enter your passphrase to unlock and
-              synchronize your thoughts on this device.
+              synchronize your thoughts on this device. Local plaintext records remain in
+              PrivateStore even while the sync key is removed.
             </p>
 
             <form onSubmit={handleUnlockSync} className={styles.formGroup}>

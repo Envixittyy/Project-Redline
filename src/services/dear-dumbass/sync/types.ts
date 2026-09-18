@@ -60,6 +60,8 @@ export interface DearDumbassSyncConflict {
   id: string; // recordId
   localPost: DearDumbassPost;
   remotePost: DearDumbassPost;
+  remoteSyncVersion: number;
+  remoteServerChangeSequence: number;
   detectedAt: string;
 }
 

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InMemoryPrivateStore } from "@/services/private-store";
 import { DearDumbassRepository } from "./dear-dumbass-repository";
+import { SYNC_CONFLICTS_STORE } from "./sync/sync-coordinator";
+import type { DearDumbassSyncConflict } from "./sync/types";
 
 describe("DearDumbassRepository", () => {
   let store: InMemoryPrivateStore;
@@ -145,6 +147,15 @@ describe("DearDumbassRepository", () => {
     const reply1 = await repo.createPost("Reply 1", root.id);
     const reply2 = await repo.createPost("Reply 2", root.id);
 
+    await store.put<DearDumbassSyncConflict>(SYNC_CONFLICTS_STORE, {
+      id: reply1.id,
+      localPost: reply1,
+      remotePost: { ...reply1, body: "Remote conflicting secret" },
+      remoteSyncVersion: 1,
+      remoteServerChangeSequence: 1,
+      detectedAt: "2026-09-18T12:00:00.000Z",
+    });
+
     await repo.deletePost(root.id);
 
     // Root is gone from feed
@@ -179,6 +190,7 @@ describe("DearDumbassRepository", () => {
       reply2.id,
     );
     expect(rawReply2?.body).toBe("");
+    expect(await store.get(SYNC_CONFLICTS_STORE, reply1.id)).toBeNull();
   });
 
   it("8. persistence survives repository reinitialization / reload equivalent", async () => {
@@ -318,7 +330,6 @@ describe("DearDumbassRepository", () => {
     try {
       const idbStore = new IndexedDbPrivateStore(
         `test-repo-idb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        1,
       );
       const idbRepo = new DearDumbassRepository(idbStore);
 

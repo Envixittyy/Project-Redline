@@ -342,4 +342,129 @@ describe("DearDumbassRepository", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  describe("Multi-tab BroadcastChannel live updates", () => {
+    class MockBroadcastChannel {
+      name: string;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      static channels: Set<MockBroadcastChannel> = new Set();
+
+      constructor(name: string) {
+        this.name = name;
+        MockBroadcastChannel.channels.add(this);
+      }
+
+      postMessage(data: unknown): void {
+        for (const ch of MockBroadcastChannel.channels) {
+          if (ch !== this && ch.name === this.name && ch.onmessage) {
+            ch.onmessage(new MessageEvent("message", { data }));
+          }
+        }
+      }
+
+      close(): void {
+        MockBroadcastChannel.channels.delete(this);
+      }
+    }
+
+    beforeEach(() => {
+      MockBroadcastChannel.channels.clear();
+    });
+
+    it("notifies repository in Tab B when Tab A creates, edits, or deletes a post", async () => {
+      vi.stubGlobal("BroadcastChannel", MockBroadcastChannel);
+      try {
+        const tabAStore = new InMemoryPrivateStore();
+        // Point both repositories to the shared underlying store (simulating shared IndexedDB origin)
+        const repoA = new DearDumbassRepository(tabAStore);
+        const repoB = new DearDumbassRepository(tabAStore);
+
+        const listenerB = vi.fn();
+        repoB.subscribe(listenerB);
+
+        // Tab A creates a post
+        const post = await repoA.createPost("From Tab A");
+        expect(listenerB).toHaveBeenCalledTimes(1);
+
+        // Tab A updates the post
+        await repoA.updatePost(post.id, "Edited in Tab A");
+        expect(listenerB).toHaveBeenCalledTimes(2);
+
+        // Tab A replies to the post
+        await repoA.createPost("Reply from Tab A", post.id);
+        expect(listenerB).toHaveBeenCalledTimes(3);
+
+        // Tab A deletes the post
+        await repoA.deletePost(post.id);
+        expect(listenerB).toHaveBeenCalledTimes(4);
+
+        repoA.close();
+        repoB.close();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("ignores self-originated broadcast messages and avoids event loops", async () => {
+      vi.stubGlobal("BroadcastChannel", MockBroadcastChannel);
+      try {
+        const sharedStore = new InMemoryPrivateStore();
+        const repo = new DearDumbassRepository(sharedStore);
+
+        const listener = vi.fn();
+        repo.subscribe(listener);
+
+        // Artificially route a self-originated message to repo's channel
+        const selfSourceId = (repo as unknown as { eventSourceId: string }).eventSourceId;
+        const channel = (repo as unknown as { channel: MockBroadcastChannel }).channel;
+
+        channel.onmessage?.(
+          new MessageEvent("message", {
+            data: { type: "change", sourceId: selfSourceId },
+          }),
+        );
+
+        // Listener should NOT be called for self-originated message
+        expect(listener).not.toHaveBeenCalled();
+
+        repo.close();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("gracefully operates when BroadcastChannel is undefined in the environment", async () => {
+      const originalBC = globalThis.BroadcastChannel;
+      // @ts-expect-error intentionally removing BroadcastChannel to test fallback
+      delete globalThis.BroadcastChannel;
+
+      try {
+        const fallbackRepo = new DearDumbassRepository(store);
+        const listener = vi.fn();
+        fallbackRepo.subscribe(listener);
+
+        const post = await fallbackRepo.createPost("Fallback post");
+        expect(post.body).toBe("Fallback post");
+        expect(listener).toHaveBeenCalledTimes(1);
+
+        fallbackRepo.close();
+      } finally {
+        globalThis.BroadcastChannel = originalBC;
+      }
+    });
+
+    it("cleanly closes channel on close()", async () => {
+      vi.stubGlobal("BroadcastChannel", MockBroadcastChannel);
+      try {
+        const repo = new DearDumbassRepository(store);
+        expect(MockBroadcastChannel.channels.size).toBe(1);
+
+        repo.close();
+        expect(MockBroadcastChannel.channels.size).toBe(0);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+  });
 });
+

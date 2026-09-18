@@ -3,6 +3,12 @@ import type { DearDumbassPost } from "./types";
 
 export const DEAR_DUMBASS_STORE_NAME = "dear_dumbass_posts";
 export const DEAR_DUMBASS_CHANGE_EVENT = "redline:dear-dumbass-change";
+export const DEAR_DUMBASS_BROADCAST_CHANNEL = "redline:dear-dumbass-channel";
+
+export type DearDumbassBroadcastMessage = {
+  type: "change";
+  sourceId: string;
+};
 
 function createPostId(): string {
   if (typeof crypto === "undefined" || typeof crypto.randomUUID !== "function") {
@@ -18,12 +24,36 @@ export class DearDumbassRepository {
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : `repository-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  private channel: BroadcastChannel | null = null;
 
   constructor(store?: PrivateStore) {
     this.store = store ?? getPrivateStore();
+    this.initBroadcastChannel();
   }
 
-  private emitChange(): void {
+  private initBroadcastChannel(): void {
+    if (typeof BroadcastChannel === "undefined") {
+      return;
+    }
+    try {
+      this.channel = new BroadcastChannel(DEAR_DUMBASS_BROADCAST_CHANNEL);
+      this.channel.onmessage = (event: MessageEvent<DearDumbassBroadcastMessage>) => {
+        const data = event.data;
+        if (
+          data &&
+          typeof data === "object" &&
+          data.type === "change" &&
+          data.sourceId !== this.eventSourceId
+        ) {
+          this.notifyListeners();
+        }
+      };
+    } catch {
+      this.channel = null;
+    }
+  }
+
+  private notifyListeners(): void {
     for (const listener of this.listeners) {
       try {
         listener();
@@ -31,6 +61,10 @@ export class DearDumbassRepository {
         // Subscriber failures must not interrupt persistence or expose private content.
       }
     }
+  }
+
+  private emitChange(): void {
+    this.notifyListeners();
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(
@@ -38,6 +72,17 @@ export class DearDumbassRepository {
           detail: { sourceId: this.eventSourceId },
         }),
       );
+    }
+
+    if (this.channel) {
+      try {
+        this.channel.postMessage({
+          type: "change",
+          sourceId: this.eventSourceId,
+        } satisfies DearDumbassBroadcastMessage);
+      } catch {
+        // Channel closed or failed to post message.
+      }
     }
   }
 
@@ -64,6 +109,21 @@ export class DearDumbassRepository {
         window.removeEventListener(DEAR_DUMBASS_CHANGE_EVENT, windowHandler);
       }
     };
+  }
+
+  /**
+   * Close channel and clean up resources.
+   */
+  close(): void {
+    if (this.channel) {
+      try {
+        this.channel.close();
+      } catch {
+        // Channel close failure is safely ignored.
+      }
+      this.channel = null;
+    }
+    this.listeners.clear();
   }
 
   /**

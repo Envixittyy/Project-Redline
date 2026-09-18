@@ -11,7 +11,10 @@
  * - Swap-ready for native device storage adapters.
  */
 
-export interface PrivateStore {
+export type PrivateStoreTransactionMode = "readonly" | "readwrite";
+export type PrivateStoreIndexValue = string | number;
+
+export interface PrivateStoreTransaction {
   /**
    * Retrieve a single record by primary key.
    */
@@ -28,7 +31,7 @@ export interface PrivateStore {
   getAllByIndex<T>(
     storeName: string,
     indexName: string,
-    value: IDBValidKey | IDBKeyRange,
+    value: PrivateStoreIndexValue,
   ): Promise<T[]>;
 
   /**
@@ -55,6 +58,18 @@ export interface PrivateStore {
    * Clear all records in a store.
    */
   clear(storeName: string): Promise<void>;
+}
+
+export interface PrivateStore extends PrivateStoreTransaction {
+  /**
+   * Run related operations in one atomic storage transaction.
+   * Callbacks must not wait on network or other unrelated asynchronous work.
+   */
+  transaction<R>(
+    storeNames: string | readonly string[],
+    mode: PrivateStoreTransactionMode,
+    operation: (transaction: PrivateStoreTransaction) => Promise<R> | R,
+  ): Promise<R>;
 
   /**
    * Close storage connection (cleanup).

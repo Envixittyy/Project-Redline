@@ -107,5 +107,9 @@ describe("Dear Dumbass UI Components", () => {
       expect(html).toContain("Ctrl+Enter to post");
       expect(html).toContain("Post");
     });
+
+    it("renders safely during server prerender without constructing PrivateStore", () => {
+      expect(() => renderToStaticMarkup(<DearDumbassFeed />)).not.toThrow();
+    });
   });
 });

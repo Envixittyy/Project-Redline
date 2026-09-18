@@ -9,7 +9,8 @@ let defaultPrivateStore: PrivateStore | null = null;
 
 /**
  * Returns the active PrivateStore adapter for this environment.
- * Uses IndexedDB in the browser and InMemoryPrivateStore in headless/SSR/test environments.
+ * Uses IndexedDB in the browser. Non-browser callers must explicitly inject a
+ * test adapter; production never falls back to in-memory persistence.
  */
 export function getPrivateStore(customStore?: PrivateStore): PrivateStore {
   if (customStore) {

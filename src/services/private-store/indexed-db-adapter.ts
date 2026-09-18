@@ -1,9 +1,18 @@
-import type { PrivateStore } from "./types";
+import type {
+  PrivateStore,
+  PrivateStoreIndexValue,
+  PrivateStoreTransaction,
+  PrivateStoreTransactionMode,
+} from "./types";
 
 export const DEFAULT_PRIVATE_DATABASE_NAME = "redline-private-store-v1";
 export const PRIVATE_STORE_SCHEMA_VERSION = 1;
 
-export type MigrationStep = (db: IDBDatabase, oldVersion: number) => void;
+export type MigrationStep = (
+  db: IDBDatabase,
+  transaction: IDBTransaction,
+  fromVersion: number,
+) => void;
 
 /**
  * Versioned migrations for the private IndexedDB instance.
@@ -43,21 +52,31 @@ export class IndexedDbPrivateStore implements PrivateStore {
 
     this.dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
+      let blocked = false;
 
       request.onupgradeneeded = (event) => {
         const db = request.result;
         const oldVersion = event.oldVersion;
+        const transaction = request.transaction;
+        if (!transaction) {
+          throw new Error("PrivateStore upgrade transaction is unavailable.");
+        }
 
         for (let v = oldVersion + 1; v <= this.version; v++) {
           const migrate = PRIVATE_STORE_MIGRATIONS[v];
-          if (migrate) {
-            migrate(db, oldVersion);
+          if (!migrate) {
+            throw new Error(`Missing PrivateStore migration for version ${v}.`);
           }
+          migrate(db, transaction, v - 1);
         }
       };
 
       request.onsuccess = () => {
         const db = request.result;
+        if (blocked) {
+          db.close();
+          return;
+        }
         db.onversionchange = () => {
           db.close();
           this.dbPromise = null;
@@ -71,7 +90,9 @@ export class IndexedDbPrivateStore implements PrivateStore {
       };
 
       request.onblocked = () => {
-        console.warn("[PrivateStore] Database open is blocked by another connection.");
+        blocked = true;
+        this.dbPromise = null;
+        reject(new Error("PrivateStore database upgrade is blocked by another connection."));
       };
     });
 
@@ -120,6 +141,119 @@ export class IndexedDbPrivateStore implements PrivateStore {
     });
   }
 
+  private createTransactionAdapter(tx: IDBTransaction): PrivateStoreTransaction {
+    const requestResult = <T>(request: IDBRequest<T>): Promise<T> =>
+      new Promise<T>((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+
+    const objectStore = (storeName: string) => tx.objectStore(storeName);
+
+    return {
+      get: async <T>(storeName: string, key: string): Promise<T | null> => {
+        const result = await requestResult(objectStore(storeName).get(key));
+        return (result as T | undefined) ?? null;
+      },
+      getAll: async <T>(storeName: string): Promise<T[]> => {
+        const result = await requestResult(objectStore(storeName).getAll());
+        return (result as T[]) ?? [];
+      },
+      getAllByIndex: async <T>(
+        storeName: string,
+        indexName: string,
+        value: PrivateStoreIndexValue,
+      ): Promise<T[]> => {
+        const result = await requestResult(
+          objectStore(storeName).index(indexName).getAll(value),
+        );
+        return (result as T[]) ?? [];
+      },
+      put: async <T extends { id: string }>(storeName: string, value: T) => {
+        await requestResult(objectStore(storeName).put(value));
+      },
+      putBatch: async <T extends { id: string }>(
+        storeName: string,
+        values: T[],
+      ) => {
+        await Promise.all(
+          values.map((value) => requestResult(objectStore(storeName).put(value))),
+        );
+      },
+      delete: async (storeName: string, key: string) => {
+        await requestResult(objectStore(storeName).delete(key));
+      },
+      deleteBatch: async (storeName: string, keys: string[]) => {
+        await Promise.all(
+          keys.map((key) => requestResult(objectStore(storeName).delete(key))),
+        );
+      },
+      clear: async (storeName: string) => {
+        await requestResult(objectStore(storeName).clear());
+      },
+    };
+  }
+
+  async transaction<R>(
+    storeNames: string | readonly string[],
+    mode: PrivateStoreTransactionMode,
+    operation: (transaction: PrivateStoreTransaction) => Promise<R> | R,
+  ): Promise<R> {
+    const db = await this.getDatabase();
+    const names = typeof storeNames === "string" ? [storeNames] : [...storeNames];
+
+    return new Promise<R>((resolve, reject) => {
+      let settled = false;
+      let operationFinished = false;
+      let operationResult: R;
+
+      const fail = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+
+      try {
+        const tx = db.transaction(names, mode);
+        const adapter = this.createTransactionAdapter(tx);
+
+        tx.oncomplete = () => {
+          if (!operationFinished) {
+            fail(new Error("PrivateStore transaction completed before its operation."));
+            return;
+          }
+          if (!settled) {
+            settled = true;
+            resolve(operationResult);
+          }
+        };
+        tx.onerror = () => {
+          fail(tx.error ?? new Error("IndexedDB transaction failed."));
+        };
+        tx.onabort = () => {
+          fail(tx.error ?? new Error("IndexedDB transaction aborted."));
+        };
+
+        void Promise.resolve()
+          .then(() => operation(adapter))
+          .then((result) => {
+            operationResult = result;
+            operationFinished = true;
+          })
+          .catch((error) => {
+            try {
+              tx.abort();
+            } catch {
+              // The transaction may already have aborted because of a request error.
+            }
+            fail(error);
+          });
+      } catch (error) {
+        fail(error);
+      }
+    });
+  }
+
   async get<T>(storeName: string, key: string): Promise<T | null> {
     return this.executeTx(storeName, "readonly", (store) => {
       return new Promise<T | null>((resolve, reject) => {
@@ -143,7 +277,7 @@ export class IndexedDbPrivateStore implements PrivateStore {
   async getAllByIndex<T>(
     storeName: string,
     indexName: string,
-    value: IDBValidKey | IDBKeyRange,
+    value: PrivateStoreIndexValue,
   ): Promise<T[]> {
     return this.executeTx(storeName, "readonly", (store) => {
       return new Promise<T[]>((resolve, reject) => {

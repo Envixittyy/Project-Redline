@@ -1,11 +1,18 @@
-import type { PrivateStore } from "./types";
+import type {
+  PrivateStore,
+  PrivateStoreIndexValue,
+  PrivateStoreTransaction,
+  PrivateStoreTransactionMode,
+} from "./types";
 
 /**
  * In-memory adapter implementing PrivateStore.
- * Used for testing, SSR safety, and fallback when IndexedDB is unavailable.
+ * Used only for tests and explicit dependency injection. Production never selects
+ * this adapter as an IndexedDB fallback.
  */
 export class InMemoryPrivateStore implements PrivateStore {
   private stores = new Map<string, Map<string, unknown>>();
+  private transactionQueue: Promise<void> = Promise.resolve();
 
   private getStore(name: string): Map<string, unknown> {
     let store = this.stores.get(name);
@@ -30,7 +37,7 @@ export class InMemoryPrivateStore implements PrivateStore {
   async getAllByIndex<T>(
     storeName: string,
     indexName: string,
-    value: IDBValidKey | IDBKeyRange,
+    value: PrivateStoreIndexValue,
   ): Promise<T[]> {
     const store = this.getStore(storeName);
     const results: T[] = [];
@@ -82,6 +89,42 @@ export class InMemoryPrivateStore implements PrivateStore {
   async clear(storeName: string): Promise<void> {
     const store = this.getStore(storeName);
     store.clear();
+  }
+
+  async transaction<R>(
+    _storeNames: string | readonly string[],
+    mode: PrivateStoreTransactionMode,
+    operation: (transaction: PrivateStoreTransaction) => Promise<R> | R,
+  ): Promise<R> {
+    const previous = this.transactionQueue;
+    let release: () => void = () => undefined;
+    this.transactionQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await previous;
+
+    try {
+      if (mode === "readonly") {
+        return await operation(this);
+      }
+
+      const transactionStore = new InMemoryPrivateStore();
+      transactionStore.stores = new Map(
+        Array.from(this.stores, ([name, records]) => [
+          name,
+          new Map(
+            Array.from(records, ([key, value]) => [key, structuredClone(value)]),
+          ),
+        ]),
+      );
+
+      const result = await operation(transactionStore);
+      this.stores = transactionStore.stores;
+      return result;
+    } finally {
+      release();
+    }
   }
 
   close(): void {

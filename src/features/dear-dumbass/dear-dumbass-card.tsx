@@ -64,11 +64,13 @@ export function DearDumbassCard({
 }: DearDumbassCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editBody, setEditBody] = useState(post.body);
+  const [editBaseRevision, setEditBaseRevision] = useState(post.revision ?? 0);
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Thread replies state
   const [isThreadOpen, setIsThreadOpen] = useState(false);
@@ -79,24 +81,43 @@ export function DearDumbassCard({
 
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const replyLoadVersionRef = useRef(0);
 
   const loadReplies = useCallback(async () => {
     if (isReply) return;
+    const loadVersion = ++replyLoadVersionRef.current;
     try {
       const items = await repository.getReplies(post.id);
-      setReplies(items);
-    } catch (err) {
-      console.error("[DearDumbass] Failed to load replies:", err);
+      if (loadVersion === replyLoadVersionRef.current) {
+        setReplies(items);
+      }
+    } catch {
+      if (loadVersion === replyLoadVersionRef.current) {
+        setReplyError("Failed to load replies from local browser storage.");
+      }
     }
   }, [isReply, post.id, repository]);
 
   const handleToggleThread = () => {
-    const next = !isThreadOpen;
-    setIsThreadOpen(next);
-    if (next) {
-      void loadReplies();
-    }
+    setIsThreadOpen((current) => !current);
   };
+
+  useEffect(() => {
+    if (isReply || !isThreadOpen) return;
+
+    const initialLoad = window.setTimeout(() => {
+      void loadReplies();
+    }, 0);
+    const unsubscribe = repository.subscribe(() => {
+      void loadReplies();
+    });
+
+    return () => {
+      window.clearTimeout(initialLoad);
+      replyLoadVersionRef.current += 1;
+      unsubscribe();
+    };
+  }, [isReply, isThreadOpen, loadReplies, repository]);
 
   // Focus textarea when entering edit mode
   useEffect(() => {
@@ -114,12 +135,19 @@ export function DearDumbassCard({
     setEditError(null);
     setIsSaving(true);
     try {
-      const updated = await repository.updatePost(post.id, trimmed);
+      const updated = await repository.updatePost(
+        post.id,
+        trimmed,
+        editBaseRevision,
+      );
       onPostUpdated?.(updated);
       setIsEditing(false);
-    } catch (err) {
-      console.error("[DearDumbass] Failed to update post:", err);
-      setEditError("Failed to save edit locally. Your text has been preserved.");
+    } catch (error) {
+      setEditError(
+        error instanceof Error && error.message === "Post changed after editing began."
+          ? "This post changed in another view. Your draft has been preserved; reopen the editor to review the latest version."
+          : "Failed to save edit locally. Your text has been preserved.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -134,18 +162,20 @@ export function DearDumbassCard({
       setIsEditing(false);
       setEditError(null);
       setEditBody(post.body);
+      setEditBaseRevision(post.revision ?? 0);
     }
   };
 
   const handleDelete = async () => {
     if (isDeleting) return;
+    setDeleteError(null);
     setIsDeleting(true);
     try {
       await repository.deletePost(post.id);
       setIsConfirmingDelete(false);
       onPostDeleted?.(post.id);
-    } catch (err) {
-      console.error("[DearDumbass] Failed to delete post:", err);
+    } catch {
+      setDeleteError("Failed to delete from local browser storage.");
     } finally {
       setIsDeleting(false);
     }
@@ -159,13 +189,11 @@ export function DearDumbassCard({
     setIsSubmittingReply(true);
     try {
       await repository.createPost(trimmed, post.id);
-      await loadReplies();
       setReplyInput("");
       if (replyTextareaRef.current) {
         replyTextareaRef.current.style.height = "auto";
       }
-    } catch (err) {
-      console.error("[DearDumbass] Failed to create reply:", err);
+    } catch {
       setReplyError("Failed to save reply locally. Your text has been preserved.");
     } finally {
       setIsSubmittingReply(false);
@@ -255,6 +283,7 @@ export function DearDumbassCard({
               onClick={() => {
                 setIsEditing(false);
                 setEditBody(post.body);
+                setEditBaseRevision(post.revision ?? 0);
               }}
               disabled={isSaving}
             >
@@ -271,9 +300,10 @@ export function DearDumbassCard({
       {isConfirmingDelete ? (
         <div className={styles.deleteConfirmBanner} role="alert">
           <p className={styles.deleteConfirmText}>
-            {!isReply && replyCount > 0
-              ? `Delete post and its ${replyCount} ${replyCount === 1 ? "reply" : "replies"}?`
-              : "Delete this permanently from your device?"}
+            {deleteError ??
+              (!isReply && replyCount > 0
+                ? `Delete post and its ${replyCount} ${replyCount === 1 ? "reply" : "replies"}?`
+                : "Delete this permanently from your device?")}
           </p>
           <div className={styles.deleteConfirmActions}>
             <button
@@ -287,7 +317,10 @@ export function DearDumbassCard({
             <button
               type="button"
               className={styles.cancelButton}
-              onClick={() => setIsConfirmingDelete(false)}
+              onClick={() => {
+                setDeleteError(null);
+                setIsConfirmingDelete(false);
+              }}
               disabled={isDeleting}
             >
               Cancel
@@ -323,6 +356,7 @@ export function DearDumbassCard({
             onClick={() => {
               setIsEditing(true);
               setEditBody(post.body);
+              setEditBaseRevision(post.revision ?? 0);
             }}
             aria-label="Edit post"
           >
@@ -333,7 +367,10 @@ export function DearDumbassCard({
           <button
             type="button"
             className={`${styles.actionButton} ${styles.deleteButton}`}
-            onClick={() => setIsConfirmingDelete(true)}
+            onClick={() => {
+              setDeleteError(null);
+              setIsConfirmingDelete(true);
+            }}
             aria-label="Delete post"
           >
             <Trash2 size={14} aria-hidden="true" />
@@ -354,8 +391,6 @@ export function DearDumbassCard({
                   post={reply}
                   isReply={true}
                   repository={repository}
-                  onPostUpdated={() => loadReplies()}
-                  onPostDeleted={() => loadReplies()}
                 />
               ))}
             </div>

@@ -4,9 +4,20 @@ import type { DearDumbassPost } from "./types";
 export const DEAR_DUMBASS_STORE_NAME = "dear_dumbass_posts";
 export const DEAR_DUMBASS_CHANGE_EVENT = "redline:dear-dumbass-change";
 
+function createPostId(): string {
+  if (typeof crypto === "undefined" || typeof crypto.randomUUID !== "function") {
+    throw new Error("Secure post ID generation is unavailable.");
+  }
+  return crypto.randomUUID();
+}
+
 export class DearDumbassRepository {
   private readonly store: PrivateStore;
   private readonly listeners = new Set<() => void>();
+  private readonly eventSourceId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `repository-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   constructor(store?: PrivateStore) {
     this.store = store ?? getPrivateStore();
@@ -16,13 +27,17 @@ export class DearDumbassRepository {
     for (const listener of this.listeners) {
       try {
         listener();
-      } catch (err) {
-        console.error("[DearDumbassRepository] Listener error:", err);
+      } catch {
+        // Subscriber failures must not interrupt persistence or expose private content.
       }
     }
 
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(DEAR_DUMBASS_CHANGE_EVENT));
+      window.dispatchEvent(
+        new CustomEvent(DEAR_DUMBASS_CHANGE_EVENT, {
+          detail: { sourceId: this.eventSourceId },
+        }),
+      );
     }
   }
 
@@ -32,9 +47,14 @@ export class DearDumbassRepository {
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
 
-    let windowHandler: (() => void) | null = null;
+    let windowHandler: EventListener | null = null;
     if (typeof window !== "undefined") {
-      windowHandler = () => listener();
+      windowHandler = (event) => {
+        const detail = (event as CustomEvent<{ sourceId?: string }>).detail;
+        if (detail?.sourceId !== this.eventSourceId) {
+          listener();
+        }
+      };
       window.addEventListener(DEAR_DUMBASS_CHANGE_EVENT, windowHandler);
     }
 
@@ -60,29 +80,42 @@ export class DearDumbassRepository {
 
     const resolvedReplyToId = replyToId ?? null;
 
-    if (resolvedReplyToId) {
-      const parent = await this.getPost(resolvedReplyToId);
-      if (!parent) {
-        throw new Error("Cannot reply to a post that does not exist or has been deleted.");
-      }
-    }
+    const post = await this.store.transaction(
+      DEAR_DUMBASS_STORE_NAME,
+      "readwrite",
+      async (transaction) => {
+        if (resolvedReplyToId) {
+          const parent = await transaction.get<DearDumbassPost>(
+            DEAR_DUMBASS_STORE_NAME,
+            resolvedReplyToId,
+          );
+          if (!parent || parent.deletedAt) {
+            throw new Error(
+              "Cannot reply to a post that does not exist or has been deleted.",
+            );
+          }
+          if (parent.replyToId) {
+            throw new Error("Replies must belong to a root post.");
+          }
+        }
 
-    const now = new Date().toISOString();
-    const id =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `post-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const now = new Date().toISOString();
+        const id = createPostId();
 
-    const post: DearDumbassPost = {
-      id,
-      body: trimmed,
-      createdAt: now,
-      updatedAt: null,
-      replyToId: resolvedReplyToId,
-      deletedAt: null,
-    };
+        const created: DearDumbassPost = {
+          id,
+          body: trimmed,
+          createdAt: now,
+          updatedAt: null,
+          revision: 0,
+          replyToId: resolvedReplyToId,
+          deletedAt: null,
+        };
 
-    await this.store.put(DEAR_DUMBASS_STORE_NAME, post);
+        await transaction.put(DEAR_DUMBASS_STORE_NAME, created);
+        return created;
+      },
+    );
     this.emitChange();
     return post;
   }
@@ -91,9 +124,11 @@ export class DearDumbassRepository {
    * Get an active post by ID.
    */
   async getPost(id: string): Promise<DearDumbassPost | null> {
-    const post = await this.store.get<DearDumbassPost>(
+    const post = await this.store.transaction(
       DEAR_DUMBASS_STORE_NAME,
-      id,
+      "readonly",
+      (transaction) =>
+        transaction.get<DearDumbassPost>(DEAR_DUMBASS_STORE_NAME, id),
     );
     if (!post || post.deletedAt) {
       return null;
@@ -110,19 +145,39 @@ export class DearDumbassRepository {
     );
     return all
       .filter((post) => !post.deletedAt && !post.replyToId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .sort(
+        (a, b) =>
+          b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
+      );
   }
 
   /**
    * Get all active replies for a root post, sorted chronologically (oldest to newest).
    */
   async getReplies(rootPostId: string): Promise<DearDumbassPost[]> {
-    const all = await this.store.getAll<DearDumbassPost>(
+    const replies = await this.store.transaction(
       DEAR_DUMBASS_STORE_NAME,
+      "readonly",
+      async (transaction) => {
+        const root = await transaction.get<DearDumbassPost>(
+          DEAR_DUMBASS_STORE_NAME,
+          rootPostId,
+        );
+        if (!root || root.deletedAt || root.replyToId) return [];
+
+        return transaction.getAllByIndex<DearDumbassPost>(
+          DEAR_DUMBASS_STORE_NAME,
+          "by_replyToId",
+          rootPostId,
+        );
+      },
     );
-    return all
+    return replies
       .filter((post) => !post.deletedAt && post.replyToId === rootPostId)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      .sort(
+        (a, b) =>
+          a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+      );
   }
 
   /**
@@ -146,24 +201,45 @@ export class DearDumbassRepository {
   /**
    * Update an existing post or reply.
    */
-  async updatePost(id: string, newBody: string): Promise<DearDumbassPost> {
+  async updatePost(
+    id: string,
+    newBody: string,
+    expectedRevision?: number,
+  ): Promise<DearDumbassPost> {
     const trimmed = newBody.trim();
     if (!trimmed) {
       throw new Error("Post body cannot be blank.");
     }
 
-    const existing = await this.getPost(id);
-    if (!existing) {
-      throw new Error("Post not found or already deleted.");
-    }
+    const updated = await this.store.transaction(
+      DEAR_DUMBASS_STORE_NAME,
+      "readwrite",
+      async (transaction) => {
+        const existing = await transaction.get<DearDumbassPost>(
+          DEAR_DUMBASS_STORE_NAME,
+          id,
+        );
+        if (!existing || existing.deletedAt) {
+          throw new Error("Post not found or already deleted.");
+        }
+        const currentRevision = existing.revision ?? 0;
+        if (
+          expectedRevision !== undefined &&
+          currentRevision !== expectedRevision
+        ) {
+          throw new Error("Post changed after editing began.");
+        }
 
-    const updated: DearDumbassPost = {
-      ...existing,
-      body: trimmed,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await this.store.put(DEAR_DUMBASS_STORE_NAME, updated);
+        const next: DearDumbassPost = {
+          ...existing,
+          body: trimmed,
+          updatedAt: new Date().toISOString(),
+          revision: currentRevision + 1,
+        };
+        await transaction.put(DEAR_DUMBASS_STORE_NAME, next);
+        return next;
+      },
+    );
     this.emitChange();
     return updated;
   }
@@ -173,29 +249,39 @@ export class DearDumbassRepository {
    * If deleting a root post, all child replies are cascaded into deleted state as well.
    */
   async deletePost(id: string): Promise<void> {
-    const existing = await this.getPost(id);
-    if (!existing) {
-      return;
-    }
+    const deleted = await this.store.transaction(
+      DEAR_DUMBASS_STORE_NAME,
+      "readwrite",
+      async (transaction) => {
+        const existing = await transaction.get<DearDumbassPost>(
+          DEAR_DUMBASS_STORE_NAME,
+          id,
+        );
+        if (!existing || existing.deletedAt) return false;
 
-    const now = new Date().toISOString();
-    const toUpdate: DearDumbassPost[] = [{ ...existing, body: "", deletedAt: now }];
+        const now = new Date().toISOString();
+        const toUpdate: DearDumbassPost[] = [
+          { ...existing, body: "", deletedAt: now },
+        ];
 
-    // If it's a root post, cascade deletion to child replies
-    if (!existing.replyToId) {
-      const all = await this.store.getAll<DearDumbassPost>(
-        DEAR_DUMBASS_STORE_NAME,
-      );
-      const childReplies = all.filter(
-        (post) => !post.deletedAt && post.replyToId === id,
-      );
-      for (const reply of childReplies) {
-        toUpdate.push({ ...reply, body: "", deletedAt: now });
-      }
-    }
+        if (!existing.replyToId) {
+          const childReplies = await transaction.getAllByIndex<DearDumbassPost>(
+            DEAR_DUMBASS_STORE_NAME,
+            "by_replyToId",
+            id,
+          );
+          for (const reply of childReplies) {
+            if (!reply.deletedAt) {
+              toUpdate.push({ ...reply, body: "", deletedAt: now });
+            }
+          }
+        }
 
-    await this.store.putBatch(DEAR_DUMBASS_STORE_NAME, toUpdate);
-    this.emitChange();
+        await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, toUpdate);
+        return true;
+      },
+    );
+    if (deleted) this.emitChange();
   }
 
   /**

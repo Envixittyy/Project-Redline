@@ -91,6 +91,7 @@ describe("DearDumbassRepository", () => {
       expect(updated.body).toBe("Typo in this post [fixed]");
       expect(updated.createdAt).toBe("2026-09-18T10:00:00.000Z");
       expect(updated.updatedAt).toBe("2026-09-18T10:05:00.000Z");
+      expect(updated.revision).toBe(1);
 
       const fetched = await repo.getPost(post.id);
       expect(fetched?.body).toBe("Typo in this post [fixed]");
@@ -98,6 +99,16 @@ describe("DearDumbassRepository", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("rejects a stale edit revision without discarding the newer body", async () => {
+    const post = await repo.createPost("Original");
+    await repo.updatePost(post.id, "Newer edit", 0);
+
+    await expect(repo.updatePost(post.id, "Stale edit", 0)).rejects.toThrow(
+      "Post changed after editing began.",
+    );
+    expect((await repo.getPost(post.id))?.body).toBe("Newer edit");
   });
 
   it("6. deletes a reply without deleting the parent post", async () => {
@@ -201,6 +212,59 @@ describe("DearDumbassRepository", () => {
     await expect(repo.createPost("Reply to deleted", post.id)).rejects.toThrow(
       "Cannot reply to a post that does not exist or has been deleted.",
     );
+  });
+
+  it("rejects reply-to-reply relationships that the thread API cannot represent", async () => {
+    const root = await repo.createPost("Root");
+    const reply = await repo.createPost("Reply", root.id);
+
+    await expect(repo.createPost("Nested reply", reply.id)).rejects.toThrow(
+      "Replies must belong to a root post.",
+    );
+  });
+
+  it("atomically prevents concurrent edits from restoring deleted plaintext", async () => {
+    const secondRepo = new DearDumbassRepository(store);
+    const root = await repo.createPost("Sensitive plaintext");
+
+    await Promise.allSettled([
+      repo.updatePost(root.id, "Concurrent edit"),
+      secondRepo.deletePost(root.id),
+    ]);
+
+    const raw = await store.get<{ body: string; deletedAt: string | null }>(
+      "dear_dumbass_posts",
+      root.id,
+    );
+    expect(raw?.deletedAt).toBeTruthy();
+    expect(raw?.body).toBe("");
+    expect(await repo.getPost(root.id)).toBeNull();
+  });
+
+  it("atomically prevents a concurrent reply from surviving root deletion", async () => {
+    const secondRepo = new DearDumbassRepository(store);
+    const root = await repo.createPost("Root to delete");
+
+    await Promise.allSettled([
+      repo.createPost("Concurrent reply", root.id),
+      secondRepo.deletePost(root.id),
+    ]);
+
+    expect(await repo.getReplies(root.id)).toEqual([]);
+    const rawRecords = await store.getAll<{
+      body: string;
+      deletedAt: string | null;
+      replyToId: string | null;
+    }>("dear_dumbass_posts");
+    const survivingReply = rawRecords.find(
+      (record) => record.replyToId === root.id && !record.deletedAt,
+    );
+    expect(survivingReply).toBeUndefined();
+    expect(
+      rawRecords
+        .filter((record) => record.replyToId === root.id)
+        .every((record) => record.body === ""),
+    ).toBe(true);
   });
 
   it("11. calculates reply counts correctly", async () => {

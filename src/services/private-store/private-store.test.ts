@@ -84,6 +84,22 @@ describe("PrivateStore Storage Layer", () => {
       expect(await store.getAll("store-a")).toHaveLength(0);
       expect(await store.getAll("store-b")).toHaveLength(1);
     });
+
+    it("rolls back a failed read-write transaction", async () => {
+      const store = new InMemoryPrivateStore();
+
+      await expect(
+        store.transaction("dear_dumbass_posts", "readwrite", async (transaction) => {
+          await transaction.put("dear_dumbass_posts", {
+            id: "rolled-back",
+            body: "must not commit",
+          });
+          throw new Error("stop");
+        }),
+      ).rejects.toThrow("stop");
+
+      expect(await store.get("dear_dumbass_posts", "rolled-back")).toBeNull();
+    });
   });
 
   describe("getPrivateStore client-only guard", () => {
@@ -137,6 +153,18 @@ describe("PrivateStore Storage Layer", () => {
       await store.put("dear_dumbass_posts", item);
       const fetched = await store.get<typeof item>("dear_dumbass_posts", "post-1");
       expect(fetched).toEqual(item);
+    });
+
+    it("fails closed when a requested schema version has no migration", async () => {
+      const unsupportedStore = new IndexedDbPrivateStore(
+        `${testDbName}-unsupported-version`,
+        2,
+      );
+
+      await expect(
+        unsupportedStore.get("dear_dumbass_posts", "post-1"),
+      ).rejects.toBeTruthy();
+      unsupportedStore.close();
     });
 
     it("performs put, get, getAll, and delete on IndexedDB", async () => {
@@ -194,6 +222,21 @@ describe("PrivateStore Storage Layer", () => {
 
       await store.clear("dear_dumbass_posts");
       expect(await store.getAll("dear_dumbass_posts")).toHaveLength(0);
+    });
+
+    it("rolls back a failed IndexedDB read-write transaction", async () => {
+      await expect(
+        store.transaction("dear_dumbass_posts", "readwrite", async (transaction) => {
+          await transaction.put("dear_dumbass_posts", {
+            id: "rolled-back",
+            body: "must not commit",
+            replyToId: null,
+          });
+          throw new Error("stop");
+        }),
+      ).rejects.toThrow("stop");
+
+      expect(await store.get("dear_dumbass_posts", "rolled-back")).toBeNull();
     });
   });
 });

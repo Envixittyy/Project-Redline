@@ -434,7 +434,7 @@ Dear Dumbass (`/dear-dumbass`, with `/journal` redirect) is a local-only stream-
 - **Zero-Cloud Guarantee**: Dear Dumbass posts and threads are stored strictly in client-side IndexedDB (`redline-private-store-v1`). They are NEVER transmitted to Supabase, cloud tables, remote servers, AI models, logs, or analytics.
 - **Offline Queue Isolation**: Dear Dumbass mutations are completely isolated from the PWA offline sync queue (`src/lib/offline/queue.ts`). They never generate pending cloud mutations or retry network jobs.
 - **Client-Only Guard**: Production `getPrivateStore()` enforces a browser environment and throws if called during SSR or Node execution without explicit dependency injection. `InMemoryPrivateStore` is reserved for tests and explicit DI.
+- **Atomic Mutation Boundary**: Reply validation, revision-checked edits, and root/reply tombstoning run in one adapter transaction so concurrent browser instances cannot overwrite a newer edit, restore deleted plaintext, or create a reply after its root is scrubbed.
 - **Scrubbed Deletion**: Deleting a post permanently overwrites the plaintext body (`body: ""` alongside `deletedAt: timestamp`). Deleting a root post cascades this scrubbing and tombstoning to all nested replies.
 - **Sign-Out Data Retention**: `clearSensitivePwaState()` purges cached user data and push tokens upon sign-out, but intentionally preserves `redline-private-store-v1` so the owner's private journal is not lost on logout.
 - **PWA Offline Scope**: The feed and composer operate fully offline once loaded in the browser. Cold-start offline navigation requires the workspace shell to have been previously loaded.
-

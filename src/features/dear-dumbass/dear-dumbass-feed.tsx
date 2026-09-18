@@ -4,8 +4,10 @@ import { Radio, Send, ShieldCheck } from "lucide-react";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent,
 } from "react";
 
@@ -21,86 +23,113 @@ export type DearDumbassFeedProps = {
   repository?: DearDumbassRepository;
 };
 
+function subscribeToBrowserReady(): () => void {
+  return () => undefined;
+}
+
+function getBrowserSnapshot(): boolean {
+  return true;
+}
+
+function getServerSnapshot(): boolean {
+  return false;
+}
+
 export function DearDumbassFeed({
   repository: propRepository,
 }: DearDumbassFeedProps) {
-  const [repository] = useState<DearDumbassRepository>(
-    () => propRepository ?? getDearDumbassRepository(),
+  const browserReady = useSyncExternalStore(
+    subscribeToBrowserReady,
+    getBrowserSnapshot,
+    getServerSnapshot,
   );
+  const storageState = useMemo(() => {
+    if (propRepository) {
+      return { repository: propRepository, error: null };
+    }
+    if (!browserReady) {
+      return { repository: null, error: null };
+    }
+
+    try {
+      return { repository: getDearDumbassRepository(), error: null };
+    } catch {
+      return {
+        repository: null,
+        error:
+          "Local browser storage is unavailable. Dear Dumbass has not sent or saved anything.",
+      };
+    }
+  }, [browserReady, propRepository]);
+  const repository = storageState.repository;
+  const storageError = storageState.error;
 
   const [posts, setPosts] = useState<DearDumbassPost[]>([]);
   const [replyCounts, setReplyCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [feedError, setFeedError] = useState<string | null>(null);
 
   // Composer state
   const [composerInput, setComposerInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const feedLoadVersionRef = useRef(0);
 
   const loadFeed = useCallback(async () => {
+    if (!repository) return;
+    const loadVersion = ++feedLoadVersionRef.current;
     try {
       const [feedPosts, counts] = await Promise.all([
         repository.getFeed(),
         repository.getReplyCounts(),
       ]);
+      if (loadVersion !== feedLoadVersionRef.current) return;
       setPosts(feedPosts);
       setReplyCounts(counts);
-    } catch (err) {
-      console.error("[DearDumbass] Failed to load feed:", err);
+      setFeedError(null);
+    } catch {
+      if (loadVersion === feedLoadVersionRef.current) {
+        setFeedError("Failed to load posts from local browser storage.");
+      }
     } finally {
-      setIsLoading(false);
+      if (loadVersion === feedLoadVersionRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [repository]);
 
   useEffect(() => {
-    let mounted = true;
-    const refresh = async () => {
-      try {
-        const [feedPosts, counts] = await Promise.all([
-          repository.getFeed(),
-          repository.getReplyCounts(),
-        ]);
-        if (mounted) {
-          setPosts(feedPosts);
-          setReplyCounts(counts);
-        }
-      } catch (err) {
-        console.error("[DearDumbass] Failed to load feed:", err);
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
+    if (!repository) return;
 
-    void refresh();
+    const initialLoad = window.setTimeout(() => {
+      void loadFeed();
+    }, 0);
 
     const unsubscribe = repository.subscribe(() => {
-      void refresh();
+      void loadFeed();
     });
 
     return () => {
-      mounted = false;
+      window.clearTimeout(initialLoad);
+      feedLoadVersionRef.current += 1;
       unsubscribe();
     };
-  }, [repository]);
+  }, [loadFeed, repository]);
 
   const handlePostSubmit = async () => {
     const trimmed = composerInput.trim();
-    if (!trimmed || isSubmitting) return;
+    if (!repository || !trimmed || isSubmitting) return;
 
     setPostError(null);
     setIsSubmitting(true);
     try {
       await repository.createPost(trimmed);
-      await loadFeed();
       setComposerInput("");
       if (composerTextareaRef.current) {
         composerTextareaRef.current.style.height = "auto";
       }
-    } catch (err) {
-      console.error("[DearDumbass] Failed to submit post:", err);
+    } catch {
       setPostError("Failed to save post locally. Your text has been preserved.");
     } finally {
       setIsSubmitting(false);
@@ -149,17 +178,19 @@ export function DearDumbassFeed({
 
       {/* Primary Composer */}
       <section className={styles.composerSurface} aria-label="Compose post">
-        {postError ? (
+        {storageError || postError ? (
           <div className={styles.errorBanner} role="alert">
-            <span>{postError}</span>
-            <button
-              type="button"
-              className={styles.actionButton}
-              onClick={() => setPostError(null)}
-              aria-label="Dismiss error"
-            >
-              Dismiss
-            </button>
+            <span>{storageError ?? postError}</span>
+            {!storageError ? (
+              <button
+                type="button"
+                className={styles.actionButton}
+                onClick={() => setPostError(null)}
+                aria-label="Dismiss error"
+              >
+                Dismiss
+              </button>
+            ) : null}
           </div>
         ) : null}
         <textarea
@@ -169,7 +200,7 @@ export function DearDumbassFeed({
           value={composerInput}
           onChange={(e) => handleComposerChange(e.target.value)}
           onKeyDown={handleComposerKeyDown}
-          disabled={isSubmitting}
+          disabled={!repository || isSubmitting}
           aria-label="Post content"
           rows={3}
         />
@@ -179,7 +210,7 @@ export function DearDumbassFeed({
             type="button"
             className={styles.postButton}
             onClick={handlePostSubmit}
-            disabled={!composerInput.trim() || isSubmitting}
+            disabled={!repository || !composerInput.trim() || isSubmitting}
             aria-label="Publish post"
           >
             <Send size={14} aria-hidden="true" />
@@ -190,7 +221,18 @@ export function DearDumbassFeed({
 
       {/* Main Feed Content */}
       <main className={styles.feedList} aria-label="Dear Dumbass feed">
-        {isLoading ? null : posts.length === 0 ? (
+        {feedError ? (
+          <div className={styles.errorBanner} role="alert">
+            <span>{feedError}</span>
+            <button
+              type="button"
+              className={styles.actionButton}
+              onClick={() => void loadFeed()}
+            >
+              Retry
+            </button>
+          </div>
+        ) : isLoading || !repository ? null : posts.length === 0 ? (
           <div className={styles.emptyState} data-testid="dear-dumbass-empty-state">
             <Radio size={36} className={styles.emptyIcon} aria-hidden="true" />
             <h2 className={styles.emptyTitle}>The void is listening.</h2>
@@ -205,8 +247,6 @@ export function DearDumbassFeed({
               post={post}
               replyCount={replyCounts[post.id] ?? 0}
               repository={repository}
-              onPostUpdated={() => loadFeed()}
-              onPostDeleted={() => loadFeed()}
             />
           ))
         )}

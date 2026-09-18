@@ -9,6 +9,7 @@ export type DearDumbassPost = {
   body: string;
   createdAt: string;
   updatedAt: string | null;
+  revision?: number;
   replyToId: string | null;
   deletedAt?: string | null;
 };

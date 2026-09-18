@@ -6,7 +6,7 @@ import type {
 } from "./types";
 
 export const DEFAULT_PRIVATE_DATABASE_NAME = "redline-private-store-v1";
-export const PRIVATE_STORE_SCHEMA_VERSION = 1;
+export const PRIVATE_STORE_SCHEMA_VERSION = 2;
 
 export type MigrationStep = (
   db: IDBDatabase,
@@ -22,6 +22,21 @@ export const PRIVATE_STORE_MIGRATIONS: Record<number, MigrationStep> = {
     if (!db.objectStoreNames.contains("dear_dumbass_posts")) {
       const store = db.createObjectStore("dear_dumbass_posts", { keyPath: "id" });
       store.createIndex("by_replyToId", "replyToId", { unique: false });
+    }
+  },
+  2: (db) => {
+    if (!db.objectStoreNames.contains("dear_dumbass_sync_meta")) {
+      db.createObjectStore("dear_dumbass_sync_meta", { keyPath: "id" });
+    }
+    if (!db.objectStoreNames.contains("dear_dumbass_sync_outbox")) {
+      const outbox = db.createObjectStore("dear_dumbass_sync_outbox", { keyPath: "id" });
+      outbox.createIndex("by_recordId", "recordId", { unique: false });
+    }
+    if (!db.objectStoreNames.contains("dear_dumbass_local_keys")) {
+      db.createObjectStore("dear_dumbass_local_keys", { keyPath: "id" });
+    }
+    if (!db.objectStoreNames.contains("dear_dumbass_sync_conflicts")) {
+      db.createObjectStore("dear_dumbass_sync_conflicts", { keyPath: "id" });
     }
   },
 };
@@ -152,10 +167,12 @@ export class IndexedDbPrivateStore implements PrivateStore {
 
     return {
       get: async <T>(storeName: string, key: string): Promise<T | null> => {
+        if (!tx.objectStoreNames.contains(storeName)) return null;
         const result = await requestResult(objectStore(storeName).get(key));
         return (result as T | undefined) ?? null;
       },
       getAll: async <T>(storeName: string): Promise<T[]> => {
+        if (!tx.objectStoreNames.contains(storeName)) return [];
         const result = await requestResult(objectStore(storeName).getAll());
         return (result as T[]) ?? [];
       },
@@ -164,31 +181,37 @@ export class IndexedDbPrivateStore implements PrivateStore {
         indexName: string,
         value: PrivateStoreIndexValue,
       ): Promise<T[]> => {
+        if (!tx.objectStoreNames.contains(storeName)) return [];
         const result = await requestResult(
           objectStore(storeName).index(indexName).getAll(value),
         );
         return (result as T[]) ?? [];
       },
       put: async <T extends { id: string }>(storeName: string, value: T) => {
+        if (!tx.objectStoreNames.contains(storeName)) return;
         await requestResult(objectStore(storeName).put(value));
       },
       putBatch: async <T extends { id: string }>(
         storeName: string,
         values: T[],
       ) => {
+        if (!tx.objectStoreNames.contains(storeName) || values.length === 0) return;
         await Promise.all(
           values.map((value) => requestResult(objectStore(storeName).put(value))),
         );
       },
       delete: async (storeName: string, key: string) => {
+        if (!tx.objectStoreNames.contains(storeName)) return;
         await requestResult(objectStore(storeName).delete(key));
       },
       deleteBatch: async (storeName: string, keys: string[]) => {
+        if (!tx.objectStoreNames.contains(storeName) || keys.length === 0) return;
         await Promise.all(
           keys.map((key) => requestResult(objectStore(storeName).delete(key))),
         );
       },
       clear: async (storeName: string) => {
+        if (!tx.objectStoreNames.contains(storeName)) return;
         await requestResult(objectStore(storeName).clear());
       },
     };
@@ -200,7 +223,13 @@ export class IndexedDbPrivateStore implements PrivateStore {
     operation: (transaction: PrivateStoreTransaction) => Promise<R> | R,
   ): Promise<R> {
     const db = await this.getDatabase();
-    const names = typeof storeNames === "string" ? [storeNames] : [...storeNames];
+    const rawNames = typeof storeNames === "string" ? [storeNames] : [...storeNames];
+    const names = rawNames.filter((name) => db.objectStoreNames.contains(name));
+    if (names.length === 0) {
+      throw new Error(
+        `None of the requested object stores exist in database: ${rawNames.join(", ")}`,
+      );
+    }
 
     return new Promise<R>((resolve, reject) => {
       let settled = false;

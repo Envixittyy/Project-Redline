@@ -91,12 +91,59 @@
   -webkit-backdrop-filter: blur(12px);
 }
 
-.privacyDot {
+.syncBadgeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  background: var(--surface-glass, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  min-height: 2.75rem;
+  transition: all var(--motion-fast, 140ms) ease;
+}
+
+.syncBadgeButton:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.privacyDot,
+.syncDot {
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 50%;
   background: var(--accent, #38bdf8);
   box-shadow: 0 0 8px var(--accent);
+}
+
+.syncDotSynced {
+  background: var(--success, #10b981);
+  box-shadow: 0 0 8px var(--success, #10b981);
+}
+
+.syncDotWaiting {
+  background: var(--warning, #f59e0b);
+  box-shadow: 0 0 8px var(--warning, #f59e0b);
+}
+
+.syncDotLocked {
+  background: #c084fc;
+  box-shadow: 0 0 8px #c084fc;
+}
+
+.syncDotConflict,
+.syncDotError {
+  background: var(--danger, #ef4444);
+  box-shadow: 0 0 8px var(--danger, #ef4444);
 }
 
 /* Composer */
@@ -614,4 +661,97 @@
 
 .searchMatchCard {
   border-color: color-mix(in oklch, var(--accent) 40%, transparent);
+}
+
+/* Locked Journal State */
+.lockedSurface {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.25rem;
+  padding: 3rem 1.5rem;
+  box-shadow: var(--shadow-soft, 0 4px 20px rgba(0, 0, 0, 0.15));
+  max-width: 32rem;
+  margin: 1.5rem auto;
+  width: 100%;
+}
+
+.lockedIcon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 1rem;
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lockedTitle {
+  font-family: var(--font-display, inherit);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.lockedDescription {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+  max-width: 24rem;
+}
+
+.lockedForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 20rem;
+}
+
+.lockedInput {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  outline: none;
+  min-height: 2.75rem;
+}
+
+.lockedInput:focus {
+  border-color: var(--accent);
+}
+
+.lockedSubmitButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  min-height: 2.75rem;
+  background: var(--accent);
+  color: var(--accent-foreground, #0f172a);
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all var(--motion-fast, 140ms) ease;
+}
+
+.lockedSubmitButton:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.lockedSubmitButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

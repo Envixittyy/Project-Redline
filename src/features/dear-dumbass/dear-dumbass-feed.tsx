@@ -1,6 +1,20 @@
 "use client";
 
-import { HardDrive, Radio, Search, Send, ShieldCheck, X } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  CloudOff,
+  HardDrive,
+  Lock,
+  Radio,
+  RefreshCw,
+  Search,
+  Send,
+  ShieldCheck,
+  Unlock,
+  X,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -17,8 +31,13 @@ import {
   type DearDumbassRepository,
   type DearDumbassSearchResult,
 } from "@/services/dear-dumbass";
+import type {
+  DearDumbassSyncState,
+  DearDumbassSyncStatus,
+} from "@/services/dear-dumbass";
 import { DearDumbassCard } from "./dear-dumbass-card";
 import { DurabilityModal } from "./durability-modal";
+import { SyncModal } from "./sync-modal";
 import styles from "./dear-dumbass.module.css";
 
 export type DearDumbassFeedProps = {
@@ -36,6 +55,91 @@ function getBrowserSnapshot(): boolean {
 
 function getServerSnapshot(): boolean {
   return false;
+}
+
+function getSyncLabel(status: DearDumbassSyncStatus): string {
+  switch (status) {
+    case "synced":
+      return "Synced";
+    case "syncing":
+      return "Syncing…";
+    case "saved_locally":
+      return "Saved locally";
+    case "waiting_to_sync":
+      return "Waiting to sync";
+    case "locked":
+      return "Locked";
+    case "conflict":
+      return "Conflict";
+    case "error":
+      return "Sync error";
+    case "local_only":
+    default:
+      return "Local Only";
+  }
+}
+
+function getSyncTitle(status: DearDumbassSyncStatus): string {
+  switch (status) {
+    case "synced":
+      return "End-to-End Encrypted: Synced with cloud";
+    case "syncing":
+      return "End-to-End Encrypted: Sync in progress…";
+    case "saved_locally":
+      return "Changes saved locally; queued to sync when online";
+    case "waiting_to_sync":
+      return "Offline; waiting to sync when connected";
+    case "locked":
+      return "Journal is locked on this device. Click to unlock.";
+    case "conflict":
+      return "Concurrent live edits detected. Click to resolve.";
+    case "error":
+      return "Sync failed. Click to view details and retry.";
+    case "local_only":
+    default:
+      return "PrivateStore: Stored exclusively in your browser. Click to configure encrypted sync.";
+  }
+}
+
+function getSyncIcon(status: DearDumbassSyncStatus) {
+  switch (status) {
+    case "synced":
+      return <CheckCircle2 size={13} aria-hidden="true" />;
+    case "syncing":
+      return <RefreshCw size={13} className="animate-spin" aria-hidden="true" />;
+    case "saved_locally":
+    case "waiting_to_sync":
+      return <CloudOff size={13} aria-hidden="true" />;
+    case "locked":
+      return <Lock size={13} aria-hidden="true" />;
+    case "conflict":
+      return <AlertTriangle size={13} aria-hidden="true" />;
+    case "error":
+      return <AlertCircle size={13} aria-hidden="true" />;
+    case "local_only":
+    default:
+      return <ShieldCheck size={13} aria-hidden="true" />;
+  }
+}
+
+function getSyncDotClass(status: DearDumbassSyncStatus): string {
+  switch (status) {
+    case "synced":
+      return styles.syncDotSynced;
+    case "saved_locally":
+    case "waiting_to_sync":
+      return styles.syncDotWaiting;
+    case "locked":
+      return styles.syncDotLocked;
+    case "conflict":
+      return styles.syncDotConflict;
+    case "error":
+      return styles.syncDotError;
+    case "syncing":
+    case "local_only":
+    default:
+      return "";
+  }
 }
 
 export function DearDumbassFeed({
@@ -84,6 +188,45 @@ export function DearDumbassFeed({
 
   // Durability / Backup modal state
   const [isDurabilityOpen, setIsDurabilityOpen] = useState(false);
+
+  // Sync state & modal
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [syncState, setSyncState] = useState<DearDumbassSyncState>(() => {
+    if (repository) {
+      return repository.getSyncCoordinator().getState();
+    }
+    return {
+      status: "local_only",
+      lastSyncedAt: null,
+      pendingCount: 0,
+      conflictCount: 0,
+      errorMessage: null,
+      isUnlocked: true,
+    };
+  });
+  const [inlineUnlockPassphrase, setInlineUnlockPassphrase] = useState("");
+  const [inlineUnlockError, setInlineUnlockError] = useState<string | null>(null);
+  const [isInlineUnlocking, setIsInlineUnlocking] = useState(false);
+
+  const handleInlineUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!repository || !inlineUnlockPassphrase) return;
+    setInlineUnlockError(null);
+    setIsInlineUnlocking(true);
+    try {
+      await repository.getSyncCoordinator().unlockSync(inlineUnlockPassphrase);
+      setInlineUnlockPassphrase("");
+      await loadFeed();
+    } catch (err) {
+      if (mountedRef.current) {
+        setInlineUnlockError(err instanceof Error ? err.message : "Incorrect passphrase.");
+      }
+    } finally {
+      if (mountedRef.current) {
+        setIsInlineUnlocking(false);
+      }
+    }
+  };
 
   // Search state (strictly local in-memory, never in URL query string)
   const [searchQuery, setSearchQuery] = useState("");
@@ -179,6 +322,9 @@ export function DearDumbassFeed({
   useEffect(() => {
     if (!repository) return;
 
+    const coordinator = repository.getSyncCoordinator();
+    void coordinator.initialize();
+
     const initialLoad = window.setTimeout(() => {
       void loadFeed();
       if (searchQueryRef.current.trim()) {
@@ -186,10 +332,17 @@ export function DearDumbassFeed({
       }
     }, 0);
 
-    const unsubscribe = repository.subscribe(() => {
+    const unsubscribeRepo = repository.subscribe(() => {
       void loadFeed();
       if (searchQueryRef.current.trim()) {
         void performSearch(searchQueryRef.current);
+      }
+    });
+
+    const unsubscribeSync = coordinator.subscribe((newState) => {
+      setSyncState(newState);
+      if (newState.isUnlocked) {
+        void loadFeed();
       }
     });
 
@@ -197,7 +350,8 @@ export function DearDumbassFeed({
       window.clearTimeout(initialLoad);
       feedLoadVersionRef.current += 1;
       searchVersionRef.current += 1;
-      unsubscribe();
+      unsubscribeRepo();
+      unsubscribeSync();
     };
   }, [loadFeed, performSearch, repository]);
 
@@ -264,177 +418,241 @@ export function DearDumbassFeed({
               <HardDrive size={13} aria-hidden="true" />
               <span>Backup &amp; Durability</span>
             </button>
-            <span
-              className={styles.privacyBadge}
-              title="PrivateStore: Stored exclusively in your browser. Never sent to any server or cloud API."
-              aria-label="Storage status: Local Only"
+            <button
+              type="button"
+              className={styles.syncBadgeButton}
+              onClick={() => setIsSyncModalOpen(true)}
+              title={getSyncTitle(syncState.status)}
+              aria-label={`Sync status: ${getSyncLabel(syncState.status)}`}
+              data-testid="dear-dumbass-sync-status"
             >
-              <span className={styles.privacyDot} aria-hidden="true" />
-              <ShieldCheck size={13} aria-hidden="true" />
-              <span>Local Only</span>
-            </span>
+              <span
+                className={`${styles.syncDot} ${getSyncDotClass(syncState.status)}`}
+                aria-hidden="true"
+              />
+              {getSyncIcon(syncState.status)}
+              <span>{getSyncLabel(syncState.status)}</span>
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Primary Composer */}
-      <section className={styles.composerSurface} aria-label="Compose post">
-        {storageError || postError ? (
-          <div className={styles.errorBanner} role="alert">
-            <span>{storageError ?? postError}</span>
-            {!storageError ? (
+      {syncState.status === "locked" ? (
+        <section
+          className={styles.lockedSurface}
+          aria-label="Locked journal"
+          data-testid="dear-dumbass-locked"
+        >
+          <div className={styles.lockedIcon}>
+            <Lock size={30} aria-hidden="true" />
+          </div>
+          <h2 className={styles.lockedTitle}>Journal is Locked</h2>
+          <p className={styles.lockedDescription}>
+            Your thoughts are end-to-end encrypted. Enter your master passphrase to unlock and
+            synchronize this device.
+          </p>
+          <form onSubmit={handleInlineUnlock} className={styles.lockedForm}>
+            {inlineUnlockError ? (
+              <div className={styles.errorBanner} role="alert">
+                <span>{inlineUnlockError}</span>
+              </div>
+            ) : null}
+            <input
+              type="password"
+              className={styles.lockedInput}
+              placeholder="Master passphrase…"
+              value={inlineUnlockPassphrase}
+              onChange={(e) => setInlineUnlockPassphrase(e.target.value)}
+              disabled={isInlineUnlocking}
+              autoFocus
+              required
+            />
+            <button
+              type="submit"
+              className={styles.lockedSubmitButton}
+              disabled={isInlineUnlocking || !inlineUnlockPassphrase}
+            >
+              <Unlock size={14} aria-hidden="true" />
+              <span>{isInlineUnlocking ? "Unlocking…" : "Unlock Journal"}</span>
+            </button>
+            <button
+              type="button"
+              className={styles.actionButton}
+              onClick={() => setIsSyncModalOpen(true)}
+            >
+              Manage Sync Settings
+            </button>
+          </form>
+        </section>
+      ) : (
+        <>
+          {/* Primary Composer */}
+          <section className={styles.composerSurface} aria-label="Compose post">
+            {storageError || postError ? (
+              <div className={styles.errorBanner} role="alert">
+                <span>{storageError ?? postError}</span>
+                {!storageError ? (
+                  <button
+                    type="button"
+                    className={styles.actionButton}
+                    onClick={() => setPostError(null)}
+                    aria-label="Dismiss error"
+                  >
+                    Dismiss
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            <textarea
+              ref={composerTextareaRef}
+              className={styles.textarea}
+              placeholder="Scream into the void…"
+              value={composerInput}
+              onChange={(e) => handleComposerChange(e.target.value)}
+              onKeyDown={handleComposerKeyDown}
+              disabled={!repository || isSubmitting}
+              aria-label="Post content"
+              rows={3}
+              autoFocus={autoFocusComposer}
+            />
+            <div className={styles.composerFooter}>
+              <span className={styles.shortcutHint}>Ctrl+Enter to post</span>
               <button
                 type="button"
-                className={styles.actionButton}
-                onClick={() => setPostError(null)}
-                aria-label="Dismiss error"
+                className={styles.postButton}
+                onClick={handlePostSubmit}
+                disabled={!repository || !composerInput.trim() || isSubmitting}
+                aria-label="Publish post"
               >
-                Dismiss
+                <Send size={14} aria-hidden="true" />
+                <span>{isSubmitting ? "Posting…" : "Post"}</span>
               </button>
-            ) : null}
-          </div>
-        ) : null}
-        <textarea
-          ref={composerTextareaRef}
-          className={styles.textarea}
-          placeholder="Scream into the void…"
-          value={composerInput}
-          onChange={(e) => handleComposerChange(e.target.value)}
-          onKeyDown={handleComposerKeyDown}
-          disabled={!repository || isSubmitting}
-          aria-label="Post content"
-          rows={3}
-          autoFocus={autoFocusComposer}
-        />
-        <div className={styles.composerFooter}>
-          <span className={styles.shortcutHint}>Ctrl+Enter to post</span>
-          <button
-            type="button"
-            className={styles.postButton}
-            onClick={handlePostSubmit}
-            disabled={!repository || !composerInput.trim() || isSubmitting}
-            aria-label="Publish post"
-          >
-            <Send size={14} aria-hidden="true" />
-            <span>{isSubmitting ? "Posting…" : "Post"}</span>
-          </button>
-        </div>
-      </section>
-
-      {/* Local Search Control */}
-      <section className={styles.searchSection} aria-label="Search thoughts locally">
-        <div className={styles.searchBar}>
-          <Search size={15} className={styles.searchIcon} aria-hidden="true" />
-          <input
-            type="search"
-            className={styles.searchInput}
-            placeholder="Search thoughts & replies locally…"
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            disabled={!repository}
-            aria-label="Search thoughts locally"
-          />
-          {searchQuery.trim() ? (
-            <button
-              type="button"
-              className={styles.searchClearBtn}
-              onClick={handleClearSearch}
-              aria-label="Clear search"
-            >
-              <X size={14} aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
-        {searchResults !== null ? (
-          <div className={styles.searchStatusRow} role="status">
-            <span className={styles.searchCount}>
-              {searchResults.length === 0
-                ? `No thoughts found matching "${searchQuery.trim()}"`
-                : `Found ${searchResults.length} ${
-                    searchResults.length === 1 ? "thread" : "threads"
-                  } matching "${searchQuery.trim()}"`}
-            </span>
-            <button
-              type="button"
-              className={styles.actionButton}
-              onClick={handleClearSearch}
-            >
-              Clear
-            </button>
-          </div>
-        ) : null}
-      </section>
-
-      {/* Main Feed Content */}
-      <main className={styles.feedList} aria-label="Dear Dumbass feed">
-        {feedError ? (
-          <div className={styles.errorBanner} role="alert">
-            <span>{feedError}</span>
-            <button
-              type="button"
-              className={styles.actionButton}
-              onClick={() => void loadFeed()}
-            >
-              Retry
-            </button>
-          </div>
-        ) : isLoading || !repository ? null : searchResults !== null ? (
-          searchResults.length === 0 ? (
-            <div className={styles.emptyState} data-testid="dear-dumbass-search-empty">
-              <Search size={36} className={styles.emptyIcon} aria-hidden="true" />
-              <h2 className={styles.emptyTitle}>Nothing found in the void.</h2>
-              <p className={styles.emptyDescription}>
-                No thoughts or replies matched &quot;{searchQuery.trim()}&quot;.
-              </p>
             </div>
-          ) : (
-            searchResults.map((result) => {
-              const matchingIds = new Set(result.matchingReplies.map((r) => r.id));
-              const hasMatchingReplies = result.matchingReplies.length > 0;
-              return (
+          </section>
+
+          {/* Local Search Control */}
+          <section className={styles.searchSection} aria-label="Search thoughts locally">
+            <div className={styles.searchBar}>
+              <Search size={15} className={styles.searchIcon} aria-hidden="true" />
+              <input
+                type="search"
+                className={styles.searchInput}
+                placeholder="Search thoughts & replies locally…"
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                disabled={!repository}
+                aria-label="Search thoughts locally"
+              />
+              {searchQuery.trim() ? (
+                <button
+                  type="button"
+                  className={styles.searchClearBtn}
+                  onClick={handleClearSearch}
+                  aria-label="Clear search"
+                >
+                  <X size={14} aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+            {searchResults !== null ? (
+              <div className={styles.searchStatusRow} role="status">
+                <span className={styles.searchCount}>
+                  {searchResults.length === 0
+                    ? `No thoughts found matching "${searchQuery.trim()}"`
+                    : `Found ${searchResults.length} ${
+                        searchResults.length === 1 ? "thread" : "threads"
+                      } matching "${searchQuery.trim()}"`}
+                </span>
+                <button
+                  type="button"
+                  className={styles.actionButton}
+                  onClick={handleClearSearch}
+                >
+                  Clear
+                </button>
+              </div>
+            ) : null}
+          </section>
+
+          {/* Main Feed Content */}
+          <main className={styles.feedList} aria-label="Dear Dumbass feed">
+            {feedError ? (
+              <div className={styles.errorBanner} role="alert">
+                <span>{feedError}</span>
+                <button
+                  type="button"
+                  className={styles.actionButton}
+                  onClick={() => void loadFeed()}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : isLoading || !repository ? null : searchResults !== null ? (
+              searchResults.length === 0 ? (
+                <div className={styles.emptyState} data-testid="dear-dumbass-search-empty">
+                  <Search size={36} className={styles.emptyIcon} aria-hidden="true" />
+                  <h2 className={styles.emptyTitle}>Nothing found in the void.</h2>
+                  <p className={styles.emptyDescription}>
+                    No thoughts or replies matched &quot;{searchQuery.trim()}&quot;.
+                  </p>
+                </div>
+              ) : (
+                searchResults.map((result) => {
+                  const matchingIds = new Set(result.matchingReplies.map((r) => r.id));
+                  const hasMatchingReplies = result.matchingReplies.length > 0;
+                  return (
+                    <DearDumbassCard
+                      key={`search-${result.root.id}`}
+                      post={result.root}
+                      replyCount={replyCounts[result.root.id] ?? 0}
+                      repository={repository}
+                      initialOpenThread={hasMatchingReplies}
+                      matchingReplyIds={matchingIds}
+                      isSearchMatch={result.rootMatches}
+                      contextNote={
+                        !result.rootMatches && hasMatchingReplies
+                          ? `${result.matchingReplies.length} matching ${
+                              result.matchingReplies.length === 1 ? "reply" : "replies"
+                            } in thread`
+                          : undefined
+                      }
+                    />
+                  );
+                })
+              )
+            ) : posts.length === 0 ? (
+              <div className={styles.emptyState} data-testid="dear-dumbass-empty-state">
+                <Radio size={36} className={styles.emptyIcon} aria-hidden="true" />
+                <h2 className={styles.emptyTitle}>The void is listening.</h2>
+                <p className={styles.emptyDescription}>
+                  Unfortunately, it&apos;s just you.
+                </p>
+              </div>
+            ) : (
+              posts.map((post) => (
                 <DearDumbassCard
-                  key={`search-${result.root.id}`}
-                  post={result.root}
-                  replyCount={replyCounts[result.root.id] ?? 0}
+                  key={post.id}
+                  post={post}
+                  replyCount={replyCounts[post.id] ?? 0}
                   repository={repository}
-                  initialOpenThread={hasMatchingReplies}
-                  matchingReplyIds={matchingIds}
-                  isSearchMatch={result.rootMatches}
-                  contextNote={
-                    !result.rootMatches && hasMatchingReplies
-                      ? `${result.matchingReplies.length} matching ${
-                          result.matchingReplies.length === 1 ? "reply" : "replies"
-                        } in thread`
-                      : undefined
-                  }
                 />
-              );
-            })
-          )
-        ) : posts.length === 0 ? (
-          <div className={styles.emptyState} data-testid="dear-dumbass-empty-state">
-            <Radio size={36} className={styles.emptyIcon} aria-hidden="true" />
-            <h2 className={styles.emptyTitle}>The void is listening.</h2>
-            <p className={styles.emptyDescription}>
-              Unfortunately, it&apos;s just you.
-            </p>
-          </div>
-        ) : (
-          posts.map((post) => (
-            <DearDumbassCard
-              key={post.id}
-              post={post}
-              replyCount={replyCounts[post.id] ?? 0}
-              repository={repository}
-            />
-          ))
-        )}
-      </main>
+              ))
+            )}
+          </main>
+        </>
+      )}
 
       {isDurabilityOpen && repository ? (
         <DurabilityModal
           repository={repository}
           onClose={() => setIsDurabilityOpen(false)}
+        />
+      ) : null}
+
+      {isSyncModalOpen && repository ? (
+        <SyncModal
+          repository={repository}
+          onClose={() => setIsSyncModalOpen(false)}
         />
       ) : null}
     </div>

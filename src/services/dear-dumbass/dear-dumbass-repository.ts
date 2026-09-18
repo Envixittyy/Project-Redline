@@ -7,6 +7,12 @@ import {
   type RestoreMode,
   type RestoreResult,
 } from "./backup";
+import {
+  DearDumbassSyncCoordinator,
+  SYNC_META_STORE,
+  SYNC_OUTBOX_STORE,
+} from "./sync/sync-coordinator";
+import type { DearDumbassOutboxItem } from "./sync/types";
 import type { DearDumbassPost, DearDumbassSearchResult } from "./types";
 
 export const DEAR_DUMBASS_STORE_NAME = "dear_dumbass_posts";
@@ -30,6 +36,7 @@ function createPostId(): string {
 
 export class DearDumbassRepository {
   private readonly store: PrivateStore;
+  private readonly syncCoordinator: DearDumbassSyncCoordinator;
   private readonly listeners = new Set<() => void>();
   private readonly eventSourceId =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -40,8 +47,17 @@ export class DearDumbassRepository {
   private readonly seenChangeIds = new Set<string>();
   private windowHandler: EventListener | null = null;
 
-  constructor(store?: PrivateStore) {
+  constructor(
+    store?: PrivateStore,
+    syncCoordinator?: DearDumbassSyncCoordinator,
+  ) {
     this.store = store ?? getPrivateStore();
+    this.syncCoordinator =
+      syncCoordinator ??
+      new DearDumbassSyncCoordinator({
+        store: this.store,
+        onPostStoreMutated: () => this.emitChange(),
+      });
     this.initWindowEvents();
     this.initBroadcastChannel();
   }
@@ -139,9 +155,17 @@ export class DearDumbassRepository {
   }
 
   /**
-   * Close channel and clean up resources.
+   * Get the sync coordinator for Dear Dumbass E2EE sync.
+   */
+  getSyncCoordinator(): DearDumbassSyncCoordinator {
+    return this.syncCoordinator;
+  }
+
+  /**
+   * Close channel, stop sync background intervals, and clean up resources.
    */
   close(): void {
+    this.syncCoordinator.stopPeriodicSync();
     if (typeof window !== "undefined" && this.windowHandler) {
       window.removeEventListener(DEAR_DUMBASS_CHANGE_EVENT, this.windowHandler);
       this.windowHandler = null;
@@ -173,7 +197,7 @@ export class DearDumbassRepository {
     const resolvedReplyToId = replyToId ?? null;
 
     const post = await this.store.transaction(
-      DEAR_DUMBASS_STORE_NAME,
+      [DEAR_DUMBASS_STORE_NAME, SYNC_OUTBOX_STORE, SYNC_META_STORE],
       "readwrite",
       async (transaction) => {
         if (resolvedReplyToId) {
@@ -205,10 +229,28 @@ export class DearDumbassRepository {
         };
 
         await transaction.put(DEAR_DUMBASS_STORE_NAME, created);
+
+        const syncConfig = await transaction.get<{ id: string; enabled: boolean }>(
+          SYNC_META_STORE,
+          "sync_config",
+        );
+        if (syncConfig?.enabled) {
+          await transaction.put<DearDumbassOutboxItem>(SYNC_OUTBOX_STORE, {
+            id: createPostId(),
+            recordId: created.id,
+            action: "upsert",
+            queuedAt: now,
+            attempts: 0,
+          });
+        }
+
         return created;
       },
     );
     this.emitChange();
+    if (this.syncCoordinator.getKeyManager().isUnlocked()) {
+      void this.syncCoordinator.triggerSync();
+    }
     return post;
   }
 
@@ -362,7 +404,7 @@ export class DearDumbassRepository {
     }
 
     const updated = await this.store.transaction(
-      DEAR_DUMBASS_STORE_NAME,
+      [DEAR_DUMBASS_STORE_NAME, SYNC_OUTBOX_STORE, SYNC_META_STORE],
       "readwrite",
       async (transaction) => {
         const existing = await transaction.get<DearDumbassPost>(
@@ -380,17 +422,36 @@ export class DearDumbassRepository {
           throw new Error("Post changed after editing began.");
         }
 
+        const now = new Date().toISOString();
         const next: DearDumbassPost = {
           ...existing,
           body: trimmed,
-          updatedAt: new Date().toISOString(),
+          updatedAt: now,
           revision: currentRevision + 1,
         };
         await transaction.put(DEAR_DUMBASS_STORE_NAME, next);
+
+        const syncConfig = await transaction.get<{ id: string; enabled: boolean }>(
+          SYNC_META_STORE,
+          "sync_config",
+        );
+        if (syncConfig?.enabled) {
+          await transaction.put<DearDumbassOutboxItem>(SYNC_OUTBOX_STORE, {
+            id: createPostId(),
+            recordId: next.id,
+            action: "upsert",
+            queuedAt: now,
+            attempts: 0,
+          });
+        }
+
         return next;
       },
     );
     this.emitChange();
+    if (this.syncCoordinator.getKeyManager().isUnlocked()) {
+      void this.syncCoordinator.triggerSync();
+    }
     return updated;
   }
 
@@ -400,7 +461,7 @@ export class DearDumbassRepository {
    */
   async deletePost(id: string): Promise<void> {
     const deleted = await this.store.transaction(
-      DEAR_DUMBASS_STORE_NAME,
+      [DEAR_DUMBASS_STORE_NAME, SYNC_OUTBOX_STORE, SYNC_META_STORE],
       "readwrite",
       async (transaction) => {
         const existing = await transaction.get<DearDumbassPost>(
@@ -441,10 +502,31 @@ export class DearDumbassRepository {
         }
 
         await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, toUpdate);
+
+        const syncConfig = await transaction.get<{ id: string; enabled: boolean }>(
+          SYNC_META_STORE,
+          "sync_config",
+        );
+        if (syncConfig?.enabled) {
+          const outboxItems: DearDumbassOutboxItem[] = toUpdate.map((p) => ({
+            id: createPostId(),
+            recordId: p.id,
+            action: "upsert",
+            queuedAt: now,
+            attempts: 0,
+          }));
+          await transaction.putBatch(SYNC_OUTBOX_STORE, outboxItems);
+        }
+
         return true;
       },
     );
-    if (deleted) this.emitChange();
+    if (deleted) {
+      this.emitChange();
+      if (this.syncCoordinator.getKeyManager().isUnlocked()) {
+        void this.syncCoordinator.triggerSync();
+      }
+    }
   }
 
   /**
@@ -492,13 +574,28 @@ export class DearDumbassRepository {
     const validated = validateArchivePayload(payload);
 
     const result = await this.store.transaction(
-      DEAR_DUMBASS_STORE_NAME,
+      [DEAR_DUMBASS_STORE_NAME, SYNC_OUTBOX_STORE, SYNC_META_STORE],
       "readwrite",
       async (transaction) => {
         if (mode === "replace") {
           await transaction.clear(DEAR_DUMBASS_STORE_NAME);
           if (validated.posts.length > 0) {
             await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, validated.posts);
+            const syncConfig = await transaction.get<{ id: string; enabled: boolean }>(
+              SYNC_META_STORE,
+              "sync_config",
+            );
+            if (syncConfig?.enabled) {
+              const now = new Date().toISOString();
+              const outboxItems: DearDumbassOutboxItem[] = validated.posts.map((p) => ({
+                id: createPostId(),
+                recordId: p.id,
+                action: "upsert",
+                queuedAt: now,
+                attempts: 0,
+              }));
+              await transaction.putBatch(SYNC_OUTBOX_STORE, outboxItems);
+            }
           }
           return {
             mode,
@@ -602,6 +699,21 @@ export class DearDumbassRepository {
 
         if (toPut.length > 0) {
           await transaction.putBatch(DEAR_DUMBASS_STORE_NAME, toPut);
+          const syncConfig = await transaction.get<{ id: string; enabled: boolean }>(
+            SYNC_META_STORE,
+            "sync_config",
+          );
+          if (syncConfig?.enabled) {
+            const now = new Date().toISOString();
+            const outboxItems: DearDumbassOutboxItem[] = toPut.map((p) => ({
+              id: createPostId(),
+              recordId: p.id,
+              action: "upsert",
+              queuedAt: now,
+              attempts: 0,
+            }));
+            await transaction.putBatch(SYNC_OUTBOX_STORE, outboxItems);
+          }
         }
 
         return {
@@ -615,6 +727,9 @@ export class DearDumbassRepository {
     );
 
     this.emitChange();
+    if (this.syncCoordinator.getKeyManager().isUnlocked()) {
+      void this.syncCoordinator.triggerSync();
+    }
     return result;
   }
 }
@@ -623,9 +738,10 @@ let defaultRepository: DearDumbassRepository | null = null;
 
 export function getDearDumbassRepository(
   customStore?: PrivateStore,
+  customCoordinator?: DearDumbassSyncCoordinator,
 ): DearDumbassRepository {
-  if (customStore) {
-    return new DearDumbassRepository(customStore);
+  if (customStore || customCoordinator) {
+    return new DearDumbassRepository(customStore, customCoordinator);
   }
   if (!defaultRepository) {
     defaultRepository = new DearDumbassRepository();

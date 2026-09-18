@@ -158,7 +158,7 @@ describe("PrivateStore Storage Layer", () => {
     it("fails closed when a requested schema version has no migration", async () => {
       const unsupportedStore = new IndexedDbPrivateStore(
         `${testDbName}-unsupported-version`,
-        2,
+        3,
       );
 
       await expect(
@@ -264,6 +264,36 @@ describe("PrivateStore Storage Layer", () => {
       expect(
         await store.get("dear_dumbass_posts", "replacement"),
       ).toBeNull();
+    });
+
+    it("supports version 2 schema stores and multi-store atomic transactions", async () => {
+      const v2DbName = `${testDbName}-v2`;
+      const v2Store = new IndexedDbPrivateStore(v2DbName, 2);
+
+      const post = { id: "post-v2-1", body: "atomic post", replyToId: null };
+      const outbox = { id: "op-1", recordId: "post-v2-1", action: "upsert" };
+
+      await v2Store.transaction(
+        ["dear_dumbass_posts", "dear_dumbass_sync_outbox"],
+        "readwrite",
+        async (tx) => {
+          await tx.put("dear_dumbass_posts", post);
+          await tx.put("dear_dumbass_sync_outbox", outbox);
+        },
+      );
+
+      const retrievedPost = await v2Store.get<typeof post>("dear_dumbass_posts", "post-v2-1");
+      expect(retrievedPost).toEqual(post);
+
+      const retrievedOutbox = await v2Store.getAllByIndex<typeof outbox>(
+        "dear_dumbass_sync_outbox",
+        "by_recordId",
+        "post-v2-1",
+      );
+      expect(retrievedOutbox).toHaveLength(1);
+      expect(retrievedOutbox[0].id).toBe("op-1");
+
+      v2Store.close();
     });
   });
 });

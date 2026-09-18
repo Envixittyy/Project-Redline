@@ -32,12 +32,11 @@ describe("Dear Dumbass Privacy Boundary Audit", () => {
     return files;
   }
 
-  it("1. guarantees zero Supabase, cloud queue, or remote integration imports", () => {
+  it("1. guarantees zero Supabase imports outside cloud-client.ts, and zero cloud queue or remote integration imports", () => {
     const allSourceFiles = targetDirs.flatMap((dir) => getSourceFiles(dir));
     expect(allSourceFiles.length).toBeGreaterThan(0);
 
-    const forbiddenImportPatterns = [
-      /@\/services\/supabase/,
+    const forbiddenGlobalPatterns = [
       /@\/services\/integrations/,
       /@\/lib\/offline\/queue/,
       /useSearchParams/,
@@ -46,13 +45,67 @@ describe("Dear Dumbass Privacy Boundary Audit", () => {
     ];
 
     for (const filePath of allSourceFiles) {
+      const fileName = path.basename(filePath);
       const content = fs.readFileSync(filePath, "utf-8");
-      for (const pattern of forbiddenImportPatterns) {
+
+      for (const pattern of forbiddenGlobalPatterns) {
         expect(
           pattern.test(content),
-          `Forbidden import pattern ${pattern} found in ${path.basename(filePath)}`,
+          `Forbidden import pattern ${pattern} found in ${fileName}`,
         ).toBe(false);
       }
+
+      // Supabase is forbidden everywhere EXCEPT cloud-client.ts
+      if (fileName !== "cloud-client.ts") {
+        expect(
+          /@\/services\/supabase/.test(content),
+          `Direct Supabase import forbidden in ${fileName}. Only cloud-client.ts may import Supabase for E2EE ciphertext.`,
+        ).toBe(false);
+      }
+    }
+
+    // Explicit contract on cloud-client.ts: must never reference plaintext, body, replyToId, passphrase, or masterKey
+    const cloudClientPath = path.resolve(
+      process.cwd(),
+      "src/services/dear-dumbass/sync/cloud-client.ts",
+    );
+    const cloudClientContent = fs.readFileSync(cloudClientPath, "utf-8");
+    const forbiddenCloudClientPatterns = [
+      /\bbody\b/i,
+      /\breplyToId\b/i,
+      /\bpassphrase\b/i,
+      /\bmasterKey\b/i,
+      /\bplaintext\b/i,
+    ];
+    for (const pattern of forbiddenCloudClientPatterns) {
+      expect(
+        pattern.test(cloudClientContent),
+        `Forbidden sensitive field ${pattern} found in cloud-client.ts`,
+      ).toBe(false);
+    }
+
+    // Explicit contract on Supabase migration: must never define columns for plaintext bodies, replies, or search terms
+    const migrationPath = path.resolve(
+      process.cwd(),
+      "supabase/migrations/20260919100000_dear_dumbass_e2ee_sync.sql",
+    );
+    const migrationCode = fs
+      .readFileSync(migrationPath, "utf-8")
+      .replace(/--.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+
+    const forbiddenMigrationPatterns = [
+      /\bbody\b/i,
+      /\breply_to_id\b/i,
+      /\bplaintext\b/i,
+      /\bsearch_term\b/i,
+      /\btitle\b/i,
+    ];
+    for (const pattern of forbiddenMigrationPatterns) {
+      expect(
+        pattern.test(migrationCode),
+        `Forbidden plaintext schema column ${pattern} found in migration schema definition`,
+      ).toBe(false);
     }
   });
 

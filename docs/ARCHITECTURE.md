@@ -426,19 +426,31 @@ Migration `20260831110000_ai_reviewed_course_import.sql` adds the course source 
 
 Notification hardening from `1033efb` remains authoritative. The only production notification port from Gemini propagates one server evaluation instant through task/event/class planning, quiet-hours evaluation, subscription expiry, and in-app delivery timestamps. Push creation still uses `deferred` during quiet hours; Gemini’s unconditional `pending` change was rejected. Crypto, URL/SSRF checks, service-worker checks, dispatch authentication, and registry behavior are unchanged.
 
-## PrivateStore Architecture: Dear Dumbass (Local-Only Journal)
+## PrivateStore Architecture: Dear Dumbass (Local-First & End-to-End Encrypted Sync)
 
-Dear Dumbass (`/dear-dumbass`, with `/journal` redirect) is a local-only stream-of-consciousness feed designed for personal unedited thoughts ("Population: 1").
+Dear Dumbass (`/dear-dumbass`, with `/journal` redirect) is a private, unedited thought stream ("Population: 1"). Operating on local-first principles, Phase 3 enables multi-device synchronization through zero-knowledge End-to-End Encryption (E2EE).
 
-### Core Privacy & Persistence Contracts:
-- **Zero-Cloud Guarantee**: Dear Dumbass posts and threads are stored strictly in client-side IndexedDB (`redline-private-store-v1`). They are NEVER transmitted to Supabase, cloud tables, remote servers, AI models, logs, or analytics.
-- **Offline Queue Isolation**: Dear Dumbass mutations are completely isolated from the PWA offline sync queue (`src/lib/offline/queue.ts`). They never generate pending cloud mutations or retry network jobs.
-- **Client-Only Guard**: Production `getPrivateStore()` enforces a browser environment and throws if called during SSR or Node execution without explicit dependency injection. `InMemoryPrivateStore` is reserved for tests and explicit DI.
-- **Atomic Mutation Boundary**: Reply validation, revision-checked edits, and root/reply tombstoning run in one adapter transaction so concurrent browser instances cannot overwrite a newer edit, restore deleted plaintext, or create a reply after its root is scrubbed.
-- **Scrubbed Deletion**: Deleting a post permanently overwrites the plaintext body (`body: ""` alongside `deletedAt: timestamp`). Deleting a root post cascades this scrubbing and tombstoning to all nested replies.
-- **Sign-Out Data Retention**: `clearSensitivePwaState()` purges cached user data and push tokens upon sign-out, but intentionally preserves `redline-private-store-v1` so the owner's private journal is not lost on logout.
-- **PWA Offline Scope**: The feed and composer operate fully offline once loaded in the browser. Cold-start offline navigation requires the workspace shell to have been previously loaded.
-- **Multi-Tab Synchronization**: Native `BroadcastChannel` (`redline:dear-dumbass-channel`) notifies concurrent tabs/windows of the same origin on post creation, revision, or deletion. Subscribed tabs reload from local IndexedDB; event source IDs suppress self-echo and prevent ping-pong loops. Falls back gracefully to same-window events when unavailable.
-- **Local Search & Thread Context**: Case-insensitive client-side search over root posts and replies preserves thread context so matching replies retain parent context. Excludes deleted tombstones. Search state is strictly local in-memory (never leaked to URL query parameters or remote requests).
-- **Storage Durability**: Browser Storage API (`navigator.storage.persisted()` and `persist()`) allows users to request eviction protection against browser cache pressure with graceful degradation.
-- **Encrypted Local Backup & Restore**: Exports versioned JSON envelopes encrypted via Web Crypto API (PBKDF2 with SHA-256, 600,000 iterations for new exports, random 128-bit salt, AES-GCM 256-bit, random 96-bit IV, and a 128-bit authentication tag). The version-1 reader retains bounded compatibility with existing 100,000-iteration exports and rejects unsupported or resource-exhausting parameters. Restores decrypt in memory and validate record, timestamp, revision, and root/reply invariants before initiating atomic IndexedDB transactions. Safe Merge treats revisions as authoritative for live/live conflicts, never uses clock-skewed timestamps as a tie-breaker, and makes tombstones terminal for an entire thread; Replace mode requires explicit confirmation. Zero logging of passphrases, plaintext, or decrypted content.
+### Core Privacy & Security Contract:
+- **Zero Plaintext Cloud Storage**: Plaintext posts, replies, search terms, and decryption keys NEVER leave the user's devices. Cloud infrastructure stores exclusively authenticated ciphertext and sync metadata. Direct Supabase access is strictly isolated behind `src/services/dear-dumbass/sync/cloud-client.ts`, which handles only opaque ciphertext and metadata.
+- **Threat Model**: Complete compromise of Supabase database, network interception, or server-side administrative access yields only encrypted ciphertext blobs and wrapped key envelopes. Without the user's master passphrase, data is cryptographically unreadable.
+
+### E2EE Cryptographic Architecture:
+- **Master Key & Envelope**: A random 256-bit journal master key is generated client-side via Web Crypto `crypto.getRandomValues()`. It is wrapped using AES-256-GCM by a Key Encryption Key (KEK) derived from the user's passphrase via PBKDF2-HMAC-SHA-256 (600,000 iterations, 16-byte random salt).
+- **Non-Extractable Local Key Storage**: Upon unlock, the unwrapped master key is imported as a non-extractable Web Crypto `CryptoKey` (`extractable: false`) and persisted in client-side IndexedDB (`dear_dumbass_local_keys`). The passphrase itself is never retained in memory longer than derivation.
+- **Individual Record Encryption**: Each post mutation is serialized to canonical JSON, tombstone-scrubbed if deleted, and encrypted with AES-256-GCM using a unique 96-bit IV and authenticated additional data (AAD: `v1:${recordId}:${keyVersion}`).
+
+### Cloud Synchronization & Concurrency:
+- **Supabase Schema & RLS**:
+  - `dear_dumbass_key_envelopes`: Stores one wrapped envelope per authenticated user. Strict RLS guarantees `(auth.uid() = owner_id)`.
+  - `dear_dumbass_encrypted_records`: Stores individually encrypted records with RLS `(auth.uid() = owner_id)`.
+  - `dear_dumbass_records_change_seq`: Monotonic sequence updated on every record insert and update.
+- **Atomic Compare-and-Swap (CAS)**: RPC `upsert_dear_dumbass_record` atomically validates `p_expected_sync_version`. If a concurrent update from another device modified the record in the cloud, the RPC rejects the write with status `"conflict"`, preventing silent overwrite.
+- **Incremental Cursor Pull**: Clients track the highest `server_change_sequence` applied locally and query only newer records via `.gt("server_change_sequence", cursor)`, minimizing bandwidth.
+- **Durable Local Outbox**: All local creations, updates, and deletions enqueue the mutated `recordId` into IndexedDB store `dear_dumbass_sync_outbox`. The outbox contains zero plaintext. On reconnect or manual trigger, pending outbox items are encrypted and pushed.
+- **Tombstone Dominance & Cascade**: A tombstone (scrubbed body `""` with `deletedAt`) unconditionally dominates stale live mutations from older devices. Deletion of a root post cascades scrubbing and tombstoning to all nested replies.
+- **Concurrent Edit Preservation**: If two devices concurrently edit a live post from the same revision, neither is silently discarded. The conflict is recorded in `dear_dumbass_sync_conflicts` and exposed to the user to choose the local or remote version.
+- **Device Locking**: The user can choose "Lock journal on this device" to delete the local key from IndexedDB. Until the master passphrase is provided, the journal on that device remains inaccessible.
+- **Sign-Out Data Retention**: `clearSensitivePwaState()` preserves `redline-private-store-v2` so the owner's local journal data is not lost on logout.
+- **Multi-Tab Synchronization**: Native `BroadcastChannel` (`redline:dear-dumbass-channel`) propagates local mutations across open browser tabs immediately.
+- **Storage Durability**: Browser Storage API (`navigator.storage.persist()`) protects the local database from browser eviction.
+- **Encrypted Local Backup & Restore**: Full JSON backup envelopes encrypted with PBKDF2/AES-GCM (600,000 iterations) provide offline, portable, user-controlled archives independent of cloud sync.

@@ -7,6 +7,7 @@ import { DearDumbassCard, formatRelativeTime } from "./dear-dumbass-card";
 import { DearDumbassFeed } from "./dear-dumbass-feed";
 import { DearDumbassQuickPost } from "./dear-dumbass-quick-post";
 import { DurabilityModal } from "./durability-modal";
+import { SyncModal } from "./sync-modal";
 
 describe("Dear Dumbass UI Components", () => {
   const store = new InMemoryPrivateStore();
@@ -155,6 +156,30 @@ describe("Dear Dumbass UI Components", () => {
       expect(html).toContain("AES-GCM 256");
       expect(html).toContain("Merge (Safe - Default)");
       expect(html).toContain("Replace Local Archive (Destructive)");
+    });
+  });
+
+  describe("SyncModal Static Rendering", () => {
+    it("renders zero-knowledge security notice, local-only status, and setup form", () => {
+      const html = renderToStaticMarkup(
+        <SyncModal repository={repo} onClose={() => undefined} />,
+      );
+
+      expect(html).toContain("Encrypted Multi-Device Sync");
+      expect(html).toContain("Zero-Knowledge Security Contract");
+      expect(html).toContain("Local Only");
+      expect(html).toContain("Enable Encrypted Sync");
+      expect(html).toContain("Master Passphrase (min 8 chars)");
+      expect(html).toContain("Confirm Passphrase");
+      expect(html).toContain("Important Recovery Notice");
+    });
+  });
+
+  describe("DearDumbassFeed Sync Integration", () => {
+    it("renders sync status button in header with Local Only by default", () => {
+      const html = renderToStaticMarkup(<DearDumbassFeed repository={repo} />);
+      expect(html).toContain("Local Only");
+      expect(html).toContain("data-testid=\"dear-dumbass-sync-status\"");
     });
   });
 });

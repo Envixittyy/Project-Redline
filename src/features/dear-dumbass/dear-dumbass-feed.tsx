@@ -1,6 +1,6 @@
 "use client";
 
-import { Radio, Send, ShieldCheck } from "lucide-react";
+import { Radio, Search, Send, ShieldCheck, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -15,6 +15,7 @@ import {
   getDearDumbassRepository,
   type DearDumbassPost,
   type DearDumbassRepository,
+  type DearDumbassSearchResult,
 } from "@/services/dear-dumbass";
 import { DearDumbassCard } from "./dear-dumbass-card";
 import styles from "./dear-dumbass.module.css";
@@ -76,6 +77,39 @@ export function DearDumbassFeed({
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const feedLoadVersionRef = useRef(0);
 
+  // Search state (strictly local in-memory, never in URL query string)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<DearDumbassSearchResult[] | null>(null);
+  const searchVersionRef = useRef(0);
+
+  const performSearch = useCallback(
+    async (query: string) => {
+      if (!repository) return;
+      const trimmed = query.trim();
+      if (!trimmed) {
+        setSearchResults(null);
+        return;
+      }
+
+      const version = ++searchVersionRef.current;
+      try {
+        const results = await repository.searchPosts(trimmed);
+        if (version === searchVersionRef.current) {
+          setSearchResults(results);
+        }
+      } catch {
+        if (version === searchVersionRef.current) {
+          setSearchResults([]);
+        }
+      }
+    },
+    [repository],
+  );
+
+  useEffect(() => {
+    void performSearch(searchQuery);
+  }, [performSearch, searchQuery]);
+
   const loadFeed = useCallback(async () => {
     if (!repository) return;
     const loadVersion = ++feedLoadVersionRef.current;
@@ -108,6 +142,9 @@ export function DearDumbassFeed({
 
     const unsubscribe = repository.subscribe(() => {
       void loadFeed();
+      if (searchQuery.trim()) {
+        void performSearch(searchQuery);
+      }
     });
 
     return () => {
@@ -115,7 +152,7 @@ export function DearDumbassFeed({
       feedLoadVersionRef.current += 1;
       unsubscribe();
     };
-  }, [loadFeed, repository]);
+  }, [loadFeed, performSearch, repository, searchQuery]);
 
   const handlePostSubmit = async () => {
     const trimmed = composerInput.trim();
@@ -219,6 +256,50 @@ export function DearDumbassFeed({
         </div>
       </section>
 
+      {/* Local Search Control */}
+      <section className={styles.searchSection} aria-label="Search thoughts locally">
+        <div className={styles.searchBar}>
+          <Search size={15} className={styles.searchIcon} aria-hidden="true" />
+          <input
+            type="search"
+            className={styles.searchInput}
+            placeholder="Search thoughts & replies locally…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            disabled={!repository}
+            aria-label="Search thoughts locally"
+          />
+          {searchQuery.trim() ? (
+            <button
+              type="button"
+              className={styles.searchClearBtn}
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+        {searchResults !== null ? (
+          <div className={styles.searchStatusRow} role="status">
+            <span className={styles.searchCount}>
+              {searchResults.length === 0
+                ? `No thoughts found matching "${searchQuery.trim()}"`
+                : `Found ${searchResults.length} ${
+                    searchResults.length === 1 ? "thread" : "threads"
+                  } matching "${searchQuery.trim()}"`}
+            </span>
+            <button
+              type="button"
+              className={styles.actionButton}
+              onClick={() => setSearchQuery("")}
+            >
+              Clear
+            </button>
+          </div>
+        ) : null}
+      </section>
+
       {/* Main Feed Content */}
       <main className={styles.feedList} aria-label="Dear Dumbass feed">
         {feedError ? (
@@ -232,7 +313,40 @@ export function DearDumbassFeed({
               Retry
             </button>
           </div>
-        ) : isLoading || !repository ? null : posts.length === 0 ? (
+        ) : isLoading || !repository ? null : searchResults !== null ? (
+          searchResults.length === 0 ? (
+            <div className={styles.emptyState} data-testid="dear-dumbass-search-empty">
+              <Search size={36} className={styles.emptyIcon} aria-hidden="true" />
+              <h2 className={styles.emptyTitle}>Nothing found in the void.</h2>
+              <p className={styles.emptyDescription}>
+                No thoughts or replies matched &quot;{searchQuery.trim()}&quot;.
+              </p>
+            </div>
+          ) : (
+            searchResults.map((result) => {
+              const matchingIds = new Set(result.matchingReplies.map((r) => r.id));
+              const hasMatchingReplies = result.matchingReplies.length > 0;
+              return (
+                <DearDumbassCard
+                  key={`search-${result.root.id}`}
+                  post={result.root}
+                  replyCount={replyCounts[result.root.id] ?? 0}
+                  repository={repository}
+                  initialOpenThread={hasMatchingReplies}
+                  matchingReplyIds={matchingIds}
+                  isSearchMatch={result.rootMatches}
+                  contextNote={
+                    !result.rootMatches && hasMatchingReplies
+                      ? `${result.matchingReplies.length} matching ${
+                          result.matchingReplies.length === 1 ? "reply" : "replies"
+                        } in thread`
+                      : undefined
+                  }
+                />
+              );
+            })
+          )
+        ) : posts.length === 0 ? (
           <div className={styles.emptyState} data-testid="dear-dumbass-empty-state">
             <Radio size={36} className={styles.emptyIcon} aria-hidden="true" />
             <h2 className={styles.emptyTitle}>The void is listening.</h2>

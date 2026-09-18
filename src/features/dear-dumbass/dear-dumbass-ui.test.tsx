@@ -94,15 +94,29 @@ describe("Dear Dumbass UI Components", () => {
       // Does not contain root reply toggle button
       expect(html).not.toContain("Reply to post");
     });
+    it("renders search match badge and context note when provided", () => {
+      const html = renderToStaticMarkup(
+        <DearDumbassCard
+          post={samplePost}
+          repository={repo}
+          isSearchMatch={true}
+          contextNote="1 matching reply in thread"
+        />,
+      );
+
+      expect(html).toContain("Match");
+      expect(html).toContain("1 matching reply in thread");
+    });
   });
 
   describe("DearDumbassFeed Static Rendering", () => {
-    it("renders header, personality subtitle, privacy badge, and composer", () => {
+    it("renders header, personality subtitle, privacy badge, search bar, and composer", () => {
       const html = renderToStaticMarkup(<DearDumbassFeed repository={repo} />);
 
       expect(html).toContain("Dear Dumbass");
       expect(html).toContain("Population: 1");
       expect(html).toContain("Local Only");
+      expect(html).toContain("Search thoughts &amp; replies locally…");
       expect(html).toContain("Scream into the void…");
       expect(html).toContain("Ctrl+Enter to post");
       expect(html).toContain("Post");

@@ -1,5 +1,5 @@
 import { getPrivateStore, type PrivateStore } from "@/services/private-store";
-import type { DearDumbassPost } from "./types";
+import type { DearDumbassPost, DearDumbassSearchResult } from "./types";
 
 export const DEAR_DUMBASS_STORE_NAME = "dear_dumbass_posts";
 export const DEAR_DUMBASS_CHANGE_EVENT = "redline:dear-dumbass-change";
@@ -238,6 +238,64 @@ export class DearDumbassRepository {
         (a, b) =>
           a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
       );
+  }
+
+  /**
+   * Search active posts and replies locally by body text (case-insensitive).
+   * Returns thread results preserving root context for matching replies.
+   */
+  async searchPosts(query: string): Promise<DearDumbassSearchResult[]> {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) {
+      return [];
+    }
+
+    const all = await this.store.getAll<DearDumbassPost>(
+      DEAR_DUMBASS_STORE_NAME,
+    );
+
+    // Exclude deleted posts (deleted posts excluded from normal search)
+    const active = all.filter((post) => !post.deletedAt);
+
+    const roots = new Map<string, DearDumbassPost>();
+    const repliesByRootId = new Map<string, DearDumbassPost[]>();
+
+    for (const post of active) {
+      if (!post.replyToId) {
+        roots.set(post.id, post);
+      } else {
+        const list = repliesByRootId.get(post.replyToId) ?? [];
+        list.push(post);
+        repliesByRootId.set(post.replyToId, list);
+      }
+    }
+
+    const results: DearDumbassSearchResult[] = [];
+
+    for (const [rootId, rootPost] of roots.entries()) {
+      const rootMatches = rootPost.body.toLowerCase().includes(trimmed);
+      const replies = repliesByRootId.get(rootId) ?? [];
+      const matchingReplies = replies
+        .filter((reply) => reply.body.toLowerCase().includes(trimmed))
+        .sort(
+          (a, b) =>
+            a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+        );
+
+      if (rootMatches || matchingReplies.length > 0) {
+        results.push({
+          root: rootPost,
+          matchingReplies,
+          rootMatches,
+        });
+      }
+    }
+
+    return results.sort(
+      (a, b) =>
+        b.root.createdAt.localeCompare(a.root.createdAt) ||
+        b.root.id.localeCompare(a.root.id),
+    );
   }
 
   /**

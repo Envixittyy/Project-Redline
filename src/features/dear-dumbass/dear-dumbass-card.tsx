@@ -52,6 +52,10 @@ export type DearDumbassCardProps = {
   isReply?: boolean;
   onPostUpdated?: (updated: DearDumbassPost) => void;
   onPostDeleted?: (id: string) => void;
+  initialOpenThread?: boolean;
+  matchingReplyIds?: Set<string>;
+  contextNote?: string;
+  isSearchMatch?: boolean;
 };
 
 export function DearDumbassCard({
@@ -61,6 +65,10 @@ export function DearDumbassCard({
   isReply = false,
   onPostUpdated,
   onPostDeleted,
+  initialOpenThread,
+  matchingReplyIds,
+  contextNote,
+  isSearchMatch = false,
 }: DearDumbassCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editBody, setEditBody] = useState(post.body);
@@ -73,11 +81,17 @@ export function DearDumbassCard({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Thread replies state
-  const [isThreadOpen, setIsThreadOpen] = useState(false);
+  const [isThreadOpen, setIsThreadOpen] = useState(initialOpenThread ?? false);
   const [replies, setReplies] = useState<DearDumbassPost[]>([]);
   const [replyInput, setReplyInput] = useState("");
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialOpenThread !== undefined) {
+      setIsThreadOpen(initialOpenThread);
+    }
+  }, [initialOpenThread]);
 
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -221,7 +235,9 @@ export function DearDumbassCard({
 
   return (
     <article
-      className={isReply ? styles.replyCard : styles.card}
+      className={`${isReply ? styles.replyCard : styles.card} ${
+        isSearchMatch ? styles.searchMatchCard : ""
+      }`}
       data-testid={isReply ? `reply-card-${post.id}` : `post-card-${post.id}`}
     >
       <header className={styles.cardHeader}>
@@ -239,6 +255,12 @@ export function DearDumbassCard({
             >
               (edited)
             </span>
+          ) : null}
+          {contextNote ? (
+            <span className={styles.contextBadge}>{contextNote}</span>
+          ) : null}
+          {isSearchMatch ? (
+            <span className={styles.matchBadge}>Match</span>
           ) : null}
         </div>
       </header>
@@ -391,6 +413,7 @@ export function DearDumbassCard({
                   post={reply}
                   isReply={true}
                   repository={repository}
+                  isSearchMatch={matchingReplyIds?.has(reply.id)}
                 />
               ))}
             </div>

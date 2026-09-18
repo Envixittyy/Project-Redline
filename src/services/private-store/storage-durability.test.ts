@@ -15,6 +15,7 @@ describe("Storage Durability Helper", () => {
 
     const status = await checkStorageDurability();
     expect(status).toEqual({
+      status: "unsupported",
       isSupported: false,
       isPersisted: false,
       canRequest: false,
@@ -22,6 +23,7 @@ describe("Storage Durability Helper", () => {
 
     const result = await requestStoragePersistence();
     expect(result).toEqual({
+      status: "unsupported",
       supported: false,
       granted: false,
     });
@@ -37,6 +39,7 @@ describe("Storage Durability Helper", () => {
 
     const status = await checkStorageDurability();
     expect(status).toEqual({
+      status: "persisted",
       isSupported: true,
       isPersisted: true,
       canRequest: false,
@@ -53,6 +56,7 @@ describe("Storage Durability Helper", () => {
 
     const status = await checkStorageDurability();
     expect(status).toEqual({
+      status: "standard",
       isSupported: true,
       isPersisted: false,
       canRequest: true,
@@ -69,6 +73,7 @@ describe("Storage Durability Helper", () => {
 
     const result = await requestStoragePersistence();
     expect(result).toEqual({
+      status: "granted",
       supported: true,
       granted: true,
     });
@@ -84,6 +89,7 @@ describe("Storage Durability Helper", () => {
 
     const result = await requestStoragePersistence();
     expect(result).toEqual({
+      status: "denied",
       supported: true,
       granted: false,
     });
@@ -99,13 +105,15 @@ describe("Storage Durability Helper", () => {
 
     const status = await checkStorageDurability();
     expect(status).toEqual({
-      isSupported: false,
+      status: "error",
+      isSupported: true,
       isPersisted: false,
       canRequest: false,
     });
 
     const result = await requestStoragePersistence();
     expect(result).toEqual({
+      status: "error",
       supported: true,
       granted: false,
     });

@@ -58,19 +58,20 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-secondary);
-  background: var(--surface-glass, rgba(255, 255, 255, 0.05));
+  background: var(--surface-glass);
   border: 1px solid var(--border-subtle);
   border-radius: 9999px;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   cursor: pointer;
   transition: all var(--motion-fast, 140ms) ease;
+  min-height: 2.75rem;
 }
 
 .durabilityButton:hover {
-  background: var(--surface-hover, rgba(255, 255, 255, 0.1));
+  background: var(--surface-hover);
   color: var(--text-primary);
-  border-color: var(--accent, #38bdf8);
+  border-color: var(--accent);
 }
 
 .privacyBadge {
@@ -113,7 +114,7 @@
 }
 
 .composerSurface:focus-within {
-  border-color: var(--accent, #38bdf8);
+  border-color: var(--accent);
 }
 
 .errorBanner {
@@ -528,7 +529,7 @@
 }
 
 .searchBar:focus-within {
-  border-color: var(--accent, #38bdf8);
+  border-color: var(--accent);
 }
 
 .searchIcon {
@@ -555,7 +556,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -590,9 +595,9 @@
   font-weight: 600;
   padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
-  background: rgba(56, 189, 248, 0.12);
-  color: var(--accent, #38bdf8);
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  color: var(--accent-text);
+  border: 1px solid color-mix(in oklch, var(--accent) 25%, transparent);
 }
 
 .matchBadge {
@@ -602,12 +607,11 @@
   font-weight: 600;
   padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
-  background: rgba(16, 185, 129, 0.12);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  background: var(--success-muted);
+  color: var(--success-text);
+  border: 1px solid color-mix(in oklch, var(--success) 25%, transparent);
 }
 
 .searchMatchCard {
-  border-color: rgba(56, 189, 248, 0.4);
+  border-color: color-mix(in oklch, var(--accent) 40%, transparent);
 }
-

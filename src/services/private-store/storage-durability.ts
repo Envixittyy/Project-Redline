@@ -11,12 +11,14 @@
  */
 
 export interface StorageDurabilityState {
+  status: "unsupported" | "standard" | "persisted" | "error";
   isSupported: boolean;
   isPersisted: boolean;
   canRequest: boolean;
 }
 
 export interface RequestPersistenceResult {
+  status: "unsupported" | "granted" | "denied" | "error";
   supported: boolean;
   granted: boolean;
 }
@@ -28,6 +30,7 @@ export async function checkStorageDurability(): Promise<StorageDurabilityState> 
     typeof navigator.storage.persisted !== "function"
   ) {
     return {
+      status: "unsupported",
       isSupported: false,
       isPersisted: false,
       canRequest: false,
@@ -40,13 +43,15 @@ export async function checkStorageDurability(): Promise<StorageDurabilityState> 
       !isPersisted && typeof navigator.storage.persist === "function";
 
     return {
+      status: isPersisted ? "persisted" : "standard",
       isSupported: true,
       isPersisted,
       canRequest,
     };
   } catch {
     return {
-      isSupported: false,
+      status: "error",
+      isSupported: true,
       isPersisted: false,
       canRequest: false,
     };
@@ -60,6 +65,7 @@ export async function requestStoragePersistence(): Promise<RequestPersistenceRes
     typeof navigator.storage.persist !== "function"
   ) {
     return {
+      status: "unsupported",
       supported: false,
       granted: false,
     };
@@ -68,11 +74,13 @@ export async function requestStoragePersistence(): Promise<RequestPersistenceRes
   try {
     const granted = await navigator.storage.persist();
     return {
+      status: granted ? "granted" : "denied",
       supported: true,
       granted: Boolean(granted),
     };
   } catch {
     return {
+      status: "error",
       supported: true,
       granted: false,
     };

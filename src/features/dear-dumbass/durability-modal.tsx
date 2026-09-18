@@ -8,6 +8,7 @@ import {
 } from "@/services/private-store";
 import {
   decryptBackupArchive,
+  MAX_BACKUP_FILE_BYTES,
   type DearDumbassRepository,
   type RestoreMode,
 } from "@/services/dear-dumbass";
@@ -32,10 +33,12 @@ export type DurabilityModalProps = {
 export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
   // Durability state
   const [durability, setDurability] = useState<StorageDurabilityState>({
+    status: "unsupported",
     isSupported: false,
     isPersisted: false,
     canRequest: false,
   });
+  const [isCheckingDurability, setIsCheckingDurability] = useState(true);
   const [isRequestingPersist, setIsRequestingPersist] = useState(false);
   const [persistFeedback, setPersistFeedback] = useState<string | null>(null);
 
@@ -55,42 +58,69 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mountedRef = useRef(true);
+  const persistenceInFlightRef = useRef(false);
+  const backupOperationInFlightRef = useRef(false);
+  const operationEpochRef = useRef(0);
 
   useEffect(() => {
-    let active = true;
+    mountedRef.current = true;
     void checkStorageDurability().then((status) => {
-      if (active) {
+      if (mountedRef.current) {
         setDurability(status);
+        setIsCheckingDurability(false);
       }
     });
     return () => {
-      active = false;
+      mountedRef.current = false;
+      operationEpochRef.current += 1;
     };
   }, []);
 
+  const handleClose = () => {
+    operationEpochRef.current += 1;
+    setExportPassphrase("");
+    setConfirmExportPassphrase("");
+    setRestorePassphrase("");
+    setRestoreFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    onClose();
+  };
+
   const handleRequestPersistence = async () => {
+    if (persistenceInFlightRef.current) return;
+    persistenceInFlightRef.current = true;
     setIsRequestingPersist(true);
     setPersistFeedback(null);
     try {
       const res = await requestStoragePersistence();
+      if (!mountedRef.current) return;
       if (res.granted) {
         setDurability({
+          status: "persisted",
           isSupported: true,
           isPersisted: true,
           canRequest: false,
         });
         setPersistFeedback("Persistent storage granted by browser.");
-      } else {
+      } else if (res.status === "denied") {
         setPersistFeedback(
           "Persistent storage request was not granted by your browser. Data remains saved locally under standard storage quotas.",
         );
+      } else if (res.status === "unsupported") {
+        setPersistFeedback("This browser does not support storage persistence requests.");
+      } else {
+        setPersistFeedback("The browser could not complete the persistence request.");
       }
     } catch {
-      setPersistFeedback(
-        "Could not request persistent storage in this environment.",
-      );
+      if (mountedRef.current) {
+        setPersistFeedback(
+          "Could not request persistent storage in this environment.",
+        );
+      }
     } finally {
-      setIsRequestingPersist(false);
+      persistenceInFlightRef.current = false;
+      if (mountedRef.current) setIsRequestingPersist(false);
     }
   };
 
@@ -99,19 +129,28 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
     setExportError(null);
     setExportSuccess(null);
 
-    const pass = exportPassphrase.trim();
+    const pass = exportPassphrase;
     if (!pass) {
       setExportError("A passphrase is required to encrypt your backup.");
       return;
     }
-    if (pass !== confirmExportPassphrase.trim()) {
+    if (pass !== confirmExportPassphrase) {
       setExportError("Passphrases do not match. Please re-enter.");
       return;
     }
 
+    if (backupOperationInFlightRef.current) return;
+    backupOperationInFlightRef.current = true;
+    const operationEpoch = operationEpochRef.current;
     setIsExporting(true);
     try {
       const envelope = await repository.exportArchive(pass);
+      if (
+        !mountedRef.current ||
+        operationEpoch !== operationEpochRef.current
+      ) {
+        return;
+      }
       const jsonString = JSON.stringify(envelope, null, 2);
       const blob = new Blob([jsonString], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -128,17 +167,22 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
 
-      setExportPassphrase("");
-      setConfirmExportPassphrase("");
       setExportSuccess(
         `Encrypted backup "${filename}" downloaded successfully.`,
       );
     } catch {
-      setExportError(
-        "Failed to generate encrypted backup. Your data remains safe locally.",
-      );
+      if (mountedRef.current && operationEpoch === operationEpochRef.current) {
+        setExportError(
+          "Failed to generate encrypted backup. Your data remains safe locally.",
+        );
+      }
     } finally {
-      setIsExporting(false);
+      backupOperationInFlightRef.current = false;
+      if (mountedRef.current) {
+        setExportPassphrase("");
+        setConfirmExportPassphrase("");
+        setIsExporting(false);
+      }
     }
   };
 
@@ -152,7 +196,7 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
       return;
     }
 
-    const pass = restorePassphrase.trim();
+    const pass = restorePassphrase;
     if (!pass) {
       setRestoreError("Enter the passphrase used when creating this backup.");
       return;
@@ -165,9 +209,19 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
       return;
     }
 
+    if (restoreFile.size > MAX_BACKUP_FILE_BYTES) {
+      setRestoreError("The selected backup file is too large.");
+      return;
+    }
+
+    if (backupOperationInFlightRef.current) return;
+    backupOperationInFlightRef.current = true;
+    const operationEpoch = operationEpochRef.current;
+    const selectedFile = restoreFile;
+    const selectedMode = restoreMode;
     setIsRestoring(true);
     try {
-      const text = await restoreFile.text();
+      const text = await selectedFile.text();
       let parsedEnvelope: unknown;
       try {
         parsedEnvelope = JSON.parse(text);
@@ -178,13 +232,20 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
       // Decrypt and validate in memory before any DB writes
       const archive = await decryptBackupArchive(parsedEnvelope, pass);
 
-      // Perform atomic database transaction
-      const result = await repository.restoreArchive(archive, restoreMode);
+      if (
+        !mountedRef.current ||
+        operationEpoch !== operationEpochRef.current
+      ) {
+        return;
+      }
 
-      setRestorePassphrase("");
-      setRestoreFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+      // Perform atomic database transaction
+      const result = await repository.restoreArchive(archive, selectedMode);
+      if (
+        !mountedRef.current ||
+        operationEpoch !== operationEpochRef.current
+      ) {
+        return;
       }
 
       if (result.mode === "replace") {
@@ -197,13 +258,21 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
         );
       }
     } catch (err) {
-      setRestoreError(
-        err instanceof Error
-          ? err.message
-          : "Failed to restore backup. Zero database changes were made.",
-      );
+      if (mountedRef.current && operationEpoch === operationEpochRef.current) {
+        setRestoreError(
+          err instanceof Error
+            ? err.message
+            : "Failed to restore backup. Zero database changes were made.",
+        );
+      }
     } finally {
-      setIsRestoring(false);
+      backupOperationInFlightRef.current = false;
+      if (mountedRef.current) {
+        setRestorePassphrase("");
+        setRestoreFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        setIsRestoring(false);
+      }
     }
   };
 
@@ -211,7 +280,7 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
     <ModalFrame
       label="Storage & Encrypted Backup"
       className={`${styles.panel} motion-enter`}
-      onClose={onClose}
+      onClose={handleClose}
     >
       <header className={styles.header}>
         <div className={styles.titleGroup}>
@@ -223,7 +292,7 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
         <button
           type="button"
           className={styles.closeButton}
-          onClick={onClose}
+          onClick={handleClose}
           aria-label="Close dialog"
         >
           <X size={16} />
@@ -241,32 +310,36 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
             className={`${styles.statusBadge} ${
               durability.isPersisted
                 ? styles.badgeSuccess
-                : durability.canRequest
+                : durability.status === "standard"
                   ? styles.badgeWarning
                   : styles.badgeMuted
             }`}
           >
-            {durability.isPersisted
+            {isCheckingDurability
+              ? "Checking"
+              : durability.isPersisted
               ? "Persistent"
-              : durability.canRequest
+              : durability.status === "standard"
                 ? "Best-Effort"
-                : "Standard"}
+                : durability.status === "error"
+                  ? "Check failed"
+                  : "Unsupported"}
           </span>
         </div>
 
         <p className={styles.description}>
           Dear Dumbass stores your journal strictly inside your browser&apos;s
-          IndexedDB. Requesting persistent storage prevents the browser from
-          automatically evicting local data when disk space is low.
+          IndexedDB. Requesting persistent storage helps protect it from
+          automatic browser eviction when disk space is low.
         </p>
 
         {persistFeedback ? (
-          <p className={styles.description} style={{ color: "var(--accent)" }}>
+          <p className={styles.feedback} role="status">
             {persistFeedback}
           </p>
         ) : null}
 
-        {durability.canRequest ? (
+        {!isCheckingDurability && durability.canRequest ? (
           <button
             type="button"
             className={styles.secondaryButton}
@@ -282,13 +355,7 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
           </button>
         ) : durability.isPersisted ? (
           <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.375rem",
-              fontSize: "0.75rem",
-              color: "#10b981",
-            }}
+            className={styles.persistedMessage}
           >
             <CheckCircle2 size={14} />
             <span>Protected against automatic browser eviction</span>
@@ -366,7 +433,7 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
             placeholder="Choose a strong passphrase…"
             value={exportPassphrase}
             onChange={(e) => setExportPassphrase(e.target.value)}
-            disabled={isExporting}
+            disabled={isExporting || isRestoring}
           />
 
           <label className={styles.label} htmlFor="export-confirm-passphrase">
@@ -380,7 +447,7 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
             placeholder="Re-enter passphrase…"
             value={confirmExportPassphrase}
             onChange={(e) => setConfirmExportPassphrase(e.target.value)}
-            disabled={isExporting}
+            disabled={isExporting || isRestoring}
           />
 
           <button
@@ -388,7 +455,8 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
             className={styles.primaryButton}
             disabled={
               isExporting ||
-              !exportPassphrase.trim() ||
+              isRestoring ||
+              !exportPassphrase ||
               exportPassphrase !== confirmExportPassphrase
             }
           >
@@ -437,7 +505,7 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
             accept=".json,application/json"
             className={styles.input}
             onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
-            disabled={isRestoring}
+            disabled={isRestoring || isExporting}
           />
 
           <label className={styles.label} htmlFor="restore-passphrase">
@@ -446,12 +514,12 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
           <input
             id="restore-passphrase"
             type="password"
-            autoComplete="current-password"
+            autoComplete="off"
             className={styles.input}
             placeholder="Enter the backup passphrase…"
             value={restorePassphrase}
             onChange={(e) => setRestorePassphrase(e.target.value)}
-            disabled={isRestoring}
+            disabled={isRestoring || isExporting}
           />
 
           <div className={styles.radioGroup}>
@@ -462,7 +530,7 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
                 value="merge"
                 checked={restoreMode === "merge"}
                 onChange={() => setRestoreMode("merge")}
-                disabled={isRestoring}
+                disabled={isRestoring || isExporting}
               />
               <span>
                 <strong>Merge (Safe - Default):</strong> Adds new thoughts and
@@ -478,7 +546,7 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
                 value="replace"
                 checked={restoreMode === "replace"}
                 onChange={() => setRestoreMode("replace")}
-                disabled={isRestoring}
+                disabled={isRestoring || isExporting}
               />
               <span>
                 <strong>Replace Local Archive (Destructive):</strong> Replaces
@@ -493,7 +561,7 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
                 type="checkbox"
                 checked={confirmReplace}
                 onChange={(e) => setConfirmReplace(e.target.checked)}
-                disabled={isRestoring}
+                disabled={isRestoring || isExporting}
               />
               <span>I confirm I want to overwrite all local posts.</span>
             </label>
@@ -504,8 +572,9 @@ export function DurabilityModal({ repository, onClose }: DurabilityModalProps) {
             className={styles.secondaryButton}
             disabled={
               isRestoring ||
+              isExporting ||
               !restoreFile ||
-              !restorePassphrase.trim() ||
+              !restorePassphrase ||
               (restoreMode === "replace" && !confirmReplace)
             }
           >

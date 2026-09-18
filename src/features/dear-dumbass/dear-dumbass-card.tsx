@@ -91,6 +91,20 @@ export function DearDumbassCard({
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const replyLoadVersionRef = useRef(0);
+  const saveInFlightRef = useRef(false);
+  const deleteInFlightRef = useRef(false);
+  const replyInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      saveInFlightRef.current = false;
+      deleteInFlightRef.current = false;
+      replyInFlightRef.current = false;
+    };
+  }, []);
 
   const loadReplies = useCallback(async () => {
     if (isReply) return;
@@ -139,8 +153,9 @@ export function DearDumbassCard({
 
   const handleSaveEdit = async () => {
     const trimmed = editBody.trim();
-    if (!trimmed || isSaving) return;
+    if (!trimmed || saveInFlightRef.current) return;
 
+    saveInFlightRef.current = true;
     setEditError(null);
     setIsSaving(true);
     try {
@@ -149,16 +164,20 @@ export function DearDumbassCard({
         trimmed,
         editBaseRevision,
       );
+      if (!mountedRef.current) return;
       onPostUpdated?.(updated);
       setIsEditing(false);
     } catch (error) {
-      setEditError(
-        error instanceof Error && error.message === "Post changed after editing began."
-          ? "This post changed in another view. Your draft has been preserved; reopen the editor to review the latest version."
-          : "Failed to save edit locally. Your text has been preserved.",
-      );
+      if (mountedRef.current) {
+        setEditError(
+          error instanceof Error && error.message === "Post changed after editing began."
+            ? "This post changed in another view. Your draft has been preserved; cancel and reopen the editor to review the latest version."
+            : "Failed to save edit locally. Your text has been preserved.",
+        );
+      }
     } finally {
-      setIsSaving(false);
+      saveInFlightRef.current = false;
+      if (mountedRef.current) setIsSaving(false);
     }
   };
 
@@ -176,36 +195,46 @@ export function DearDumbassCard({
   };
 
   const handleDelete = async () => {
-    if (isDeleting) return;
+    if (deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
     setDeleteError(null);
     setIsDeleting(true);
     try {
       await repository.deletePost(post.id);
+      if (!mountedRef.current) return;
       setIsConfirmingDelete(false);
       onPostDeleted?.(post.id);
     } catch {
-      setDeleteError("Failed to delete from local browser storage.");
+      if (mountedRef.current) {
+        setDeleteError("Failed to delete from local browser storage.");
+      }
     } finally {
-      setIsDeleting(false);
+      deleteInFlightRef.current = false;
+      if (mountedRef.current) setIsDeleting(false);
     }
   };
 
   const handleCreateReply = async () => {
     const trimmed = replyInput.trim();
-    if (!trimmed || isSubmittingReply) return;
+    if (!trimmed || replyInFlightRef.current) return;
 
+    replyInFlightRef.current = true;
     setReplyError(null);
     setIsSubmittingReply(true);
     try {
       await repository.createPost(trimmed, post.id);
+      if (!mountedRef.current) return;
       setReplyInput("");
       if (replyTextareaRef.current) {
         replyTextareaRef.current.style.height = "auto";
       }
     } catch {
-      setReplyError("Failed to save reply locally. Your text has been preserved.");
+      if (mountedRef.current) {
+        setReplyError("Failed to save reply locally. Your text has been preserved.");
+      }
     } finally {
-      setIsSubmittingReply(false);
+      replyInFlightRef.current = false;
+      if (mountedRef.current) setIsSubmittingReply(false);
     }
   };
 

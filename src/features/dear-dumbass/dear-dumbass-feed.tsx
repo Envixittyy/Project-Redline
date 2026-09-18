@@ -76,6 +76,8 @@ export function DearDumbassFeed({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const submitInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
   const feedLoadVersionRef = useRef(0);
 
   // Durability / Backup modal state
@@ -87,16 +89,24 @@ export function DearDumbassFeed({
   const searchVersionRef = useRef(0);
   const searchQueryRef = useRef("");
 
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      submitInFlightRef.current = false;
+    };
+  }, []);
+
   const performSearch = useCallback(
     async (query: string) => {
       if (!repository) return;
+      const version = ++searchVersionRef.current;
       const trimmed = query.trim();
       if (!trimmed) {
-        setSearchResults(null);
+        if (version === searchVersionRef.current) setSearchResults(null);
         return;
       }
 
-      const version = ++searchVersionRef.current;
       try {
         const results = await repository.searchPosts(trimmed);
         if (version === searchVersionRef.current) {
@@ -118,6 +128,7 @@ export function DearDumbassFeed({
   };
 
   const handleClearSearch = () => {
+    searchVersionRef.current += 1;
     setSearchQuery("");
     searchQueryRef.current = "";
     setSearchResults(null);
@@ -151,6 +162,9 @@ export function DearDumbassFeed({
 
     const initialLoad = window.setTimeout(() => {
       void loadFeed();
+      if (searchQueryRef.current.trim()) {
+        void performSearch(searchQueryRef.current);
+      }
     }, 0);
 
     const unsubscribe = repository.subscribe(() => {
@@ -163,26 +177,32 @@ export function DearDumbassFeed({
     return () => {
       window.clearTimeout(initialLoad);
       feedLoadVersionRef.current += 1;
+      searchVersionRef.current += 1;
       unsubscribe();
     };
   }, [loadFeed, performSearch, repository]);
 
   const handlePostSubmit = async () => {
     const trimmed = composerInput.trim();
-    if (!repository || !trimmed || isSubmitting) return;
+    if (!repository || !trimmed || submitInFlightRef.current) return;
 
+    submitInFlightRef.current = true;
     setPostError(null);
     setIsSubmitting(true);
     try {
       await repository.createPost(trimmed);
+      if (!mountedRef.current) return;
       setComposerInput("");
       if (composerTextareaRef.current) {
         composerTextareaRef.current.style.height = "auto";
       }
     } catch {
-      setPostError("Failed to save post locally. Your text has been preserved.");
+      if (mountedRef.current) {
+        setPostError("Failed to save post locally. Your text has been preserved.");
+      }
     } finally {
-      setIsSubmitting(false);
+      submitInFlightRef.current = false;
+      if (mountedRef.current) setIsSubmitting(false);
     }
   };
 

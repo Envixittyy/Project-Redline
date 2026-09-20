@@ -1,17 +1,32 @@
 import { convert } from "html-to-text";
 
+export type NormalizedEmailAttachment = {
+  id?: string;
+  filename?: string;
+  contentType?: string;
+  contentDisposition?: string;
+  size?: number;
+};
+
 export type NormalizedInboundEmail = {
   provider: string;
   sourceMessageId: string;
+  providerEmailId: string;
   originalMessageId: string | null;
+  messageId: string | null;
   sender: string;
+  from: string;
   recipient: string;
+  to: string[];
+  recipients: string[];
   subject: string;
   receivedAt: string;
   sentAt: string | null;
   text: string;
   html: string;
   normalizedText: string;
+  links: string[];
+  attachments: NormalizedEmailAttachment[];
   deliveryAuthenticated: boolean;
   forwarded: boolean;
 };

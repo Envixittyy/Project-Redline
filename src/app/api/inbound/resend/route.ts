@@ -74,7 +74,8 @@ export async function POST(request: Request) {
     }
 
     const email = normalizeResendEmail(emailPayload);
-    if (email.recipient !== recipient) {
+    const isRecipientMatch = email.recipients.includes(recipient!) || email.recipient === recipient;
+    if (!isRecipientMatch) {
       return Response.json({ ok: true, status: "ignored" });
     }
 

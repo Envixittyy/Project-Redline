@@ -6,10 +6,14 @@ import { parseBlackboardEmail } from "@/services/integrations/blackboard/email-p
 import { ingestSchoolEvent } from "@/services/school/school-ingestion";
 import { getSupabaseAdminClient } from "@/services/supabase/admin";
 
+/**
+ * @deprecated Postmark inbound webhook is deprecated. Use Resend inbound (/api/inbound/resend) as the authoritative production path.
+ */
 export const runtime = "nodejs";
 const list = (value: string | undefined) => value?.split(",").map(v => v.trim().toLowerCase()).filter(Boolean) ?? [];
 
 export async function POST(request: Request) {
+  console.warn("[school-email] Deprecated: received request on /api/inbound/postmark. Cutover to /api/inbound/resend.");
   const userId = process.env.SCHOOL_EMAIL_OWNER_ID;
   const recipient = process.env.SCHOOL_EMAIL_RECIPIENT?.trim().toLowerCase();
   const senders = list(process.env.SCHOOL_BLACKBOARD_SENDERS);

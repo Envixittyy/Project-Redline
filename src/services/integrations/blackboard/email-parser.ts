@@ -215,16 +215,16 @@ function classify(subject: string, text: string, structuralHeading?: string | nu
   }
 
   // Informational headings take precedence over assignment words in prose.
-  if (/\bannouncement\b/i.test(`${subject}\n${explicit ?? ""}`)) itemType = "announcement";
-  else if (/\b(material|reading|lecture slides|resource|content available|content added|new content)\b/i.test(heading)) itemType = "material";
+  if (/\bannouncement\b/i.test(`${subject}\n${explicit ?? ""}\n${structuralHeading ?? ""}`)) itemType = "announcement";
+  else if (/\b(material|reading|lecture slides|resource|content available|content added|new content|course document)\b/i.test(heading)) itemType = "material";
   else if (/\b(quiz)\b/i.test(heading)) itemType = "quiz";
   else if (/\b(exam|test)\b/i.test(heading)) itemType = "exam";
   else if (/\bassignment\b/i.test(heading)) itemType = "assignment";
-  else if (/\bcourse (?:is now |has been )?(?:opened|available)\b/i.test(heading)) itemType = "course_opened";
+  else if (/\b(?:course (?:is now |has been )?(?:opened|available)|new course (?:is )?available)\b/i.test(heading)) itemType = "course_opened";
 
   notificationType = itemType;
-  if (itemType !== "announcement" && /\b(?:deadline|due date) (?:has been |was )?(?:changed|updated|extended)\b/i.test(heading)) notificationType = "deadline_changed";
-  else if (itemType !== "announcement" && /\breminder\b/i.test(subject)) notificationType = "reminder";
+  if (itemType !== "announcement" && /\b(?:deadline|due date) (?:extension|(?:has been |was )?(?:changed|updated|extended))\b/i.test(heading)) notificationType = "deadline_changed";
+  else if (itemType !== "announcement" && /\b(?:reminder|due soon|upcoming (?:deadline|due date))\b/i.test(subject)) notificationType = "reminder";
   return { itemType, notificationType };
 }
 
@@ -272,11 +272,19 @@ export function parseBlackboardEmail(email: NormalizedInboundEmail, policy: Blac
     mapuaItemTitleLine = nonBlankLines[mapuaIdx + 3] ?? null;
   }
 
-  const courseHint = label(text, "Course|Course Name|Course Code") ?? mapuaCourseHeader;
+  // Fallback to bracketed or prefix course code from subject line e.g. "[CS101] New assignment" or "CS101: Assignment"
+  const subjectCourseMatch = effectiveSubject.match(/^\[([A-Za-z0-9_-]+)\]/)?.[1]
+    ?? effectiveSubject.match(/^([A-Za-z]{2,8}\d{1,5}[A-Za-z0-9_-]*)\s*[:\-–]\s*/)?.[1];
+
+  const courseHint = label(text, "Course|Course Name|Course Code") ?? mapuaCourseHeader ?? subjectCourseMatch ?? null;
   const baseCourseCode = extractBaseCourseCode(courseHint);
 
+  const subjectCleaned = effectiveSubject.replace(/^\[[A-Za-z0-9_-]+\]\s*/, "");
+  const subjectTitleMatch = subjectCleaned.match(/(?:(?:new\s+)?(?:assignment|quiz|exam|test|material|announcement)(?:\s+(?:posted|available|created))?|reminder|due date changed|deadline changed)\s*:\s*(.+)$/i)?.[1]?.trim();
+
   const rawTitle = label(text, "Title|Item|Assignment|Quiz|Exam|Test|Material|Announcement")
-    ?? effectiveSubject.match(/^(?:new\s+)?(?:assignment|quiz|exam|test|material|announcement)(?:\s+(?:posted|available|created))?\s*:\s*(.+)$/i)?.[1]?.trim()
+    ?? subjectTitleMatch
+    ?? subjectCleaned.match(/^(?:new\s+)?(?:assignment|quiz|exam|test|material|announcement)(?:\s+(?:posted|available|created))?\s*:\s*(.+)$/i)?.[1]?.trim()
     ?? mapuaItemTitleLine;
 
   let title = rawTitle;

@@ -16,6 +16,23 @@ import {
   reminderEmail,
   submissionReceivedEmail,
 } from "@/services/integrations/blackboard/fixtures/email-fixtures";
+import {
+  resendActionableAnnouncementEmail,
+  resendActionableMaterialEmail,
+  resendAnnouncementEmail,
+  resendAssignmentEmail,
+  resendCourseOpenedEmail,
+  resendDeadlineChangedEmail,
+  resendExamEmail,
+  resendForwardedEmail,
+  resendMalformedEmail,
+  resendMaterialEmail,
+  resendMultiHeaderDkimEmail,
+  resendQuizEmail,
+  resendReminderEmail,
+  resendUnknownNotificationEmail,
+  resendUnmatchedCourseEmail,
+} from "@/services/integrations/blackboard/fixtures/resend-fixtures";
 import type { SchoolIngestionResult } from "@/types/school-item";
 
 const owner = "11111111-1111-4111-8111-111111111111";
@@ -24,6 +41,10 @@ let db: PGlite;
 let course: string;
 async function ingest(payload = assignmentEmail(), policy = emailPolicy): Promise<SchoolIngestionResult> {
   const event = parseBlackboardEmail(normalizePostmarkEmail(payload, "2026-09-08T02:01:00Z"), policy);
+  return (await db.query<{ result: SchoolIngestionResult }>("select public.ingest_school_email($1,$2::jsonb) result", [owner, JSON.stringify(event)])).rows[0].result;
+}
+async function ingestResend(payload = resendAssignmentEmail(), policy = emailPolicy): Promise<SchoolIngestionResult> {
+  const event = parseBlackboardEmail(normalizeResendEmail(payload), policy);
   return (await db.query<{ result: SchoolIngestionResult }>("select public.ingest_school_email($1,$2::jsonb) result", [owner, JSON.stringify(event)])).rows[0].result;
 }
 async function rows() {
@@ -539,6 +560,233 @@ describe("School email through actual PostgreSQL migrations", () => {
       expect(result.itemId).toBeNull();
       expect(result.taskId).toBeNull();
       expect((await db.query("select id from tasks")).rows).toHaveLength(0);
+    });
+  });
+
+  describe("Resend inbound end-to-end integration", () => {
+    it("Resend assignment: creates item and linked Task with matching due date and source URL", async () => {
+      const result = await ingestResend(resendAssignmentEmail());
+      expect(result.status).toBe("processed");
+      expect(result.itemId).toBeTruthy();
+      expect(result.taskId).toBeTruthy();
+
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(1);
+      expect(currentRows[0]).toMatchObject({
+        course_id: course,
+        title: "Assignment 1",
+        item_type: "assignment",
+        due_date: "2026-09-15",
+        task_due: "2026-09-15",
+      });
+      expect(currentRows[0].source_url).toContain("content_id=_201_1");
+
+      const task = (await db.query<{ status: string; priority: string }>(
+        "select status, priority from tasks where id=$1",
+        [result.taskId],
+      )).rows[0];
+      expect(task.status).toBe("inbox");
+      expect(task.priority).toBe("none");
+
+      // Calendar events remain untouched (separation of concerns)
+      expect((await db.query("select id from calendar_events")).rows).toHaveLength(0);
+    });
+
+    it("Resend quiz and exam: each creates item and linked Task with accurate item_type", async () => {
+      const quizResult = await ingestResend(resendQuizEmail());
+      expect(quizResult.status).toBe("processed");
+      expect(quizResult.itemId).toBeTruthy();
+      expect(quizResult.taskId).toBeTruthy();
+
+      const examResult = await ingestResend(resendExamEmail());
+      expect(examResult.status).toBe("processed");
+      expect(examResult.itemId).toBeTruthy();
+      expect(examResult.taskId).toBeTruthy();
+
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(2);
+      expect(currentRows.map((r) => r.item_type)).toEqual(["quiz", "exam"]);
+      expect(currentRows.every((r) => r.task_id !== null)).toBe(true);
+    });
+
+    it("Resend material without deadline: creates item only, no Task created", async () => {
+      const result = await ingestResend(resendMaterialEmail());
+      expect(result.status).toBe("processed");
+      expect(result.itemId).toBeTruthy();
+      expect(result.taskId).toBeNull();
+
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(1);
+      expect(currentRows[0]).toMatchObject({
+        item_type: "material",
+        title: "Lecture Slides Week 2",
+        task_id: null,
+      });
+      expect((await db.query("select id from tasks")).rows).toHaveLength(0);
+    });
+
+    it("Resend actionable material with explicit deadline: creates item AND linked Task", async () => {
+      const result = await ingestResend(resendActionableMaterialEmail());
+      expect(result.status).toBe("processed");
+      expect(result.itemId).toBeTruthy();
+      expect(result.taskId).toBeTruthy();
+
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(1);
+      expect(currentRows[0]).toMatchObject({
+        item_type: "material",
+        title: "Chapter 3 Case Study",
+        due_date: "2026-09-24",
+        task_due: "2026-09-24",
+      });
+      expect(currentRows[0].task_id).toBe(result.taskId);
+    });
+
+    it("Resend informational announcement: creates item only, no Task created", async () => {
+      const result = await ingestResend(resendAnnouncementEmail());
+      expect(result.status).toBe("processed");
+      expect(result.itemId).toBeTruthy();
+      expect(result.taskId).toBeNull();
+
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(1);
+      expect(currentRows[0]).toMatchObject({
+        item_type: "announcement",
+        title: "Welcome to CS101",
+        task_id: null,
+      });
+      expect((await db.query("select id from tasks")).rows).toHaveLength(0);
+    });
+
+    it("Resend actionable announcement with explicit deadline: creates item AND linked Task", async () => {
+      const result = await ingestResend(resendActionableAnnouncementEmail());
+      expect(result.status).toBe("processed");
+      expect(result.itemId).toBeTruthy();
+      expect(result.taskId).toBeTruthy();
+
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(1);
+      expect(currentRows[0]).toMatchObject({
+        item_type: "announcement",
+        title: "Submit Team Formation Form",
+        due_date: "2026-09-26",
+        task_due: "2026-09-26",
+      });
+    });
+
+    it("Resend course opened: creates activity school item without creating task", async () => {
+      const result = await ingestResend(resendCourseOpenedEmail());
+      expect(result.status).toBe("processed");
+      expect(result.itemId).toBeTruthy();
+      expect(result.taskId).toBeNull();
+      expect((await rows())[0]).toMatchObject({
+        item_type: "course_opened",
+        task_id: null,
+      });
+    });
+
+    it("Resend duplicate suppression: replaying the same webhook returns duplicate without creating items or tasks", async () => {
+      const first = await ingestResend(resendAssignmentEmail());
+      expect(first.status).toBe("processed");
+
+      const duplicate = await ingestResend(resendAssignmentEmail());
+      expect(duplicate.status).toBe("duplicate");
+      expect(duplicate.itemId).toBe(first.itemId);
+      expect(duplicate.taskId).toBe(first.taskId);
+
+      expect(await rows()).toHaveLength(1);
+      expect((await db.query("select id from tasks")).rows).toHaveLength(1);
+    });
+
+    it("Resend deadline update: converges on existing item, handles reminders, and synchronizes task deadline", async () => {
+      const initial = await ingestResend(resendAssignmentEmail());
+      expect(initial.status).toBe("processed");
+
+      // Reminder on Sept 10 reinforces existing item
+      const reminder = await ingestResend(resendReminderEmail());
+      expect(reminder.status).toBe("processed");
+      expect(reminder.itemId).toBe(initial.itemId);
+
+      // Now date changes to Sept 20 on Sept 11
+      const changed = await ingestResend(resendDeadlineChangedEmail());
+      expect(changed.status).toBe("processed");
+      expect(changed.itemId).toBe(initial.itemId);
+      expect(changed.taskId).toBe(initial.taskId);
+
+      const currentRows = await rows();
+      expect(currentRows).toHaveLength(1);
+      expect(currentRows[0]).toMatchObject({
+        due_date: "2026-09-20",
+        task_due: "2026-09-20",
+      });
+
+      // Out-of-order older reminder (e.g. Sept 9 retry) is marked stale and does not roll back deadline
+      const staleReminder = await ingestResend(resendReminderEmail({
+        id: "resend-stale-rem-1",
+        message_id: "<msg-stale-rem@learn.example.edu>",
+        created_at: "2026-09-09T02:00:00.000Z",
+        headers: {
+          "message-id": "<msg-stale-rem@learn.example.edu>",
+          date: "Wed, 9 Sep 2026 10:00:00 +0800",
+          "authentication-results": "mx.resend.com; dkim=pass",
+        },
+      }));
+      expect(staleReminder.status).toBe("stale");
+
+      const afterStaleRows = await rows();
+      expect(afterStaleRows[0].due_date).toBe("2026-09-20");
+    });
+
+    it("Resend multi-header DKIM: parses Outlook + Resend hops cleanly and processes", async () => {
+      const result = await ingestResend(resendMultiHeaderDkimEmail());
+      expect(result.status).toBe("processed");
+      expect(result.itemId).toBeTruthy();
+      expect(result.taskId).toBeTruthy();
+    });
+
+    it("Resend forwarded email: extracts forwarded Blackboard notification and creates item + task", async () => {
+      const result = await ingestResend(resendForwardedEmail());
+      expect(result.status).toBe("processed");
+      expect(result.itemId).toBeTruthy();
+      expect(result.taskId).toBeTruthy();
+      expect((await rows())[0]).toMatchObject({
+        title: "Assignment 1",
+        item_type: "assignment",
+        due_date: "2026-09-15",
+      });
+    });
+
+    it("Resend malformed and unknown types: recorded safely without tasks", async () => {
+      const malformed = await ingestResend(resendMalformedEmail());
+      expect(malformed.status).toBe("malformed");
+      expect(malformed.itemId).toBeNull();
+
+      const unknown = await ingestResend(resendUnknownNotificationEmail());
+      expect(unknown.status).toBe("unknown_type");
+      expect(unknown.itemId).toBeNull();
+
+      expect(await rows()).toHaveLength(0);
+      expect((await db.query("select id from tasks")).rows).toHaveLength(0);
+    });
+
+    it("Resend course resolution and review recovery: reprocesses when course is mapped", async () => {
+      const initial = await ingestResend(resendUnmatchedCourseEmail());
+      expect(initial.status).toBe("unresolved_course");
+      expect(initial.itemId).toBeNull();
+      expect(initial.taskId).toBeNull();
+
+      // User creates the missing course
+      await db.query(
+        "insert into courses(user_id,code,name) values($1,'UNKNOWN999','Advanced Topics')",
+        [owner],
+      );
+
+      // Webhook replay or manual reprocessing re-evaluates the event
+      const reprocessed = await ingestResend(resendUnmatchedCourseEmail());
+      expect(reprocessed.status).toBe("processed");
+      expect(reprocessed.itemId).toBeTruthy();
+      expect(reprocessed.taskId).toBeTruthy();
+      expect((await rows())[0].title).toBe("Unmatched Course Task");
     });
   });
 });

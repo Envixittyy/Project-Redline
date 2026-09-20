@@ -204,6 +204,64 @@ describe("Resend email normalization", () => {
     expect(normalizeResendEmail(email).deliveryAuthenticated).toBe(true);
   });
 
+  it("authenticates when authentication-results is an array of strings (multi-hop)", () => {
+    const email = sampleResendEmail({
+      headers: {
+        "authentication-results": [
+          "outlook.com; spf=pass smtp.mailfrom=learn.example.edu",
+          "mx.resend.com; dkim=pass (good signature) header.d=learn.example.edu",
+        ],
+      },
+    });
+    const normalized = normalizeResendEmail(email);
+    expect(normalized.deliveryAuthenticated).toBe(true);
+  });
+
+  it("extracts all recipients from to, cc, and received_for", () => {
+    const email = sampleResendEmail({
+      to: ["Delivered <first@inbound.com>", "second@inbound.com"],
+      cc: ["cc@inbound.com"],
+      received_for: ["alias@resend.app"],
+    });
+    const normalized = normalizeResendEmail(email);
+    expect(normalized.recipients).toEqual([
+      "first@inbound.com",
+      "second@inbound.com",
+      "cc@inbound.com",
+      "alias@resend.app",
+    ]);
+    expect(normalized.recipient).toBe("first@inbound.com");
+  });
+
+  it("extracts links and attachment metadata", () => {
+    const email = sampleResendEmail({
+      text: "Link 1: https://learn.example.edu/one\nLink 2: https://learn.example.edu/two",
+      attachments: [
+        {
+          id: "att_1",
+          filename: "syllabus.pdf",
+          content_type: "application/pdf",
+          size: 1024,
+        },
+      ],
+    });
+    const normalized = normalizeResendEmail(email);
+    expect(normalized.links).toContain("https://learn.example.edu/one");
+    expect(normalized.links).toContain("https://learn.example.edu/two");
+    expect(normalized.attachments).toEqual([
+      {
+        id: "att_1",
+        filename: "syllabus.pdf",
+        contentType: "application/pdf",
+        contentDisposition: undefined,
+        size: 1024,
+      },
+    ]);
+    expect(normalized.providerEmailId).toBe(normalized.sourceMessageId);
+    expect(normalized.from).toBe(normalized.sender);
+    expect(normalized.messageId).toBe(normalized.originalMessageId);
+  });
+
   it("rejects unauthenticated deliveries (spam, failed DKIM, or missing headers)", () => {
     const noHeaders = sampleResendEmail({ headers: {} });
     expect(normalizeResendEmail(noHeaders).deliveryAuthenticated).toBe(false);

@@ -13,13 +13,19 @@ const payloadSchema = z.object({
   Headers: z.array(z.object({ Name: z.string().max(100), Value: z.string().max(4000) })).max(100).default([]),
 });
 
-/** Postmark's documented inbound verification mechanism is HTTP Basic over HTTPS. */
+/**
+ * @deprecated Postmark integration is deprecated. Resend Inbound is the production email provider.
+ * Documented inbound verification mechanism is HTTP Basic over HTTPS.
+ */
 export function verifyPostmarkAuthorization(header: string | null, username: string, password: string): boolean {
   if (!username || password.length < 32 || !header) return false;
   const expected = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
   return timingSafeEqual(createHash("sha256").update(header).digest(), createHash("sha256").update(expected).digest());
 }
 
+/**
+ * @deprecated Postmark integration is deprecated. Use normalizeResendEmail instead.
+ */
 export function normalizePostmarkEmail(payload: unknown, receivedAt = new Date().toISOString()): NormalizedInboundEmail {
   const value = payloadSchema.parse(payload);
   const header = (name: string) => {
@@ -31,13 +37,29 @@ export function normalizePostmarkEmail(payload: unknown, receivedAt = new Date()
   const spamTests = header("x-spam-tests")?.split(/[,\s]+/) ?? [];
   const normalizedText = normalizeEmailText(value.TextBody, value.HtmlBody);
   const date = /(?:[+-]\d{2}:?\d{2}|GMT|UTC|Z)\s*$/i.test(value.Date) ? Date.parse(value.Date) : NaN;
+  const originalMessageId = header("message-id");
+  const sender = value.FromFull.Email.toLowerCase();
+  const recipient = value.OriginalRecipient.toLowerCase();
+
   return {
-    provider: "postmark", sourceMessageId: value.MessageID,
-    originalMessageId: header("message-id"),
-    sender: value.FromFull.Email.toLowerCase(), recipient: value.OriginalRecipient.toLowerCase(),
-    subject: value.Subject, receivedAt,
+    provider: "postmark",
+    sourceMessageId: value.MessageID,
+    providerEmailId: value.MessageID,
+    originalMessageId,
+    messageId: originalMessageId,
+    sender,
+    from: sender,
+    recipient,
+    to: [recipient],
+    recipients: [recipient],
+    subject: value.Subject,
+    receivedAt,
     sentAt: Number.isFinite(date) ? new Date(date).toISOString() : null,
-    text: value.TextBody, html: value.HtmlBody, normalizedText,
+    text: value.TextBody,
+    html: value.HtmlBody,
+    normalizedText,
+    links: [],
+    attachments: [],
     deliveryAuthenticated: spamTests.includes("DKIM_VALID_AU") && header("x-spam-status")?.toLowerCase().startsWith("no") === true,
     forwarded: /^(?:(?:fw|fwd):\s*)+/i.test(value.Subject) || /(?:forwarded message|original message|^From:)/im.test(normalizedText),
   };

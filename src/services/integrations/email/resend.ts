@@ -16,6 +16,16 @@ const headerObjectSchema = z.object({
   Value: z.string().max(4000).optional(),
 });
 
+const attachmentSchema = z.object({
+  id: z.string().max(300).optional(),
+  filename: z.string().max(500).optional(),
+  content_type: z.string().max(200).optional(),
+  contentType: z.string().max(200).optional(),
+  content_disposition: z.string().max(100).optional(),
+  contentDisposition: z.string().max(100).optional(),
+  size: z.number().nonnegative().optional(),
+});
+
 const resendInboundPayloadSchema = z.object({
   id: z.string().min(1).max(300).optional(),
   email_id: z.string().min(1).max(300).optional(),
@@ -24,6 +34,18 @@ const resendInboundPayloadSchema = z.object({
     z.string().min(1).max(1000),
     z.array(z.string().min(1).max(1000)).min(1),
   ]),
+  cc: z.union([
+    z.string().max(1000),
+    z.array(z.string().max(1000)),
+  ]).optional(),
+  bcc: z.union([
+    z.string().max(1000),
+    z.array(z.string().max(1000)),
+  ]).optional(),
+  received_for: z.union([
+    z.string().max(1000),
+    z.array(z.string().max(1000)),
+  ]).optional(),
   subject: z.string().max(1000).default(""),
   created_at: z.string().max(100).optional(),
   text: z.string().max(128_000).nullable().optional(),
@@ -34,6 +56,7 @@ const resendInboundPayloadSchema = z.object({
   ]).optional(),
   message_id: z.string().max(500).nullable().optional(),
   messageId: z.string().max(500).nullable().optional(),
+  attachments: z.array(attachmentSchema).optional(),
 }).refine(data => Boolean(data.id || data.email_id), {
   message: "Missing Resend email identifier (id or email_id)",
 });
@@ -44,26 +67,36 @@ export const resendWebhookEventSchema = z.object({
   data: z.record(z.string(), z.unknown()),
 });
 
-function getHeaderValue(headers: unknown, name: string): string | null {
-  if (!headers) return null;
+export function getHeaderValues(headers: unknown, name: string): string[] {
+  if (!headers) return [];
   const target = name.toLowerCase();
+  const results: string[] = [];
   if (Array.isArray(headers)) {
-    const matched = headers.filter(h => ((h.Name ?? h.name)?.toLowerCase() === target));
-    return matched.length === 1 ? (matched[0].Value ?? matched[0].value ?? null) : null;
-  }
-  if (typeof headers === "object") {
+    for (const h of headers) {
+      if ((h.Name ?? h.name)?.toLowerCase() === target) {
+        const val = h.Value ?? h.value;
+        if (typeof val === "string") results.push(val);
+      }
+    }
+  } else if (typeof headers === "object") {
     const rec = headers as Record<string, unknown>;
     for (const [key, val] of Object.entries(rec)) {
       if (key.toLowerCase() === target) {
-        if (typeof val === "string") return val;
-        if (Array.isArray(val)) {
-          const strVals = val.filter((v): v is string => typeof v === "string");
-          return strVals.length === 1 ? strVals[0] : null;
+        if (typeof val === "string") results.push(val);
+        else if (Array.isArray(val)) {
+          for (const v of val) {
+            if (typeof v === "string") results.push(v);
+          }
         }
       }
     }
   }
-  return null;
+  return results;
+}
+
+export function getHeaderValue(headers: unknown, name: string): string | null {
+  const values = getHeaderValues(headers, name);
+  return values.length > 0 ? values[0] : null;
 }
 
 function extractEmailAddress(raw: string): string {
@@ -155,8 +188,20 @@ export function normalizeResendEmail(
   );
 
   const sender = extractEmailAddress(value.from);
-  const recipientRaw = Array.isArray(value.to) ? value.to[0] : value.to;
-  const recipient = extractEmailAddress(recipientRaw);
+  const rawTo = Array.isArray(value.to) ? value.to : [value.to];
+  const rawCc = Array.isArray(value.cc) ? value.cc : value.cc ? [value.cc] : [];
+  const rawReceivedFor = Array.isArray(value.received_for) ? value.received_for : value.received_for ? [value.received_for] : [];
+  const allRecipientStrings = [...rawTo, ...rawCc, ...rawReceivedFor];
+  const recipients = allRecipientStrings
+    .map(r => {
+      try {
+        return extractEmailAddress(r);
+      } catch {
+        return null;
+      }
+    })
+    .filter((r): r is string => Boolean(r));
+  const primaryRecipient = recipients[0] ?? extractEmailAddress(rawTo[0]);
 
   const headerDate = getHeaderValue(value.headers, "date");
   let sentAt: string | null = null;
@@ -187,27 +232,49 @@ export function normalizeResendEmail(
 
   const spamStatus = getHeaderValue(value.headers, "x-spam-status")?.toLowerCase();
   const spamTests = getHeaderValue(value.headers, "x-spam-tests")?.split(/[,\s]+/) ?? [];
-  const authResults = getHeaderValue(value.headers, "authentication-results")?.toLowerCase() ?? "";
+  const authResultsList = [
+    ...getHeaderValues(value.headers, "authentication-results"),
+    ...getHeaderValues(value.headers, "arc-authentication-results"),
+  ].map(s => s.toLowerCase());
+  const authResults = authResultsList.join("\n");
 
   const spamFailed = spamStatus?.startsWith("yes") === true;
   const dkimFailed = /\bdkim=fail\b/.test(authResults);
   const dkimValidAu = spamTests.includes("DKIM_VALID_AU") && spamStatus?.startsWith("no") === true;
-  const dkimPassed = /\bdkim=pass\b/.test(authResults);
+  const dkimPassed = authResultsList.some(r => /\bdkim=pass\b/.test(r));
 
   const deliveryAuthenticated = !spamFailed && !dkimFailed && (dkimValidAu || dkimPassed);
+
+  const linkMatches = [...`${textBody}\n${htmlBody}`.matchAll(/https:\/\/[^\s<>"\]]+/gi)].map(m => m[0].replace(/[.,;)>\]]+$/, ""));
+  const links = [...new Set(linkMatches)];
+
+  const attachments = (value.attachments ?? []).map(a => ({
+    id: a.id,
+    filename: a.filename,
+    contentType: a.content_type ?? a.contentType,
+    contentDisposition: a.content_disposition ?? a.contentDisposition,
+    size: a.size,
+  }));
 
   return {
     provider: "resend",
     sourceMessageId,
+    providerEmailId: sourceMessageId,
     originalMessageId,
+    messageId: originalMessageId,
     sender,
-    recipient,
+    from: sender,
+    recipient: primaryRecipient,
+    to: recipients.length > 0 ? recipients : [primaryRecipient],
+    recipients,
     subject: value.subject,
     receivedAt,
     sentAt,
     text: textBody,
     html: htmlBody,
     normalizedText,
+    links,
+    attachments,
     deliveryAuthenticated,
     forwarded,
   };

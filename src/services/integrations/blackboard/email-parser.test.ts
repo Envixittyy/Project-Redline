@@ -332,4 +332,46 @@ describe("Mapúa Production Blackboard Templates", () => {
       expect(result.sourceKey).not.toContain("data");
     });
   });
+
+  describe("Subject heuristics & Actionable notifications", () => {
+    it("extracts courseHint and baseCourseCode from bracketed subject when body lacks course label", () => {
+      const email = assignmentEmail({
+        Subject: "[CS101_A1_1Q2627] New assignment: Binary Search Tree",
+        TextBody: "Item Type: Assignment\nTitle: Binary Search Tree\nDue Date: September 28, 2026 at 11:59 PM Asia/Manila\nhttps://learn.example.edu/webapps/assignment?course_id=_101_1&content_id=_501_1",
+      });
+      const result = parse(email);
+      expect(result.status).toBe("parsed");
+      expect(result.courseHint).toBe("CS101_A1_1Q2627");
+      expect(result.baseCourseCode).toBe("CS101");
+      expect(result.title).toBe("Binary Search Tree");
+    });
+
+    it("extracts courseHint and title from dash prefix in subject", () => {
+      const email = assignmentEmail({
+        Subject: "CS101 - New quiz: Midterm Prep",
+        TextBody: "Due Date: October 2, 2026 at 11:59 PM Asia/Manila\nhttps://learn.example.edu/webapps/assessment?course_id=_101_1&assessment_id=_601_1",
+      });
+      const result = parse(email);
+      expect(result.status).toBe("parsed");
+      expect(result.courseHint).toBe("CS101");
+      expect(result.itemType).toBe("quiz");
+      expect(result.title).toBe("Midterm Prep");
+    });
+
+    it("correctly identifies structural heading announcement", () => {
+      const email = assignmentEmail({
+        Subject: "Blackboard Notification",
+        TextBody: `CS101_A1_1Q2627
+COMPUTER SCIENCE 1
+New announcement
+Schedule for Lab Consultations
+Please check the calendar for consultations.
+https://learn.example.edu/announcement?course_id=_101_1&announcement_id=_701_1`,
+      });
+      const result = parse(email);
+      expect(result.status).toBe("parsed");
+      expect(result.itemType).toBe("announcement");
+      expect(result.title).toBe("Schedule for Lab Consultations");
+    });
+  });
 });

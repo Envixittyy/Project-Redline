@@ -30,10 +30,15 @@ export type BlackboardEmailStatus = {
  */
 export function isBlackboardEmailConfigured(): boolean {
   const hosts = (process.env.SCHOOL_BLACKBOARD_HOSTS ?? "").trim();
-  const hasWebhookSecret = Boolean(
-    process.env.RESEND_INBOUND_WEBHOOK_SECRET || process.env.POSTMARK_INBOUND_WEBHOOK_SECRET,
+  const hasResendConfig = Boolean(
+    process.env.RESEND_WEBHOOK_SECRET && process.env.RESEND_API_KEY,
   );
-  return Boolean(hosts && hasWebhookSecret);
+  const hasLegacySecret = Boolean(
+    process.env.RESEND_INBOUND_WEBHOOK_SECRET ||
+      process.env.POSTMARK_INBOUND_WEBHOOK_SECRET ||
+      (process.env.POSTMARK_WEBHOOK_USERNAME && process.env.POSTMARK_WEBHOOK_PASSWORD),
+  );
+  return Boolean(hosts && (hasResendConfig || hasLegacySecret));
 }
 
 export async function getBlackboardStatus(): Promise<BlackboardEmailStatus> {
@@ -73,7 +78,12 @@ export async function getBlackboardStatus(): Promise<BlackboardEmailStatus> {
   for (const event of events) {
     if (event.status === "processed") {
       eventCounts.processed += 1;
-    } else if (event.status.startsWith("unresolved_")) {
+    } else if (
+      event.status.startsWith("unresolved_") ||
+      event.status === "needs_review" ||
+      event.status === "malformed" ||
+      event.status === "unknown_type"
+    ) {
       eventCounts.unresolved += 1;
       if (event.status === "unresolved_course") {
         courseMappingIssues.push(event);

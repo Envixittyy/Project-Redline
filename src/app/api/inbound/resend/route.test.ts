@@ -339,4 +339,69 @@ https://learn.example.edu/webapps/assignment/uploadAssignment?course_id=_101_1&c
     });
     expect((await POST(oversized)).status).toBe(413);
   });
+
+  it("15. matches recipient when configured address is in received_for or secondary in to array", async () => {
+    const multiRecPayload = resendWebhookPayload({
+      to: ["student@example.edu", "secondary@example.edu"],
+      received_for: ["school@inbound.example.com"],
+    });
+    const response = await POST(createSignedRequest(multiRecPayload));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, status: "processed" });
+    expect(rpc).toHaveBeenCalled();
+  });
+
+  it("16. processes quiz and material notifications with appropriate classifications", async () => {
+    // Quiz
+    const quizPayload = resendWebhookPayload({
+      subject: "New quiz: Quiz 1 - Logic",
+      text: "Course: CS101\nItem Type: Quiz\nTitle: Quiz 1 - Logic\nDue Date: September 20, 2026 at 11:59 PM Asia/Manila\nhttps://learn.example.edu/webapps/assessment/take?course_id=_101_1&assessment_id=_301_1",
+    });
+    const quizRes = await POST(createSignedRequest(quizPayload));
+    expect(quizRes.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith(
+      "ingest_school_email",
+      expect.objectContaining({
+        p_event: expect.objectContaining({
+          itemType: "quiz",
+          title: "Quiz 1 - Logic",
+        }),
+      })
+    );
+
+    // Material
+    const materialPayload = resendWebhookPayload({
+      subject: "New content: Lecture 2 Slides",
+      text: "Course: CS101\nItem Type: Material\nTitle: Lecture 2 Slides\nhttps://learn.example.edu/webapps/blackboard/content?course_id=_101_1&content_id=_401_1",
+    });
+    const matRes = await POST(createSignedRequest(materialPayload));
+    expect(matRes.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith(
+      "ingest_school_email",
+      expect.objectContaining({
+        p_event: expect.objectContaining({
+          itemType: "material",
+          title: "Lecture 2 Slides",
+        }),
+      })
+    );
+  });
+
+  it("17. classifies course opened notice and preserves course title", async () => {
+    const openPayload = resendWebhookPayload({
+      subject: "Course is now available: CS101",
+      text: "Course: CS101\nWelcome to your course.",
+    });
+    const response = await POST(createSignedRequest(openPayload));
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith(
+      "ingest_school_email",
+      expect.objectContaining({
+        p_event: expect.objectContaining({
+          itemType: "course_opened",
+          title: "CS101",
+        }),
+      })
+    );
+  });
 });

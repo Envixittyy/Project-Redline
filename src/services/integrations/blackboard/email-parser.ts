@@ -90,9 +90,9 @@ function extractLink(email: NormalizedInboundEmail, hosts: string[]): { ambiguou
       }
       url.searchParams.sort();
 
-      // Handle nested Blackboard new_loc if present
+      // Handle nested Blackboard new_loc or url if present
       let nestedParams: URLSearchParams | null = null;
-      const rawNewLoc = url.searchParams.get("new_loc");
+      const rawNewLoc = url.searchParams.get("new_loc") ?? url.searchParams.get("url");
       if (rawNewLoc) {
         let decodedLoc = rawNewLoc;
         if (decodedLoc.includes("%")) {
@@ -161,7 +161,7 @@ function extractLink(email: NormalizedInboundEmail, hosts: string[]): { ambiguou
       } else if (announcementId) {
         itemKey = `announcement_id:${announcementId}`;
       } else if (pathItem) {
-        itemKey = pathItem;
+        itemKey = pathItem.startsWith("_") ? `content_id:${pathItem}` : pathItem;
       }
 
       const itemUrl = /\/(?:content|assignment|assessment|announcement|item|resource|quiz|exam)(?:\/|$)/i.test(url.pathname);
@@ -216,15 +216,15 @@ function classify(subject: string, text: string, structuralHeading?: string | nu
 
   // Informational headings take precedence over assignment words in prose.
   if (/\bannouncement\b/i.test(`${subject}\n${explicit ?? ""}\n${structuralHeading ?? ""}`)) itemType = "announcement";
-  else if (/\b(material|reading|lecture slides|resource|content available|content added|new content|course document)\b/i.test(heading)) itemType = "material";
-  else if (/\b(quiz)\b/i.test(heading)) itemType = "quiz";
-  else if (/\b(exam|test)\b/i.test(heading)) itemType = "exam";
-  else if (/\bassignment\b/i.test(heading)) itemType = "assignment";
+  else if (/\b(material|reading|lecture slides|lecture file|resource|content available|content added|new content|course document|module|presentation|uploaded resource|file uploaded|document available|syllabus)\b/i.test(heading)) itemType = "material";
+  else if (/\b(quiz)\b/i.test(heading) || (candidateTitle && /\bquiz\b/i.test(candidateTitle))) itemType = "quiz";
+  else if (/\b(exam|examination|test|prelims|midterm|finals)\b/i.test(heading) || (candidateTitle && /\b(exam|examination|test)\b/i.test(candidateTitle))) itemType = "exam";
+  else if (/\b(assignment|assessment)\b/i.test(heading) || (candidateTitle && /\b(assignment|assessment|activity)\b/i.test(candidateTitle))) itemType = "assignment";
   else if (/\b(?:course (?:is now |has been )?(?:opened|available)|new course (?:is )?available)\b/i.test(heading)) itemType = "course_opened";
 
   notificationType = itemType;
-  if (itemType !== "announcement" && /\b(?:deadline|due date) (?:extension|(?:has been |was )?(?:changed|updated|extended))\b/i.test(heading)) notificationType = "deadline_changed";
-  else if (itemType !== "announcement" && /\b(?:reminder|due soon|upcoming (?:deadline|due date))\b/i.test(subject)) notificationType = "reminder";
+  if (itemType !== "announcement" && (/\b(?:deadline|due date|date) (?:extension|(?:has been |was )?(?:changed|updated|extended|moved|rescheduled|adjusted))\b/i.test(heading) || /\b(?:new deadline|new due date)\b/i.test(heading))) notificationType = "deadline_changed";
+  else if (itemType !== "announcement" && /\b(?:reminder|due soon|upcoming (?:deadline|due date))\b/i.test(`${subject}\n${heading}`)) notificationType = "reminder";
   return { itemType, notificationType };
 }
 
@@ -272,20 +272,34 @@ export function parseBlackboardEmail(email: NormalizedInboundEmail, policy: Blac
     mapuaItemTitleLine = nonBlankLines[mapuaIdx + 3] ?? null;
   }
 
-  // Fallback to bracketed or prefix course code from subject line e.g. "[CS101] New assignment" or "CS101: Assignment"
-  const subjectCourseMatch = effectiveSubject.match(/^\[([A-Za-z0-9_-]+)\]/)?.[1]
-    ?? effectiveSubject.match(/^([A-Za-z]{2,8}\d{1,5}[A-Za-z0-9_-]*)\s*[:\-–]\s*/)?.[1];
+  // Fallback to bracketed or prefix course code from subject line e.g. "[CS101] New assignment", "CS101: Assignment", "CS101 - Assignment"
+  const subjectCourseMatch = effectiveSubject.match(/^\[([A-Za-z0-9 _-]+)\]/)?.[1]
+    ?? effectiveSubject.match(/^([A-Za-z]{2,8}\s*\d{1,5}[A-Za-z0-9_-]*)\s*[:\-–—]\s*/)?.[1];
 
-  const courseHint = label(text, "Course|Course Name|Course Code") ?? mapuaCourseHeader ?? subjectCourseMatch ?? null;
-  const baseCourseCode = extractBaseCourseCode(courseHint);
+  let courseHint = label(text, "Course|Course Name|Course Code") ?? mapuaCourseHeader ?? subjectCourseMatch ?? null;
 
-  const subjectCleaned = effectiveSubject.replace(/^\[[A-Za-z0-9_-]+\]\s*/, "");
-  const subjectTitleMatch = subjectCleaned.match(/(?:(?:new\s+)?(?:assignment|quiz|exam|test|material|announcement)(?:\s+(?:posted|available|created))?|reminder|due date changed|deadline changed)\s*:\s*(.+)$/i)?.[1]?.trim();
+  const subjectCleaned = effectiveSubject
+    .replace(/^\[[A-Za-z0-9 _-]+\]\s*/, "")
+    .replace(/^[A-Za-z]{2,8}\s*\d{1,5}[A-Za-z0-9_-]*\s*[:\-–—]\s*/, "");
 
-  const rawTitle = label(text, "Title|Item|Assignment|Quiz|Exam|Test|Material|Announcement")
-    ?? subjectTitleMatch
-    ?? subjectCleaned.match(/^(?:new\s+)?(?:assignment|quiz|exam|test|material|announcement)(?:\s+(?:posted|available|created))?\s*:\s*(.+)$/i)?.[1]?.trim()
-    ?? mapuaItemTitleLine;
+  const subjectNotifMatch = subjectCleaned.match(
+    /^(?:(?:new\s+)?(?:assignment|assessment|quiz|exam|test|material|announcement|module|presentation|reading|content)(?:\s+(?:posted|available|created))?|reminder|due date (?:changed|moved|updated|extended)|deadline (?:changed|moved|updated|extended))\s*[:\-–—]\s*(.+)$/i
+  );
+
+  let subjectTrailingDue: string | null = null;
+  let subjectTitleCandidate = subjectNotifMatch ? subjectNotifMatch[1].trim() : null;
+  if (subjectTitleCandidate) {
+    const dueMatch = subjectTitleCandidate.match(/\s*[:\-–—]\s*Due(?:\s+Date)?[:\-–—\s]+(.+)$/i);
+    if (dueMatch) {
+      subjectTrailingDue = dueMatch[1].trim();
+      subjectTitleCandidate = subjectTitleCandidate.slice(0, dueMatch.index).trim();
+    }
+  }
+
+  const rawTitle = label(text, "Title|Item|Assignment|Quiz|Exam|Test|Material|Announcement|Assessment")
+    ?? subjectTitleCandidate
+    ?? mapuaItemTitleLine
+    ?? (subjectCleaned !== effectiveSubject ? subjectCleaned : null);
 
   let title = rawTitle;
   let extractedWeight: number | null = null;
@@ -297,6 +311,22 @@ export function parseBlackboardEmail(email: NormalizedInboundEmail, policy: Blac
     }
   }
 
+  // If courseHint was not explicitly labeled, check if title starts with a course name candidate
+  // e.g. "Ethics Activity 4" -> courseHint = "Ethics", title = "Ethics Activity 4"
+  if (!courseHint && title) {
+    const courseTitleMatch = title.match(/^([A-Za-z]{2,8}\s*\d{1,5}|[A-Za-z]+)\s*[:\-–—]\s*(.+)$/);
+    if (courseTitleMatch) {
+      courseHint = courseTitleMatch[1].trim();
+      title = courseTitleMatch[2].trim();
+    } else {
+      const impliedCourse = title.match(/^([A-Za-z]{2,8}\s*\d{1,5}|[A-Za-z]+)\s+(?:Activity|Assignment|Quiz|Exam|Test|Problem Set|Lab|Homework|Module|Chapter)\s+\d+/i);
+      if (impliedCourse) {
+        courseHint = impliedCourse[1].trim();
+      }
+    }
+  }
+
+  const baseCourseCode = extractBaseCourseCode(courseHint);
   const type = classify(effectiveSubject, text, mapuaNotificationHeading, title);
   const links = extractLink({ ...email, normalizedText: text }, policy.hosts);
 
@@ -305,8 +335,9 @@ export function parseBlackboardEmail(email: NormalizedInboundEmail, policy: Blac
   }
 
   const dueText = (type.notificationType === "deadline_changed" ? label(text, "New Due Date|New Deadline") : null)
-    ?? label(text, "Due Date|Deadline|Due");
-  const deadline = parseEmailDeadline(dueText, policy.timeZone);
+    ?? label(text, "Due Date|Deadline|Due")
+    ?? subjectTrailingDue;
+  const deadline = parseEmailDeadline(dueText, policy.timeZone, sourceAt ?? email.receivedAt);
 
   const weightText = label(text, "Weight|Grade Weight|Weighting");
   const weight = extractedWeight ?? (weightText?.match(/^(\d+(?:\.\d+)?)\s*%$/)?.[1] !== undefined ? Number(weightText.match(/^(\d+(?:\.\d+)?)\s*%$/)![1]) : undefined);

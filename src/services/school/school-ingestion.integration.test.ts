@@ -70,7 +70,7 @@ describe("School email through actual PostgreSQL migrations", () => {
   }, 60000);
   afterAll(async () => { await db?.close(); });
   beforeEach(async () => {
-    await db.exec("reset role; delete from school_email_events; delete from school_items; delete from school_course_mappings; delete from tasks; delete from courses;");
+    await db.exec("reset role; delete from school_email_events; delete from school_items; delete from school_course_mappings; delete from tasks; delete from courses; delete from course_materials; delete from external_records; delete from integration_accounts;");
     course = (await db.query<{ id: string }>("insert into courses(user_id,code,name) values($1,'CS101','Computer Science') returning id", [owner])).rows[0].id;
     await db.exec("set role service_role");
   });
@@ -787,6 +787,252 @@ describe("School email through actual PostgreSQL migrations", () => {
       expect(reprocessed.itemId).toBeTruthy();
       expect(reprocessed.taskId).toBeTruthy();
       expect((await rows())[0].title).toBe("Unmatched Course Task");
+    });
+  });
+
+  describe("Blackboard Calendar S2 and Email Reconciliation & Enhanced Matching", () => {
+    it("Calendar S2 imports MATH Quiz 3 due Oct 4 -> email arrives 'Quiz 3 available' -> ONE Redline Quiz 3 (no duplicate, same task)", async () => {
+      const mathCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'MATH101','Mathematics') returning id",
+        [owner],
+      )).rows[0].id;
+
+      // Existing task created from Calendar S2
+      const task = (await db.query<{ id: string }>(
+        "insert into tasks(user_id,title,status,priority,due_date,course_id) values($1,'MATH Quiz 3','inbox','none','2026-10-04',$2) returning id",
+        [owner, mathCourse],
+      )).rows[0].id;
+
+      // Existing school item from Calendar S2
+      const s2Item = (await db.query<{ id: string }>(
+        "insert into school_items(user_id,course_id,item_type,title,title_key,source_key,due_date,task_id,task_created) values($1,$2,'quiz','MATH Quiz 3','math quiz 3','blackboard-cal-math-quiz-3','2026-10-04',$3,true) returning id",
+        [owner, mathCourse, task],
+      )).rows[0].id;
+
+      // Email notification arrives: "New quiz: Quiz 3 available"
+      const email = assignmentEmail({
+        MessageID: "email-quiz-3-avail",
+        Subject: "[MATH101] New quiz: Quiz 3 available",
+        TextBody: "Course: MATH101\nItem Type: Quiz\nTitle: Quiz 3\nDue Date: October 4, 2026 at 11:59 PM Asia/Manila\nhttps://learn.example.edu/webapps/assessment/take?course_id=_101_1&assessment_id=_401_1",
+      });
+
+      const res = await ingest(email);
+      expect(res.status).toBe("processed");
+      expect(res.itemId).toBe(s2Item);
+      expect(res.taskId).toBe(task);
+
+      // Verify no duplicates were created
+      const allTasks = (await db.query<{ id: string; title: string; due_date: string }>(
+        "select id, title, due_date::text from tasks where course_id=$1",
+        [mathCourse],
+      )).rows;
+      expect(allTasks).toHaveLength(1);
+      expect(allTasks[0].id).toBe(task);
+
+      const allItems = (await db.query<{ id: string; title: string; task_id: string }>(
+        "select id, title, task_id from school_items where course_id=$1",
+        [mathCourse],
+      )).rows;
+      expect(allItems).toHaveLength(1);
+      expect(allItems[0].id).toBe(s2Item);
+      expect(allItems[0].task_id).toBe(task);
+    });
+
+    it("Calendar S2 imports MATH Quiz 3 due Oct 4 -> email arrives 'Quiz 3 deadline moved to Oct 6' -> ONE Redline Quiz 3 with updated deadline", async () => {
+      const mathCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'MATH101','Mathematics') returning id",
+        [owner],
+      )).rows[0].id;
+
+      const task = (await db.query<{ id: string }>(
+        "insert into tasks(user_id,title,status,priority,due_date,course_id) values($1,'MATH Quiz 3','inbox','none','2026-10-04',$2) returning id",
+        [owner, mathCourse],
+      )).rows[0].id;
+
+      const s2Item = (await db.query<{ id: string }>(
+        "insert into school_items(user_id,course_id,item_type,title,title_key,source_key,due_date,task_id,task_created) values($1,$2,'quiz','MATH Quiz 3','math quiz 3','blackboard-cal-math-quiz-3','2026-10-04',$3,true) returning id",
+        [owner, mathCourse, task],
+      )).rows[0].id;
+
+      const email = assignmentEmail({
+        MessageID: "email-quiz-3-deadline-chg",
+        Subject: "Due date moved: Quiz 3",
+        TextBody: "Course: MATH101\nItem Type: Quiz\nTitle: Quiz 3\nNew Due Date: October 6, 2026 at 11:59 PM Asia/Manila\nhttps://learn.example.edu/webapps/assessment/take?course_id=_101_1&assessment_id=_401_1",
+      });
+
+      const res = await ingest(email);
+      expect(res.status).toBe("processed");
+      expect(res.itemId).toBe(s2Item);
+      expect(res.taskId).toBe(task);
+
+      // Verify deadline updated on both tasks and school_items
+      const updatedTask = (await db.query<{ due_date: string }>(
+        "select due_date::text from tasks where id=$1",
+        [task],
+      )).rows[0];
+      expect(updatedTask.due_date).toBe("2026-10-06");
+
+      const updatedItem = (await db.query<{ due_date: string }>(
+        "select due_date::text from school_items where id=$1",
+        [s2Item],
+      )).rows[0];
+      expect(updatedItem.due_date).toBe("2026-10-06");
+
+      expect((await db.query("select id from tasks where course_id=$1", [mathCourse])).rows).toHaveLength(1);
+    });
+
+    it("reconciles via external_records link when calendar external record exists", async () => {
+      const cpeCourse = (await db.query<{ id: string }>(
+        "insert into courses(user_id,code,name) values($1,'CPE201','Embedded Systems') returning id",
+        [owner],
+      )).rows[0].id;
+
+      const task = (await db.query<{ id: string }>(
+        "insert into tasks(user_id,title,status,priority,due_date,course_id) values($1,'Lab 1: GPIO','inbox','none','2026-10-15',$2) returning id",
+        [owner, cpeCourse],
+      )).rows[0].id;
+
+      const item = (await db.query<{ id: string }>(
+        "insert into school_items(user_id,course_id,item_type,title,title_key,source_key,due_date,task_id,task_created) values($1,$2,'assignment','Lab 1: GPIO','lab 1 gpio','cpe-lab-1-cal','2026-10-15',$3,true) returning id",
+        [owner, cpeCourse, task],
+      )).rows[0].id;
+
+      // Existing external record from Blackboard calendar snapshot
+      const account = (await db.query<{ id: string }>(
+        "insert into integration_accounts(user_id,provider,encrypted_credential) values($1,'blackboard','fake-token') returning id",
+        [owner],
+      )).rows[0].id;
+
+      await db.query(
+        "insert into external_records(user_id,account_id,provider,external_uid,task_id,course_id,normalized_title,source_url,content_hash) values($1,$2,'blackboard','blackboard-cal-ext-gpio',$3,$4,'Lab 1: GPIO','https://learn.example.edu/gpio',repeat('a', 64))",
+        [owner, account, task, cpeCourse],
+      );
+
+      const email = assignmentEmail({
+        MessageID: "email-lab1-gpio",
+        Subject: "New assignment: Lab 1: GPIO",
+        TextBody: "Course: CPE201\nItem Type: Assignment\nTitle: Lab 1: GPIO\nDue Date: October 15, 2026 at 11:59 PM Asia/Manila\nhttps://learn.example.edu/gpio",
+      });
+
+      const res = await ingest(email);
+      expect(res.status).toBe("processed");
+      expect(res.itemId).toBe(item);
+      expect(res.taskId).toBe(task);
+      expect((await db.query("select id from tasks where course_id=$1", [cpeCourse])).rows).toHaveLength(1);
+    });
+
+    it("course matching: CPE 123 matches CPE123", async () => {
+      await db.query("insert into courses(user_id,code,name) values($1,'CPE123','Computer Engineering')", [owner]);
+      const email = assignmentEmail({
+        MessageID: "msg-cpe-space",
+        TextBody: "Course: CPE 123\nItem Type: Assignment\nTitle: Activity 1\nDue Date: 2026-10-10\nhttps://learn.example.edu/cpe1",
+      });
+      const res = await ingest(email);
+      expect(res.status).toBe("processed");
+      expect((await rows())[0].title).toBe("Activity 1");
+    });
+
+    it("course matching: CPE123 matches CPE 123", async () => {
+      await db.query("insert into courses(user_id,code,name) values($1,'CPE 123','Computer Engineering')", [owner]);
+      const email = assignmentEmail({
+        MessageID: "msg-cpe-nospace",
+        TextBody: "Course: CPE123\nItem Type: Assignment\nTitle: Activity 2\nDue Date: 2026-10-10\nhttps://learn.example.edu/cpe2",
+      });
+      const res = await ingest(email);
+      expect(res.status).toBe("processed");
+      expect((await rows())[0].title).toBe("Activity 2");
+    });
+
+    it("course matching: CPE 123 - Computer Engineering matches CPE123", async () => {
+      await db.query("insert into courses(user_id,code,name) values($1,'CPE123','Computer Engineering')", [owner]);
+      const email = assignmentEmail({
+        MessageID: "msg-cpe-dash",
+        TextBody: "Course: CPE 123 - Computer Engineering\nItem Type: Assignment\nTitle: Activity 3\nDue Date: 2026-10-10\nhttps://learn.example.edu/cpe3",
+      });
+      const res = await ingest(email);
+      expect(res.status).toBe("processed");
+      expect((await rows())[0].title).toBe("Activity 3");
+    });
+
+    it("course matching: Computer Engineering 123 matches course named Computer Engineering", async () => {
+      await db.query("insert into courses(user_id,code,name) values($1,'CPE-CE','Computer Engineering')", [owner]);
+      const email = assignmentEmail({
+        MessageID: "msg-cpe-name-number",
+        TextBody: "Course: Computer Engineering 123\nItem Type: Assignment\nTitle: Activity 4\nDue Date: 2026-10-10\nhttps://learn.example.edu/cpe4",
+      });
+      const res = await ingest(email);
+      expect(res.status).toBe("processed");
+      expect((await rows())[0].title).toBe("Activity 4");
+    });
+
+    it("course matching: ambiguous course codes fail safely to unresolved_course", async () => {
+      await db.query("insert into courses(user_id,code,name) values($1,'CPE123','Computer Engineering A')", [owner]);
+      await db.query("insert into courses(user_id,code,name) values($1,'CPE 123','Computer Engineering B')", [owner]);
+      const email = assignmentEmail({
+        MessageID: "msg-ambiguous-cpe",
+        TextBody: "Course: CPE 123\nItem Type: Assignment\nTitle: Activity Ambiguous\nDue Date: 2026-10-10\nhttps://learn.example.edu/cpe-amb",
+      });
+      const res = await ingest(email);
+      expect(res.status).toBe("unresolved_course");
+      expect(res.itemId).toBeNull();
+      expect(res.taskId).toBeNull();
+    });
+
+    it("course material mirroring: creates row in school_items AND course_materials, with NO task", async () => {
+      const email = assignmentEmail({
+        MessageID: "msg-mat-mirror",
+        Subject: "New course material available: Chapter 4 Slides",
+        TextBody: "Course: CS101\nItem Type: Material\nTitle: Chapter 4 Slides\nhttps://learn.example.edu/webapps/blackboard/content?course_id=_101_1&content_id=_901_1",
+      });
+      const res = await ingest(email);
+      expect(res.status).toBe("processed");
+      expect(res.itemId).toBeTruthy();
+      expect(res.taskId).toBeNull();
+
+      // Verify no task was created
+      const tasks = (await db.query("select id from tasks")).rows;
+      expect(tasks).toHaveLength(0);
+
+      // Verify course_materials table received the mirrored material
+      const materials = (await db.query<{ id: string; title: string; type: string; url: string }>(
+        "select id, title, type, url from course_materials",
+      )).rows;
+      expect(materials).toHaveLength(1);
+      expect(materials[0]).toMatchObject({
+        title: "Chapter 4 Slides",
+        type: "document",
+      });
+      expect(materials[0].url).toContain("content_id=_901_1");
+    });
+
+    it("announcement processing: informational creates item only, actionable with deadline creates item and task", async () => {
+      // 1. Informational announcement
+      const infoEmail = assignmentEmail({
+        MessageID: "msg-ann-info",
+        Subject: "Announcement: Welcome to Class",
+        TextBody: "Course: CS101\nItem Type: Announcement\nTitle: Welcome to Class\nWelcome to CS101, syllabus is posted.\nhttps://learn.example.edu/announcement?course_id=_101_1&announcement_id=_801_1",
+      });
+      const infoRes = await ingest(infoEmail);
+      expect(infoRes.status).toBe("processed");
+      expect(infoRes.taskId).toBeNull();
+      expect((await db.query("select id from tasks")).rows).toHaveLength(0);
+
+      // 2. Actionable announcement with explicit deadline
+      const actEmail = assignmentEmail({
+        MessageID: "msg-ann-actionable",
+        Subject: "Announcement: Complete Survey by Friday",
+        TextBody: "Course: CS101\nItem Type: Announcement\nTitle: Complete Survey by Friday\nDue Date: September 25, 2026 at 11:59 PM Asia/Manila\nhttps://learn.example.edu/announcement?course_id=_101_1&announcement_id=_802_1",
+      });
+      const actRes = await ingest(actEmail);
+      expect(actRes.status).toBe("processed");
+      expect(actRes.taskId).toBeTruthy();
+
+      const tasks = (await db.query<{ id: string; title: string; due_date: string }>("select id, title, due_date::text from tasks")).rows;
+      expect(tasks).toHaveLength(1);
+      expect(tasks[0]).toMatchObject({
+        title: "Complete Survey by Friday",
+        due_date: "2026-09-25",
+      });
     });
   });
 });

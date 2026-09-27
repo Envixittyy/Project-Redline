@@ -373,5 +373,123 @@ https://learn.example.edu/announcement?course_id=_101_1&announcement_id=_701_1`,
       expect(result.itemType).toBe("announcement");
       expect(result.title).toBe("Schedule for Lab Consultations");
     });
+
+    it("parses prompt specification: New assignment — Ethics Activity 4 — Due Friday 11:59 PM", () => {
+      const email = assignmentEmail({
+        Subject: "New assignment — Ethics Activity 4 — Due Friday 11:59 PM",
+        Date: "Tue, 8 Sep 2026 10:00:00 +0800",
+        TextBody: `Course: Ethics
+Title: Ethics Activity 4
+Due Date: Friday 11:59 PM
+https://learn.example.edu/webapps/assignment?course_id=_101_1&content_id=_999_1`,
+      });
+      const result = parse(email);
+      expect(result.status).toBe("parsed");
+      expect(result.courseHint).toBe("Ethics");
+      expect(result.title).toBe("Ethics Activity 4");
+      expect(result.itemType).toBe("assignment");
+      expect(result.dueDate).toBe("2026-09-11");
+      expect(result.dueAt).toBeTruthy();
+    });
+
+    it("extracts title and trailing due date directly from subject with em-dashes", () => {
+      const email = assignmentEmail({
+        Subject: "New assignment — Ethics Activity 4 — Due Friday 11:59 PM",
+        Date: "Tue, 8 Sep 2026 10:00:00 +0800",
+        TextBody: `Course: Ethics
+https://learn.example.edu/webapps/assignment?course_id=_101_1&content_id=_999_1`,
+      });
+      const result = parse(email);
+      expect(result.status).toBe("parsed");
+      expect(result.title).toBe("Ethics Activity 4");
+      expect(result.dueDate).toBe("2026-09-11");
+      expect(result.duePrecision).toBe("instant");
+    });
+
+    it("parses day-first date format: 15 September 2026 at 11:59 PM Asia/Manila", () => {
+      const email = assignmentEmail({
+        TextBody: `Course: CS101
+Title: Day First Assignment
+Due Date: 15 September 2026 at 11:59 PM Asia/Manila
+https://learn.example.edu/webapps/assignment?course_id=_101_1&content_id=_901_1`,
+      });
+      const result = parse(email);
+      expect(result.status).toBe("parsed");
+      expect(result.dueDate).toBe("2026-09-15");
+      expect(result.duePrecision).toBe("instant");
+    });
+
+    it("handles month/year boundary when year is omitted in December for January deadline", () => {
+      const email = assignmentEmail({
+        Date: "Sun, 27 Dec 2026 10:00:00 +0800",
+        TextBody: `Course: CS101
+Title: New Year Reflection
+Due Date: January 15 at 11:59 PM Asia/Manila
+https://learn.example.edu/webapps/assignment?course_id=_101_1&content_id=_902_1`,
+      });
+      const result = parse(email);
+      expect(result.status).toBe("parsed");
+      expect(result.dueDate).toBe("2027-01-15");
+    });
+
+    it("classifies assessment according to rich types: exam, quiz, assignment", () => {
+      const examEmail = assignmentEmail({
+        Subject: "New assessment: Midterm Examination",
+        TextBody: "Course: CS101\nhttps://learn.example.edu/webapps/assessment?course_id=_101_1&assessment_id=_903_1",
+      });
+      expect(parse(examEmail).itemType).toBe("exam");
+
+      const quizEmail = assignmentEmail({
+        Subject: "Assessment available: Knowledge Check Quiz 1",
+        TextBody: "Course: CS101\nhttps://learn.example.edu/webapps/assessment?course_id=_101_1&assessment_id=_904_1",
+      });
+      expect(parse(quizEmail).itemType).toBe("quiz");
+
+      const assignEmail = assignmentEmail({
+        Subject: "New assessment: Problem Set 1",
+        TextBody: "Course: CS101\nhttps://learn.example.edu/webapps/assessment?course_id=_101_1&assessment_id=_905_1",
+      });
+      expect(parse(assignEmail).itemType).toBe("assignment");
+    });
+
+    it("classifies modules, presentations, and readings as course materials", () => {
+      const moduleEmail = assignmentEmail({
+        Subject: "New module: Module 4 - Memory Management",
+        TextBody: "Course: CS101\nhttps://learn.example.edu/webapps/blackboard/content?course_id=_101_1&content_id=_906_1",
+      });
+      expect(parse(moduleEmail).itemType).toBe("material");
+
+      const presentationEmail = assignmentEmail({
+        Subject: "New presentation: Chapter 5 Slides",
+        TextBody: "Course: CS101\nhttps://learn.example.edu/webapps/blackboard/content?course_id=_101_1&content_id=_907_1",
+      });
+      expect(parse(presentationEmail).itemType).toBe("material");
+    });
+
+    it("recognizes moved and rescheduled deadline phrases", () => {
+      const movedEmail = assignmentEmail({
+        Subject: "Due date moved: Assignment 1",
+        Date: "Wed, 9 Sep 2026 10:00:00 +0800",
+        TextBody: `Course: CS101
+Title: Assignment 1
+New Due Date: September 22, 2026 at 11:59 PM Asia/Manila
+https://learn.example.edu/webapps/assignment?course_id=_101_1&content_id=_201_1`,
+      });
+      const result = parse(movedEmail);
+      expect(result.status).toBe("parsed");
+      expect(result.notificationType).toBe("deadline_changed");
+      expect(result.dueDate).toBe("2026-09-22");
+    });
+
+    it("extracts nested IDs from url= parameter in launcher URLs", () => {
+      const launcherEmail = assignmentEmail({
+        TextBody: `Course: CS101
+Title: Launcher Quiz
+https://learn.example.edu/webapps/blackboard/execute/launcher?type=Course&id=_101_1&url=%2Fwebapps%2Fblackboard%2Fcontent%2FlaunchAssessment.jsp%3Fcourse_id%3D_101_1%26content_id%3D_998_1`,
+      });
+      const result = parse(launcherEmail);
+      expect(result.courseKey).toBe("learn.example.edu:_101_1");
+      expect(result.sourceKey).toBe("learn.example.edu:content_id:_998_1");
+    });
   });
 });
